@@ -47,8 +47,6 @@ class TestMCPAndOpenAIEndpoints(unittest.TestCase):
         mock_search.return_value = {
             "success": True,
             "results": [{"position": 1, "title": "Search Title", "url": "https://example.com", "snippet": "desc", "citation": "[Search Title](https://example.com)"}],
-            "content": "Search Title\ndesc",
-            "data": {"web": [{"title": "Search Title", "url": "https://example.com", "description": "desc", "position": 1}]},
             "warning": None,
         }
         payload = {

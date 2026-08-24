@@ -38,7 +38,7 @@ tools:
 search:
   searxng_url: http://searxng:8080   # service name on the shared docker network
   default_lang: en-US     # language passed to SearXNG
-  engines: [google, qwant, brave, bing, yahoo, duckduckgo, startpage, reddit]  # default engine filter
+  engines: [google, qwant, brave, bing, duckduckgo, startpage, reddit]  # default engine filter
   available_engines: [google, qwant, qwant news, brave, bing, startpage, duckduckgo, reddit, wikipedia, youtube, github, searxng, yahoo, wikidata] # engines available on your SearXNG instance
   timeout: 15              # seconds per search
   default_limit: 10        # default number of search results returned
