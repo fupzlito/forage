@@ -24,4 +24,7 @@ ENV FORAGE_CONFIG=/etc/forage/config.yaml
 
 EXPOSE 3672
 
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD curl -sf http://localhost:3672/health || exit 1
+
 CMD ["python", "-m", "app.main"]

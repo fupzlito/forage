@@ -843,20 +843,8 @@ async def extract_url(
     favicon = get_favicon_url(domain)
     extracted_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     cit_style = getattr(config.extract, "citation_style", "site_name")
-    citation_markdown = format_citation(title, domain, original_url, position=1, style=cit_style)
+    citation_markdown = format_citation(title, domain, original_url, position=position, style=cit_style)
 
-    citation_footer = (
-        f"\n\n📌 CITATION GUIDANCE:\n"
-        f"1. NO PREPOSITIONS IN HYPERLINKS: Do NOT put words like 'per', 'via', or 'according to' INSIDE hyperlink brackets. Keep prepositions outside as plain text, e.g. 'per {citation_markdown}', NEVER '[per Site Name](url)'.\n"
-        f"2. CITATION FORMATS: You can link capitalized site names (e.g. {citation_markdown}) OR anchor links to descriptive nouns like [repo](url), [channel](url), or [docs](url) (e.g. 'per its own [repo](url)').\n"
-        f"3. SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Operations resumed on Friday. {citation_markdown}').\n"
-        "4. UNCITED SOURCES FOOTER: If an extracted source was used to inform your response but was NOT cited inline, list it under a 'Sources' heading at the very bottom of your message.\n"
-        "5. NO DUPLICATION: Do NOT list a source in the bottom 'Sources' list if it was already cited inline in your text."
-    )
-    if citation_footer not in content:
-        content = content.strip() + f"\n\n{citation_footer}"
-    if citation_footer not in raw_content:
-        raw_content = raw_content.strip() + f"\n\n{citation_footer}"
 
     result: Dict[str, Any] = {
         "position": position,
@@ -867,8 +855,6 @@ async def extract_url(
         "citation": citation_markdown,
         "method": method,
         "id": position,
-        "source_id": str(position),
-        "name": title or domain or original_url,
         "favicon": favicon,
         "extracted_at": extracted_at,
     }

@@ -24,10 +24,10 @@ class TestPrompts(unittest.TestCase):
         search_tool = next(t for t in tools if t["name"] == "web_search")
         extract_tool = next(t for t in tools if t["name"] == "web_extract")
 
-        self.assertIn("Perform a web search using SearXNG", search_tool["description"])
-        self.assertIn("THE CURRENT YEAR IS 2026", search_tool["description"])
-        self.assertIn("📌 CITATION GUIDANCE", search_tool["description"])
-        self.assertIn("Fetch and extract clean markdown content", extract_tool["description"])
+        self.assertIn("Search the web via SearXNG", search_tool["description"])
+        self.assertIn("year 2026", search_tool["description"])
+        self.assertIn("CITATION RULES", search_tool["description"])
+        self.assertIn("Fetch and extract clean markdown", extract_tool["description"])
 
     def test_custom_prompt_override(self):
         raw_dict = {

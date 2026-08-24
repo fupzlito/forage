@@ -87,20 +87,19 @@ DEFAULTS: Dict[str, Any] = {
     "prompts": {
         "prompts_path": None,
         "citation_guidelines": (
-            "📌 CITATION GUIDANCE: "
-            "1) NO PREPOSITIONS IN HYPERLINKS: Do NOT put words like 'per', 'via', or 'according to' INSIDE hyperlink brackets. Keep prepositions outside as plain text, e.g. 'per [CNBC](url)' or 'via [Investopedia](url)', NEVER '[per CNBC](url)'. "
-            "2) CITATION FORMATS: Link capitalized site names (e.g. [CNBC](url)) OR anchor links to descriptive nouns like [repo](url), [channel](url), or [docs](url) (e.g. 'per its own [repo](url)'). "
-            "3) SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Shares fell 4%. [CNBC](url)'). "
-            "4) UNCITED SOURCES FOOTER: If a search source was used to inform your response but was NOT cited inline in the text, list it under a 'Sources' heading at the very bottom of your message. "
-            "5) NO DUPLICATION: Do NOT list a source in the bottom 'Sources' list if it was already cited inline in your text."
+            "CITATION RULES: Always cite sources as markdown links. "
+            "Use site names as link text: 'per [CNBC](url)' or 'the [docs](url)'. "
+            "Never put prepositions inside brackets: '[per CNBC](url)' is WRONG. "
+            "Place periods before citation links: 'Shares fell 4%. [CNBC](url)'. "
+            "List any uncited background sources under a 'Sources' heading at the bottom. "
+            "Never duplicate a source that was already cited inline."
         ),
         "search_tool_description": (
-            "Perform a web search using SearXNG. Current time/date is {now_date}. THE CURRENT YEAR IS {year}. Always generate queries for current year ({year}) instead of past years. "
-            "Default engines used automatically: [{default_engines}]. All available engines: [{available_engines}]. "
-            "{citation_guidelines}"
+            "Search the web via SearXNG. Today is {now_date} (year {year}). "
+            "Always query for the current year. {citation_guidelines}"
         ),
         "extract_tool_description": (
-            "Fetch and extract clean markdown content from web URLs. Current time/date is {now_date}. THE CURRENT YEAR IS {year}. "
+            "Fetch and extract clean markdown from web URLs. Today is {now_date} (year {year}). "
             "{citation_guidelines}"
         ),
         "search_params": {
@@ -111,11 +110,12 @@ DEFAULTS: Dict[str, Any] = {
         },
         "extract_params": {
             "urls": "List of HTTP/HTTPS URLs to fetch and extract content from (1 to 20 URLs).",
-            "force_render": "Force full headless browser rendering (Chromium) for JavaScript SPAs, dynamic sites, or when static fetch is incomplete.",
-            "only_main_content": "If true (default), strips headers, footers, ads, and navigation for clean article text. Set to false to extract full page text including comments and sidebars.",
-            "wait_for": "Optional CSS selector or delay in seconds to wait for before extracting page DOM (browser mode only).",
-            "engine": "Extraction engine: 'trafilatura' (default, fast main-content markdown parser) or 'readability' (Mozilla Readability.js + markdownify, recommended for e-commerce buyboxes, forums, and complex page layouts).",
+            "force_render": "Force full headless browser rendering (Chromium) for JavaScript SPAs or dynamic sites.",
+            "only_main_content": "If true (default), strips headers, footers, ads, and navigation. Set to false for full page text including comments and sidebars.",
+            "wait_for": "Optional CSS selector or delay in seconds to wait for before extracting (browser mode only).",
+            "engine": "Extraction engine: 'trafilatura' (default) or 'readability' (Mozilla Readability.js, better for e-commerce and forums).",
             "timeout": "Maximum extraction timeout per URL in seconds (1 to 120).",
+            "max_chars": "Optional maximum characters to return per URL. Truncates long pages to save context.",
             "formats": "Desired output format: ['markdown'] (default) or ['html'].",
         },
     },

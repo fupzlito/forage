@@ -118,25 +118,24 @@ def format_citation(
     position: int = 1,
     style: str = "site_name",
 ) -> str:
-    """Format citation link based on requested citation_style."""
+    """Format citation link based on requested citation_style.
+
+    All styles produce standard markdown links that render as clickable
+    text in OpenWebUI and other markdown consumers.
+    """
     site_name = get_clean_source_name(title, domain)
     if style == "site_name":
         return f"[{site_name}]({url})"
-    elif style == "site_name_code":
-        return f"[`{site_name}`]({url})"
     elif style == "site_name_bold":
         return f"[**{site_name}**]({url})"
     elif style == "site_name_italic":
         return f"[*{site_name}*]({url})"
-    elif style == "superscript":
-        return f"<sup>[{site_name}]({url})</sup>"
-    elif style == "bracket_numeric":
-        return f"[{position}]({url})"
     elif style == "bracket_domain":
-        return f"[{domain}]({url})" if domain else f"[{position}]({url})"
+        return f"[{domain}]({url})" if domain else f"[{site_name}]({url})"
     elif style == "bracket_title":
         return f"[Source: {site_name}]({url})"
     else:
+        # Fallback: plain site_name link
         return f"[{site_name}]({url})"
 
 
@@ -279,7 +278,7 @@ def search_searxng(
         if total_snippet_chars + len(c) > max_total_len and idx > 0:
             c = c[: max(0, max_total_len - total_snippet_chars)].rsplit(" ", 1)[0] + "..."
 
-        cit_style = getattr(config.search, "citation_style", "superscript")
+        cit_style = getattr(config.search, "citation_style", "site_name")
         cit_link = format_citation(t, dom, u, position=idx + 1, style=cit_style)
 
         unified_results.append({
@@ -290,8 +289,6 @@ def search_searxng(
             "snippet": c,
             "citation": cit_link,
             "id": idx + 1,
-            "source_id": str(idx + 1),
-            "name": t,
             "favicon": fav,
         })
 

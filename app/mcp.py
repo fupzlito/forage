@@ -165,6 +165,15 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
                 "minimum": 1,
                 "maximum": 120,
             },
+            "max_chars": {
+                "type": "integer",
+                "description": render_prompt(
+                    extract_params.get("max_chars", "Optional maximum characters to return per URL. Truncates long pages to save context."),
+                    context,
+                ),
+                "minimum": 500,
+                "maximum": 500000,
+            },
             "formats": {
                 "type": "array",
                 "items": {"type": "string"},
@@ -219,14 +228,26 @@ async def execute_tool_call(
 
         results = res.get("results", [])
         warning = res.get("warning")
+        engines_ok = res.get("successful_engines", [])
 
-        formatted_lines = [
-            f"[{r['position']}] DOMAIN: {r['domain']}\nURL: {r['url']}\nTITLE: {r['title']}\nSNIPPET: {r['snippet']}"
-            for r in results
-        ]
+        header_parts = [f'SEARCH RESULTS for "{query}" | {res.get("timestamp", "")}']
+        if engines_ok:
+            header_parts.append(f"Engines: {', '.join(engines_ok)}")
+
+        formatted_lines = [" | ".join(header_parts), "---"]
+        for r in results:
+            block = (
+                f"[{r['position']}] {r['domain']}\n"
+                f"URL: {r['url']}\n"
+                f"TITLE: {r['title']}\n"
+                f"SNIPPET: {r['snippet']}\n"
+                f"CITE AS: {r['citation']}"
+            )
+            formatted_lines.append(block)
+
         output_text = "\n\n".join(formatted_lines)
-        if warning and output_text:
-            output_text = f"⚠️ [Search Warning]: {warning}\n\n" + output_text
+        if warning:
+            output_text = f"⚠️ {warning}\n\n" + output_text
 
         return {
             "results": results,
@@ -255,6 +276,7 @@ async def execute_tool_call(
         wait_for = arguments.get("wait_for")
         timeout = arguments.get("timeout")
         engine = arguments.get("engine")
+        max_chars = arguments.get("max_chars")
         formats = arguments.get("formats")
         fmt = "markdown"
         if formats and ("html" in formats or "raw_html" in formats):
@@ -262,7 +284,7 @@ async def execute_tool_call(
 
         async def _one(u: str, pos: int) -> Dict[str, Any]:
             try:
-                return await extract_url(
+                result = await extract_url(
                     config,
                     browser_pool,
                     u,
@@ -274,8 +296,25 @@ async def execute_tool_call(
                     timeout=timeout,
                     engine=engine,
                 )
+                # Apply per-request max_chars truncation
+                if max_chars and "content" in result:
+                    full_len = len(result["content"])
+                    if full_len > max_chars:
+                        result["content"] = result["content"][:max_chars] + f"\n\n[TRUNCATED at {max_chars:,} of {full_len:,} chars]"
+                        if "raw_content" in result:
+                            result["raw_content"] = result["raw_content"][:max_chars]
+                return result
             except Exception as exc:  # noqa: BLE001
-                return {"url": u, "error": str(exc)}
+                error_msg = str(exc)
+                error_type = "network"
+                lower = error_msg.lower()
+                if "anti-bot" in lower or "challenge" in lower or "cloudflare" in lower:
+                    error_type = "blocked"
+                elif "timeout" in lower or "timed out" in lower:
+                    error_type = "timeout"
+                elif "no content" in lower or "empty" in lower:
+                    error_type = "empty"
+                return {"url": u, "error": error_msg, "error_type": error_type}
 
         extracted = await asyncio.gather(*(_one(u, idx + 1) for idx, u in enumerate(urls)))
         sources = [
@@ -288,16 +327,31 @@ async def execute_tool_call(
         ]
 
         formatted_blocks = []
+        ok_count = sum(1 for r in extracted if "error" not in r)
+        from datetime import datetime as _dt, timezone as _tz
+        _now = _dt.now(_tz.utc).strftime("%Y-%m-%d %H:%M UTC")
+        formatted_blocks.append(f"EXTRACTED {ok_count} of {len(urls)} URLs | {_now}\n---")
+
         for idx, r in enumerate(extracted):
             if "error" in r:
-                formatted_blocks.append(f"[{idx+1}] URL: {r['url']}\n❌ Extraction Error: {r['error']}")
+                formatted_blocks.append(
+                    f"[{idx+1}] {r['url']}\n"
+                    f"ERROR: {r['error']}"
+                )
             else:
                 t = r.get("title", "")
                 dom = r.get("domain", "")
                 u = r.get("url", "")
                 c = r.get("content", "")
                 m = r.get("method", "unknown")
-                formatted_blocks.append(f"[{idx+1}] DOMAIN: {dom}\nURL: {u}\nTITLE: {t}\nMETHOD: {m}\nCONTENT:\n{c}")
+                cit = r.get("citation", f"[{dom}]({u})")
+                formatted_blocks.append(
+                    f"[{idx+1}] {dom} | {m}\n"
+                    f"URL: {u}\n"
+                    f"TITLE: {t}\n"
+                    f"CITE AS: {cit}\n\n"
+                    f"{c}"
+                )
 
         return {
             "results": list(extracted),
