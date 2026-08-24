@@ -96,11 +96,13 @@ def format_citation(
     domain: str,
     url: str,
     position: int = 1,
-    style: str = "superscript",
+    style: str = "site_name",
 ) -> str:
     """Format citation link based on requested citation_style."""
     site_name = get_clean_source_name(title, domain)
-    if style == "superscript":
+    if style == "site_name":
+        return f"[{site_name}]({url})"
+    elif style == "superscript":
         return f"<sup>[{site_name}]({url})</sup>"
     elif style == "bracket_numeric":
         return f"[{position}]({url})"
@@ -109,7 +111,7 @@ def format_citation(
     elif style == "bracket_title":
         return f"[Source: {site_name}]({url})"
     else:
-        return f"<sup>[{site_name}]({url})</sup>"
+        return f"[{site_name}]({url})"
 
 
 def normalize_and_validate_engines(

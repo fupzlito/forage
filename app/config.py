@@ -50,7 +50,7 @@ DEFAULTS: Dict[str, Any] = {
         "max_limit": 50,
         "max_snippet_chars": 350,
         "max_total_snippet_chars": 3000,
-        "citation_style": "superscript",
+        "citation_style": "site_name",
     },
     "extract": {
         "timeout": 30,
@@ -66,7 +66,7 @@ DEFAULTS: Dict[str, Any] = {
         "raw_content_markdown": True,
         "prefer_markdown": True,   # negotiate Accept: text/markdown; use native markdown when the server serves it
         "domain_overrides": {},
-        "citation_style": "superscript",
+        "citation_style": "site_name",
     },
     "browser": {
         "engine": "playwright",
@@ -142,7 +142,7 @@ class SearchConfig:
     max_limit: int = 50
     max_snippet_chars: int = 350
     max_total_snippet_chars: int = 3000
-    citation_style: str = "superscript"
+    citation_style: str = "site_name"
 
 
 @dataclass(frozen=True)
@@ -181,7 +181,7 @@ class ExtractConfig:
     raw_content_markdown: bool = True
     prefer_markdown: bool = True
     domain_overrides: tuple = ()
-    citation_style: str = "superscript"
+    citation_style: str = "site_name"
 
 
 @dataclass(frozen=True)
