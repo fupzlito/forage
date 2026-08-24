@@ -318,10 +318,11 @@ def search_searxng(
     instructions = (
         f"📅 Date: {now_utc}. THE CURRENT YEAR IS 2026.\n"
         "📌 CITATION RULES:\n"
-        f"1. CITATION FORMATS: You can link capitalized site names (e.g. {sample_cit}) OR anchor links to descriptive nouns like [repo](url), [channel](url), [docs](url), or [paper](url) (e.g. 'per its own [repo](url)').\n"
-        f"2. SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Shares fell 4%. {sample_cit}'). Do NOT repeat the same citation on every single sentence.\n"
-        "3. UNCITED SOURCES FOOTER: If a search source was used to inform your response but was NOT cited inline in your text, list it under a 'Sources' heading at the very bottom of your message.\n"
-        "4. NO DUPLICATION: Do NOT list a source in the bottom 'Sources' list if it was already cited inline in your text."
+        "1. NO PREPOSITIONS IN HYPERLINKS: Do NOT put words like 'per', 'via', or 'according to' INSIDE hyperlink brackets. Keep prepositions outside as plain text, e.g. 'per [CNBC](url)' or 'via [Investopedia](url)', NEVER '[per CNBC](url)'.\n"
+        f"2. CITATION FORMATS: Link capitalized site names (e.g. [CNBC](url), {sample_cit}) OR anchor links to descriptive nouns like [repo](url), [channel](url), or [docs](url) (e.g. 'per its own [repo](url)').\n"
+        f"3. SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Shares fell 4%. {sample_cit}'). Do NOT repeat the same citation on every single sentence.\n"
+        "4. UNCITED SOURCES FOOTER: If a search source was used to inform your response but was NOT cited inline in your text, list it under a 'Sources' heading at the very bottom of your message.\n"
+        "5. NO DUPLICATION: Do NOT list a source in the bottom 'Sources' list if it was already cited inline in your text."
     )
 
     return {

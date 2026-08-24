@@ -827,10 +827,11 @@ async def extract_url(
 
     citation_footer = (
         f"\n\n📌 CITATION GUIDANCE:\n"
-        f"1. CITATION FORMATS: You can link capitalized site names (e.g. {citation_markdown}) OR anchor links to descriptive nouns like [repo](url), [channel](url), [docs](url), or [paper](url) (e.g. 'per its own [repo](url)').\n"
-        f"2. SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Operations resumed on Friday. {citation_markdown}').\n"
-        "3. UNCITED SOURCES FOOTER: If an extracted source was used to inform your response but was NOT cited inline, list it under a 'Sources' heading at the very bottom of your message.\n"
-        "4. NO DUPLICATION: Do NOT list a source in the bottom 'Sources' list if it was already cited inline in your text."
+        f"1. NO PREPOSITIONS IN HYPERLINKS: Do NOT put words like 'per', 'via', or 'according to' INSIDE hyperlink brackets. Keep prepositions outside as plain text, e.g. 'per {citation_markdown}', NEVER '[per Site Name](url)'.\n"
+        f"2. CITATION FORMATS: You can link capitalized site names (e.g. {citation_markdown}) OR anchor links to descriptive nouns like [repo](url), [channel](url), or [docs](url) (e.g. 'per its own [repo](url)').\n"
+        f"3. SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Operations resumed on Friday. {citation_markdown}').\n"
+        "4. UNCITED SOURCES FOOTER: If an extracted source was used to inform your response but was NOT cited inline, list it under a 'Sources' heading at the very bottom of your message.\n"
+        "5. NO DUPLICATION: Do NOT list a source in the bottom 'Sources' list if it was already cited inline in your text."
     )
     if citation_footer not in content:
         content = content.strip() + f"\n\n{citation_footer}"

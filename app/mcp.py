@@ -135,10 +135,11 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
                 f"Perform a web search using SearXNG. Current time/date is {now_date}. THE CURRENT YEAR IS 2026. Always generate queries for current year (2026) instead of past years (2025). "
                 f"Default engines used automatically: [{default_engines_str}]. All available engines: [{available_engines_str}]. "
                 "📌 CITATION GUIDANCE: "
-                "1) CITATION FORMATS: You can link capitalized site names (e.g. [Israel Hayom](url) or [VINnews](url)) OR anchor links to descriptive nouns like [repo](url), [channel](url), [docs](url), or [paper](url) (e.g. 'per its own [repo](url)'). "
-                "2) SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Flight operations resumed on Friday. [Israel Hayom](url)'). "
-                "3) UNCITED SOURCES FOOTER: If a search source was used to inform your response but was NOT cited inline in the text, list it under a 'Sources' heading at the very bottom of your message. "
-                "4) NO DUPLICATION: Do NOT list a source in the bottom 'Sources' list if it was already cited inline in your text."
+                "1) NO PREPOSITIONS IN HYPERLINKS: Do NOT put words like 'per', 'via', or 'according to' INSIDE hyperlink brackets. Keep prepositions outside as plain text, e.g. 'per [CNBC](url)' or 'via [Investopedia](url)', NEVER '[per CNBC](url)'. "
+                "2) CITATION FORMATS: Link capitalized site names (e.g. [CNBC](url)) OR anchor links to descriptive nouns like [repo](url), [channel](url), or [docs](url) (e.g. 'per its own [repo](url)'). "
+                "3) SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Shares fell 4%. [CNBC](url)'). "
+                "4) UNCITED SOURCES FOOTER: If a search source was used to inform your response but was NOT cited inline in the text, list it under a 'Sources' heading at the very bottom of your message. "
+                "5) NO DUPLICATION: Do NOT list a source in the bottom 'Sources' list if it was already cited inline in your text."
             ),
             "inputSchema": search_schema,
             "parameters": search_schema,  # OpenAI compatibility
@@ -148,10 +149,11 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
             "description": (
                 f"Fetch and extract clean markdown content from web URLs. Current time/date is {now_date}. THE CURRENT YEAR IS 2026. "
                 "📌 CITATION GUIDANCE: "
-                "1) CITATION FORMATS: You can link capitalized site names (e.g. [Israel Hayom](url) or [VINnews](url)) OR anchor links to descriptive nouns like [repo](url), [channel](url), [docs](url), or [paper](url) (e.g. 'per its own [repo](url)'). "
-                "2) SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Operations resumed on Friday. [Israel Hayom](url)'). "
-                "3) UNCITED SOURCES FOOTER: If an extracted source was used to inform your response but was NOT cited inline in the text, list it under a 'Sources' heading at the very bottom of your message. "
-                "4) NO DUPLICATION: Do NOT list a source in the bottom 'Sources' list if it was already cited inline in your text."
+                "1) NO PREPOSITIONS IN HYPERLINKS: Do NOT put words like 'per', 'via', or 'according to' INSIDE hyperlink brackets. Keep prepositions outside as plain text, e.g. 'per [CNBC](url)' or 'via [Investopedia](url)', NEVER '[per CNBC](url)'. "
+                "2) CITATION FORMATS: Link capitalized site names (e.g. [CNBC](url)) OR anchor links to descriptive nouns like [repo](url), [channel](url), or [docs](url) (e.g. 'per its own [repo](url)'). "
+                "3) SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Operations resumed on Friday. [CNBC](url)'). "
+                "4) UNCITED SOURCES FOOTER: If an extracted source was used to inform your response but was NOT cited inline in the text, list it under a 'Sources' heading at the very bottom of your message. "
+                "5) NO DUPLICATION: Do NOT list a source in the bottom 'Sources' list if it was already cited inline in your text."
             ),
             "inputSchema": extract_schema,
             "parameters": extract_schema,  # OpenAI compatibility
