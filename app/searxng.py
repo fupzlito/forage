@@ -283,16 +283,16 @@ def search_searxng(
         cit_link = format_citation(t, dom, u, position=idx + 1, style=cit_style)
 
         unified_results.append({
-            "id": idx + 1,
-            "source_id": str(idx + 1),
             "position": idx + 1,
-            "name": t,
-            "title": t,
             "domain": dom,
-            "favicon": fav,
             "url": u,
+            "title": t,
             "snippet": c,
             "citation": cit_link,
+            "id": idx + 1,
+            "source_id": str(idx + 1),
+            "name": t,
+            "favicon": fav,
         })
 
     # Formulate explicit model guidance warning if empty or unresponsive
@@ -317,9 +317,9 @@ def search_searxng(
     return {
         "success": True,
         "timestamp": now_utc,
-        "results": unified_results,
-        "warning": combined_warning,
         "successful_engines": successful_engines,
+        "warning": combined_warning,
+        "results": unified_results,
         "unresponsive_engines": unresponsive_engines,
         "used_engines": validated_engines,
         "available_engines": list(config.search.available_engines),

@@ -46,7 +46,7 @@ class TestMCPAndOpenAIEndpoints(unittest.TestCase):
     def test_mcp_tools_call_search(self, mock_search):
         mock_search.return_value = {
             "success": True,
-            "results": [{"position": 1, "title": "Search Title", "url": "https://example.com", "snippet": "desc", "citation": "[Search Title](https://example.com)"}],
+            "results": [{"position": 1, "domain": "example.com", "title": "Search Title", "url": "https://example.com", "snippet": "desc", "citation": "[Search Title](https://example.com)"}],
             "warning": None,
         }
         payload = {

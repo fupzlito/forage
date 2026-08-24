@@ -221,7 +221,7 @@ async def execute_tool_call(
         warning = res.get("warning")
 
         formatted_lines = [
-            f"[{r['position']}] [{r['title']}]({r['url']})\n{r['snippet']}"
+            f"[{r['position']}] DOMAIN: {r['domain']}\nURL: {r['url']}\nTITLE: {r['title']}\nSNIPPET: {r['snippet']}"
             for r in results
         ]
         output_text = "\n\n".join(formatted_lines)
@@ -232,6 +232,7 @@ async def execute_tool_call(
             "results": results,
             "formatted_text": output_text,
             "warning": warning,
+            "successful_engines": res.get("successful_engines"),
             "unresponsive_engines": res.get("unresponsive_engines"),
             "used_engines": res.get("used_engines"),
         }
@@ -259,12 +260,13 @@ async def execute_tool_call(
         if formats and ("html" in formats or "raw_html" in formats):
             fmt = "html"
 
-        async def _one(u: str) -> Dict[str, Any]:
+        async def _one(u: str, pos: int) -> Dict[str, Any]:
             try:
                 return await extract_url(
                     config,
                     browser_pool,
                     u,
+                    position=pos,
                     force_render=force_render,
                     wait_for=wait_for,
                     output_format=fmt,
@@ -275,7 +277,7 @@ async def execute_tool_call(
             except Exception as exc:  # noqa: BLE001
                 return {"url": u, "error": str(exc)}
 
-        extracted = await asyncio.gather(*(_one(u) for u in urls))
+        extracted = await asyncio.gather(*(_one(u, idx + 1) for idx, u in enumerate(urls)))
         sources = [
             {
                 "url": r.get("url"),
@@ -288,12 +290,14 @@ async def execute_tool_call(
         formatted_blocks = []
         for idx, r in enumerate(extracted):
             if "error" in r:
-                formatted_blocks.append(f"### Source [{idx+1}]: {r['url']}\n❌ Extraction Error: {r['error']}")
+                formatted_blocks.append(f"[{idx+1}] URL: {r['url']}\n❌ Extraction Error: {r['error']}")
             else:
-                t = r.get("title", r["url"])
+                t = r.get("title", "")
+                dom = r.get("domain", "")
+                u = r.get("url", "")
                 c = r.get("content", "")
                 m = r.get("method", "unknown")
-                formatted_blocks.append(f"### [{idx+1}] [{t}]({r['url']}) (method: {m})\n{c}")
+                formatted_blocks.append(f"[{idx+1}] DOMAIN: {dom}\nURL: {u}\nTITLE: {t}\nMETHOD: {m}\nCONTENT:\n{c}")
 
         return {
             "results": list(extracted),

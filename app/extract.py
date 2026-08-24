@@ -859,16 +859,17 @@ async def extract_url(
         raw_content = raw_content.strip() + f"\n\n{citation_footer}"
 
     result: Dict[str, Any] = {
+        "position": position,
+        "domain": domain,
+        "url": original_url,
+        "title": title,
+        "content": content,
+        "citation": citation_markdown,
+        "method": method,
         "id": position,
         "source_id": str(position),
         "name": title or domain or original_url,
-        "url": original_url,
-        "title": title,
-        "domain": domain,
         "favicon": favicon,
-        "content": content,
-        "method": method,
-        "citation": citation_markdown,
         "extracted_at": extracted_at,
     }
     if raw_content and raw_content != content:
