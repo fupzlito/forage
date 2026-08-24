@@ -236,11 +236,11 @@ class ForageConfig:
             ),
             tools=ToolsConfig(**tools),
             search=SearchConfig(
-                searxng_url=search.get("searxng_url", DEFAULTS["search"]["searxng_url"]),
-                default_lang=search.get("default_lang", DEFAULTS["search"]["default_lang"]),
-                engines=tuple(search.get("engines", DEFAULTS["search"]["engines"])),
-                available_engines=tuple(search.get("available_engines", DEFAULTS["search"]["available_engines"])),
-                timeout=search.get("timeout", DEFAULTS["search"]["timeout"]),
+                **{
+                    **search,
+                    "engines": tuple(search.get("engines", DEFAULTS["search"]["engines"])),
+                    "available_engines": tuple(search.get("available_engines", DEFAULTS["search"]["available_engines"])),
+                }
             ),
             extract=ExtractConfig(
                 **{
