@@ -44,26 +44,51 @@ def _get_config_and_pool(request: Request):
 def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
     """Return JSON schemas for MCP and OpenAI API tools."""
     from datetime import datetime, timezone
+    from .prompts import render_prompt
 
     search_name = config.tools.search_name
     extract_name = config.tools.extract_name
     default_engines_str = ", ".join(config.search.engines)
     available_engines_str = ", ".join(config.search.available_engines)
-    now_date = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    now_dt = datetime.now(timezone.utc)
+    now_date = now_dt.strftime("%Y-%m-%d %H:%M UTC")
+    year = str(now_dt.year)
+
+    context = {
+        "now_date": now_date,
+        "year": year,
+        "default_engines": default_engines_str,
+        "available_engines": available_engines_str,
+        "default_limit": config.search.default_limit,
+        "citation_guidelines": config.prompts.citation_guidelines,
+    }
+
+    # Render reusable citation guidelines with context if template variables are inside it
+    rendered_citations = render_prompt(config.prompts.citation_guidelines, context)
+    context["citation_guidelines"] = rendered_citations
+
+    search_desc = render_prompt(config.prompts.search_tool_description, context)
+    extract_desc = render_prompt(config.prompts.extract_tool_description, context)
+
+    search_params = config.prompts.search_params or {}
+    extract_params = config.prompts.extract_params or {}
 
     search_schema = {
         "type": "object",
         "properties": {
             "query": {
                 "type": "string",
-                "description": (
-                    "Search query terms. Keep queries focused on essential keywords (e.g. 'Ben Gurion Airport strike disruption' "
-                    "rather than long conversational sentences)."
+                "description": render_prompt(
+                    search_params.get("query", "Search query terms. Keep queries focused on essential keywords."),
+                    context,
                 ),
             },
             "limit": {
                 "type": "integer",
-                "description": f"Number of search results to return (1 to 50, default {config.search.default_limit}). Set higher (e.g. 10-15) for broad topics instead of making multiple search calls.",
+                "description": render_prompt(
+                    search_params.get("limit", f"Number of search results to return (1 to 50, default {config.search.default_limit})."),
+                    context,
+                ),
                 "default": config.search.default_limit,
                 "minimum": 1,
                 "maximum": config.search.max_limit,
@@ -71,14 +96,17 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
             "engines": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": (
-                    f"Optional list of specific engines to query. Default engines used automatically: [{default_engines_str}]. "
-                    f"All available engines: [{available_engines_str}]. Do NOT specify engines unless targeting a specific engine (e.g. ['youtube'] for videos)."
+                "description": render_prompt(
+                    search_params.get("engines", f"Optional list of specific engines to query. Default engines: [{default_engines_str}]. Available: [{available_engines_str}]."),
+                    context,
                 ),
             },
             "language": {
                 "type": "string",
-                "description": "Optional language code for search results (e.g. 'en-US', 'pt-BR', 'es', 'de').",
+                "description": render_prompt(
+                    search_params.get("language", "Optional language code for search results (e.g. 'en-US', 'pt-BR', 'es', 'de')."),
+                    context,
+                ),
             },
         },
         "required": ["query"],
@@ -90,31 +118,49 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
             "urls": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "List of HTTP/HTTPS URLs to fetch and extract content from (1 to 20 URLs).",
+                "description": render_prompt(
+                    extract_params.get("urls", "List of HTTP/HTTPS URLs to fetch and extract content from (1 to 20 URLs)."),
+                    context,
+                ),
             },
             "force_render": {
                 "type": "boolean",
-                "description": "Force full headless browser rendering (Chromium) for JavaScript SPAs, dynamic sites, or when static fetch is incomplete.",
+                "description": render_prompt(
+                    extract_params.get("force_render", "Force full headless browser rendering (Chromium) for JavaScript SPAs or dynamic sites."),
+                    context,
+                ),
                 "default": False,
             },
             "only_main_content": {
                 "type": "boolean",
-                "description": "If true (default), strips headers, footers, ads, and navigation for clean article text. Set to false to extract full page text including comments and sidebars.",
+                "description": render_prompt(
+                    extract_params.get("only_main_content", "If true (default), strips headers, footers, ads, and navigation for clean article text."),
+                    context,
+                ),
                 "default": True,
             },
             "wait_for": {
                 "type": "string",
-                "description": "Optional CSS selector or delay in seconds to wait for before extracting page DOM (browser mode only).",
+                "description": render_prompt(
+                    extract_params.get("wait_for", "Optional CSS selector or delay in seconds to wait for before extracting page DOM (browser mode only)."),
+                    context,
+                ),
             },
             "engine": {
                 "type": "string",
                 "enum": ["trafilatura", "readability"],
-                "description": "Extraction engine: 'trafilatura' (default, fast main-content markdown parser) or 'readability' (Mozilla Readability.js + markdownify, recommended for e-commerce buyboxes, forums, and complex page layouts).",
+                "description": render_prompt(
+                    extract_params.get("engine", "Extraction engine: 'trafilatura' (default) or 'readability' (Mozilla Readability.js + markdownify)."),
+                    context,
+                ),
                 "default": "trafilatura",
             },
             "timeout": {
                 "type": "integer",
-                "description": "Maximum extraction timeout per URL in seconds (1 to 120).",
+                "description": render_prompt(
+                    extract_params.get("timeout", "Maximum extraction timeout per URL in seconds (1 to 120)."),
+                    context,
+                ),
                 "default": 30,
                 "minimum": 1,
                 "maximum": 120,
@@ -122,7 +168,10 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
             "formats": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "Desired output format: ['markdown'] (default) or ['html'].",
+                "description": render_prompt(
+                    extract_params.get("formats", "Desired output format: ['markdown'] (default) or ['html']."),
+                    context,
+                ),
             },
         },
         "required": ["urls"],
@@ -131,30 +180,13 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
     return [
         {
             "name": search_name,
-            "description": (
-                f"Perform a web search using SearXNG. Current time/date is {now_date}. THE CURRENT YEAR IS 2026. Always generate queries for current year (2026) instead of past years (2025). "
-                f"Default engines used automatically: [{default_engines_str}]. All available engines: [{available_engines_str}]. "
-                "📌 CITATION GUIDANCE: "
-                "1) NO PREPOSITIONS IN HYPERLINKS: Do NOT put words like 'per', 'via', or 'according to' INSIDE hyperlink brackets. Keep prepositions outside as plain text, e.g. 'per [CNBC](url)' or 'via [Investopedia](url)', NEVER '[per CNBC](url)'. "
-                "2) CITATION FORMATS: Link capitalized site names (e.g. [CNBC](url)) OR anchor links to descriptive nouns like [repo](url), [channel](url), or [docs](url) (e.g. 'per its own [repo](url)'). "
-                "3) SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Shares fell 4%. [CNBC](url)'). "
-                "4) UNCITED SOURCES FOOTER: If a search source was used to inform your response but was NOT cited inline in the text, list it under a 'Sources' heading at the very bottom of your message. "
-                "5) NO DUPLICATION: Do NOT list a source in the bottom 'Sources' list if it was already cited inline in your text."
-            ),
+            "description": search_desc,
             "inputSchema": search_schema,
             "parameters": search_schema,  # OpenAI compatibility
         },
         {
             "name": extract_name,
-            "description": (
-                f"Fetch and extract clean markdown content from web URLs. Current time/date is {now_date}. THE CURRENT YEAR IS 2026. "
-                "📌 CITATION GUIDANCE: "
-                "1) NO PREPOSITIONS IN HYPERLINKS: Do NOT put words like 'per', 'via', or 'according to' INSIDE hyperlink brackets. Keep prepositions outside as plain text, e.g. 'per [CNBC](url)' or 'via [Investopedia](url)', NEVER '[per CNBC](url)'. "
-                "2) CITATION FORMATS: Link capitalized site names (e.g. [CNBC](url)) OR anchor links to descriptive nouns like [repo](url), [channel](url), or [docs](url) (e.g. 'per its own [repo](url)'). "
-                "3) SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Operations resumed on Friday. [CNBC](url)'). "
-                "4) UNCITED SOURCES FOOTER: If an extracted source was used to inform your response but was NOT cited inline in the text, list it under a 'Sources' heading at the very bottom of your message. "
-                "5) NO DUPLICATION: Do NOT list a source in the bottom 'Sources' list if it was already cited inline in your text."
-            ),
+            "description": extract_desc,
             "inputSchema": extract_schema,
             "parameters": extract_schema,  # OpenAI compatibility
         },

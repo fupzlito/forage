@@ -84,6 +84,41 @@ DEFAULTS: Dict[str, Any] = {
         "fallback_solver": True,
     },
     "auth": {"enabled": False},
+    "prompts": {
+        "prompts_path": None,
+        "citation_guidelines": (
+            "📌 CITATION GUIDANCE: "
+            "1) NO PREPOSITIONS IN HYPERLINKS: Do NOT put words like 'per', 'via', or 'according to' INSIDE hyperlink brackets. Keep prepositions outside as plain text, e.g. 'per [CNBC](url)' or 'via [Investopedia](url)', NEVER '[per CNBC](url)'. "
+            "2) CITATION FORMATS: Link capitalized site names (e.g. [CNBC](url)) OR anchor links to descriptive nouns like [repo](url), [channel](url), or [docs](url) (e.g. 'per its own [repo](url)'). "
+            "3) SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Shares fell 4%. [CNBC](url)'). "
+            "4) UNCITED SOURCES FOOTER: If a search source was used to inform your response but was NOT cited inline in the text, list it under a 'Sources' heading at the very bottom of your message. "
+            "5) NO DUPLICATION: Do NOT list a source in the bottom 'Sources' list if it was already cited inline in your text."
+        ),
+        "search_tool_description": (
+            "Perform a web search using SearXNG. Current time/date is {now_date}. THE CURRENT YEAR IS {year}. Always generate queries for current year ({year}) instead of past years. "
+            "Default engines used automatically: [{default_engines}]. All available engines: [{available_engines}]. "
+            "{citation_guidelines}"
+        ),
+        "extract_tool_description": (
+            "Fetch and extract clean markdown content from web URLs. Current time/date is {now_date}. THE CURRENT YEAR IS {year}. "
+            "{citation_guidelines}"
+        ),
+        "search_params": {
+            "query": "Search query terms. Keep queries focused on essential keywords rather than long conversational sentences.",
+            "limit": "Number of search results to return (1 to 50, default {default_limit}). Set higher (e.g. 10-15) for broad topics instead of making multiple search calls.",
+            "engines": "Optional list of specific engines to query. Default engines: [{default_engines}]. Available: [{available_engines}]. Do NOT specify engines unless targeting a specific engine.",
+            "language": "Optional language code for search results (e.g. 'en-US', 'pt-BR', 'es', 'de').",
+        },
+        "extract_params": {
+            "urls": "List of HTTP/HTTPS URLs to fetch and extract content from (1 to 20 URLs).",
+            "force_render": "Force full headless browser rendering (Chromium) for JavaScript SPAs, dynamic sites, or when static fetch is incomplete.",
+            "only_main_content": "If true (default), strips headers, footers, ads, and navigation for clean article text. Set to false to extract full page text including comments and sidebars.",
+            "wait_for": "Optional CSS selector or delay in seconds to wait for before extracting page DOM (browser mode only).",
+            "engine": "Extraction engine: 'trafilatura' (default, fast main-content markdown parser) or 'readability' (Mozilla Readability.js + markdownify, recommended for e-commerce buyboxes, forums, and complex page layouts).",
+            "timeout": "Maximum extraction timeout per URL in seconds (1 to 120).",
+            "formats": "Desired output format: ['markdown'] (default) or ['html'].",
+        },
+    },
 }
 
 logger = logging.getLogger(__name__)
@@ -213,6 +248,16 @@ class AuthConfig:
 
 
 @dataclass(frozen=True)
+class PromptsConfig:
+    prompts_path: Optional[str] = None
+    citation_guidelines: str = ""
+    search_tool_description: str = ""
+    extract_tool_description: str = ""
+    search_params: Dict[str, str] = field(default_factory=dict)
+    extract_params: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class ForageConfig:
     server: ServerConfig
     cache: CacheConfig
@@ -221,6 +266,7 @@ class ForageConfig:
     extract: ExtractConfig
     browser: BrowserConfig
     auth: AuthConfig
+    prompts: PromptsConfig
     source_path: str
 
     @classmethod
@@ -232,6 +278,7 @@ class ForageConfig:
         extract = _filter_dataclass_dict(ExtractConfig, data.get("extract", {}))
         browser = _filter_dataclass_dict(BrowserConfig, data.get("browser", {}))
         auth = _filter_dataclass_dict(AuthConfig, data.get("auth", {}))
+        prompts = _filter_dataclass_dict(PromptsConfig, data.get("prompts", {}))
 
         if "engines" in search:
             search["engines"] = tuple(search["engines"])
@@ -262,6 +309,7 @@ class ForageConfig:
             extract=ExtractConfig(**extract),
             browser=BrowserConfig(**browser),
             auth=AuthConfig(**auth),
+            prompts=PromptsConfig(**prompts),
             source_path=source_path,
         )
 
@@ -344,6 +392,16 @@ def load_config(path: Optional[str] = None) -> ForageConfig:
     config_path = path or os.environ.get("FORAGE_CONFIG") or DEFAULT_CONFIG_PATH
     file_data = _load_yaml(config_path)
     merged = deep_merge(DEFAULTS, file_data)
+
+    prompts_path = merged.get("prompts", {}).get("prompts_path") or os.environ.get("FORAGE_PROMPTS_CONFIG")
+    if prompts_path:
+        prompts_data = _load_yaml(prompts_path)
+        if prompts_data:
+            # If the external YAML has a top-level "prompts" key, unnest it
+            if "prompts" in prompts_data and isinstance(prompts_data["prompts"], dict):
+                prompts_data = prompts_data["prompts"]
+            merged["prompts"] = deep_merge(merged.get("prompts", {}), prompts_data)
+
     config = ForageConfig.from_dict(merged, source_path=config_path)
     config.validate()
     return config
