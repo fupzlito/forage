@@ -12,7 +12,7 @@ services:
     networks:
       - searxng_default          # talk to SearXNG by service name (searxng:8080)
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:3672/health', timeout=3).status==200 else 1)"]
+      test: ["CMD", "curl", "-sf", "http://localhost:3672/health"]
       interval: 30s
       timeout: 5s
       retries: 3
