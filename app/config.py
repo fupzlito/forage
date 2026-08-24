@@ -88,11 +88,11 @@ DEFAULTS: Dict[str, Any] = {
         "prompts_path": None,
         "citation_guidelines": (
             "CITATION RULES: Always cite sources as markdown links. "
+            "Cite inline immediately after facts. You may cite the same source multiple times inline. "
             "Use site names as link text: 'per [CNBC](url)' or 'the [docs](url)'. "
             "Never put prepositions inside brackets: '[per CNBC](url)' is WRONG. "
             "Place periods before citation links: 'Shares fell 4%. [CNBC](url)'. "
-            "List any uncited background sources under a 'Sources' heading at the bottom. "
-            "Never duplicate a source that was already cited inline."
+            "Only use a 'Sources' footer for background sources NOT cited inline."
         ),
         "search_tool_description": (
             "Search the web via SearXNG. Today is {now_date} (year {year}). "
