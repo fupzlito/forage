@@ -320,16 +320,39 @@ def search_searxng(
         "📌 CITATION RULES:\n"
         "1. NO PREPOSITIONS IN HYPERLINKS: Do NOT put words like 'per', 'via', or 'according to' INSIDE hyperlink brackets. Keep prepositions outside as plain text, e.g. 'per [CNBC](url)' or 'via [Investopedia](url)', NEVER '[per CNBC](url)'.\n"
         f"2. CITATION FORMATS: Link capitalized site names (e.g. [CNBC](url), {sample_cit}) OR anchor links to descriptive nouns like [repo](url), [channel](url), or [docs](url) (e.g. 'per its own [repo](url)').\n"
-        f"3. SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Shares fell 4%. {sample_cit}'). Do NOT repeat the same citation on every single sentence.\n"
+        "3. SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Shares fell 4%. {sample_cit}'). Do NOT repeat the same citation on every single sentence.\n"
         "4. UNCITED SOURCES FOOTER: If a search source was used to inform your response but was NOT cited inline in your text, list it under a 'Sources' heading at the very bottom of your message.\n"
         "5. NO DUPLICATION: Do NOT list a source in the bottom 'Sources' list if it was already cited inline in your text."
     )
+
+    sources = [
+        {
+            "id": r["id"],
+            "title": r["title"],
+            "url": r["url"],
+            "snippet": r["snippet"],
+            "citation": r["citation"],
+        }
+        for r in unified_results
+    ]
 
     return {
         "success": True,
         "timestamp": now_utc,
         "instructions": instructions,
         "results": unified_results,
+        "data": {
+            "web": [
+                {
+                    "title": r["title"],
+                    "url": r["url"],
+                    "description": r["snippet"],
+                    "position": r["position"],
+                }
+                for r in unified_results
+            ],
+            "sources": sources,
+        },
         "warning": combined_warning,
         "successful_engines": successful_engines,
         "unresponsive_engines": unresponsive_engines,
