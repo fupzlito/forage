@@ -300,23 +300,10 @@ def search_searxng(
         "📌 CITATION REQUIREMENTS (STRICT):\n"
         "1. MANDATORY INLINE CITATIONS: You MUST place inline citations directly inside your text for every claim or quote. NEVER dump citations only at the end of your message.\n"
         "2. CAPITALIZED BRAND NAMES: Always use proper capitalized site names in link text (e.g. [Israel Hayom](url) or [VINnews](url)), NEVER raw lowercase TLDs like [israelhayom.com](url).\n"
-        "3. NATURAL LINK PLACEMENT: Format links as [Israel Hayom](url) or ([Israel Hayom](url)). Do NOT force the word 'via' into every sentence.\n"
+        "3. STAT & NUMBER ATTRIBUTION: Use '(via [Site Name](url))' ONLY for specific numbers, stock prices, or stats (e.g., '$136.97 (+2.22% via [Yahoo Finance](url))'). For general text or quotes, use standard inline links [Israel Hayom](url) without adding 'via'.\n"
         f"4. BLOCK ATTRIBUTION FOR LISTS: For bullet lists or data tables from a single source, place the citation in the section header (e.g. '**Overview** {sample_cit}:').\n"
         f"🕒 Search timestamp: {now_utc}"
     )
-
-    openwebui_sources = [
-        {
-            "id": r["id"],
-            "source_id": r["source_id"],
-            "name": r["title"],
-            "title": r["title"],
-            "url": r["url"],
-            "domain": r["domain"],
-            "snippet": r["snippet"],
-        }
-        for r in unified_results
-    ]
 
     # Formulate explicit model guidance warning if empty or unresponsive
     warnings: List[str] = []
@@ -341,14 +328,7 @@ def search_searxng(
         "success": True,
         "timestamp": now_utc,
         "results": unified_results,
-        "sources": openwebui_sources,
         "content": formatted_results,
-        "data": {
-            "web": unified_results,
-            "sources": openwebui_sources,
-            "formatted_results": formatted_results,
-            "total_results": len(unified_results),
-        },
         "warning": combined_warning,
         "successful_engines": successful_engines,
         "unresponsive_engines": unresponsive_engines,

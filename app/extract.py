@@ -572,6 +572,7 @@ async def extract_url(
     pool: BrowserPool,
     url: str,
     *,
+    position: int = 1,
     force_render: bool = False,
     wait_for: Optional[str] = None,
     output_format: str = "markdown",
@@ -837,8 +838,8 @@ async def extract_url(
         raw_content = raw_content.strip() + f"\n\n{citation_footer}"
 
     result: Dict[str, Any] = {
-        "id": 1,
-        "source_id": "1",
+        "id": position,
+        "source_id": str(position),
         "name": title or domain or original_url,
         "url": original_url,
         "title": title,

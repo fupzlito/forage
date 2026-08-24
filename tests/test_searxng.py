@@ -57,10 +57,9 @@ class TestSearXNG(unittest.TestCase):
 
         res = search_searxng(self.config, query="test query", limit=5)
         self.assertTrue(res["success"])
-        self.assertEqual(len(res["data"]["web"]), 1)
-        self.assertEqual(res["data"]["web"][0]["title"], "Example Title")
-        self.assertEqual(len(res["data"]["sources"]), 1)
-        self.assertIn("[1] [Example Title - example.com](https://example.com)", res["data"]["formatted_results"])
+        self.assertEqual(len(res["results"]), 1)
+        self.assertEqual(res["results"][0]["title"], "Example Title")
+        self.assertIn("[1] [Example Title - example.com](https://example.com)", res["content"])
 
     @patch("httpx.get")
     def test_search_searxng_unresponsive_engines(self, mock_get):
@@ -74,7 +73,7 @@ class TestSearXNG(unittest.TestCase):
 
         res = search_searxng(self.config, query="test query", limit=5)
         self.assertTrue(res["success"])
-        self.assertEqual(len(res["data"]["web"]), 0)
+        self.assertEqual(len(res["results"]), 0)
         self.assertIsNotNone(res["warning"])
         self.assertIn("google (Timeout)", res["warning"])
         self.assertIn("Do NOT hammer", res["warning"])

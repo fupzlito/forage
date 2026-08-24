@@ -261,12 +261,13 @@ async def extract(
         if cached is not None:
             return JSONResponse(content=cached, headers={"X-Forage-Cache": "hit"})
 
-    async def _extract_one(url: str) -> Dict[str, Any]:
+    async def _extract_one(url: str, pos: int) -> Dict[str, Any]:
         try:
             return await extract_url(
                 config,
                 browser_pool,
                 url,
+                position=pos,
                 force_render=req.force_render,
                 wait_for=req.wait_for,
                 output_format=fmt,
@@ -278,7 +279,7 @@ async def extract(
             logger.exception("Extract failed for %s", url)
             return {"url": url, "error": str(exc)}
 
-    results = await asyncio.gather(*(_extract_one(u) for u in req.urls))
+    results = await asyncio.gather(*(_extract_one(u, idx + 1) for idx, u in enumerate(req.urls)))
     payload = {"success": True, "data": results}
 
     if cache_enabled:
