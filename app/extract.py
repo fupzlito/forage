@@ -846,11 +846,12 @@ async def extract_url(
         "domain": domain,
         "favicon": favicon,
         "content": content,
-        "raw_content": raw_content,
         "method": method,
         "citation": citation_markdown,
         "extracted_at": extracted_at,
     }
+    if raw_content and raw_content != content:
+        result["raw_content"] = raw_content
     if url != original_url:
         result["rewritten_url"] = url
     return result

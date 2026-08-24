@@ -314,9 +314,20 @@ def search_searxng(
 
     combined_warning = " ".join(warnings) if warnings else None
 
+    sample_cit = format_citation("Investopedia", "investopedia.com", "https://investopedia.com/...", 1, getattr(config.search, "citation_style", "site_name"))
+    instructions = (
+        f"📅 Date: {now_utc}. THE CURRENT YEAR IS 2026.\n"
+        "📌 CITATION RULES:\n"
+        f"1. Use capitalized site name links: {sample_cit}.\n"
+        "2. Place citations near key facts or in section headers. Do NOT repeat the same citation on every single consecutive sentence.\n"
+        "3. Do NOT add a redundant 'Sources' list at the bottom if inline citations are already used.\n"
+        f"4. Place sentence periods before links (e.g. 'Shares fell 4%. {sample_cit}')."
+    )
+
     return {
         "success": True,
         "timestamp": now_utc,
+        "instructions": instructions,
         "results": unified_results,
         "warning": combined_warning,
         "successful_engines": successful_engines,
