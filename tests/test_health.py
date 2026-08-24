@@ -1,8 +1,11 @@
 """Unit test for GET /health with SearXNG liveness probe."""
 
 import unittest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import httpx
 from fastapi.testclient import TestClient
+
 from app.main import app
 
 
@@ -11,7 +14,7 @@ class TestHealthCheck(unittest.TestCase):
         self.client = TestClient(app)
 
     @patch("httpx.AsyncClient.get", new_callable=AsyncMock)
-    def test_health_searxng_connected(self, mock_get):
+    def test_health_searxng_connected(self, mock_get: AsyncMock):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_get.return_value = mock_resp
@@ -25,7 +28,7 @@ class TestHealthCheck(unittest.TestCase):
         self.assertIn("latency_ms", data["searxng"])
 
     @patch("httpx.AsyncClient.get", new_callable=AsyncMock)
-    def test_health_searxng_unreachable(self, mock_get):
+    def test_health_searxng_unreachable(self, mock_get: AsyncMock):
         mock_get.side_effect = Exception("Connection refused")
 
         resp = self.client.get("/health")
