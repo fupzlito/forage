@@ -46,7 +46,8 @@ search:
   max_snippet_chars: 350   # max length per search result snippet
   max_total_snippet_chars: 3000 # total char cap across all snippets per response
   citation_style: site_name # citation link format: "site_name" (default: [Site Name](url)),
-                             # "site_name_bold" ([**Site Name**](url)), "site_name_italic" ([*Site Name*](url)), "site_name_code" ([`Site Name`](url)),
+                             # "site_name_code" ([`Site Name`](url)), "site_name_bold_code" ([**`Site Name`**](url)),
+                             # "site_name_bold" ([**Site Name**](url)), "site_name_italic" ([*Site Name*](url)),
                              # "bracket_numeric" ([1](url)), "bracket_domain" ([domain.com](url)), "bracket_title" ([Source: Title](url))
 
 # --- Extract ------------------------------------------------

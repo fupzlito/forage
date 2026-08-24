@@ -135,10 +135,10 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
                 f"Perform a web search using SearXNG. Current time/date is {now_date}. THE CURRENT YEAR IS 2026. Always generate queries for current year (2026) instead of past years (2025). "
                 f"Default engines used automatically: [{default_engines_str}]. All available engines: [{available_engines_str}]. "
                 "📌 CITATION GUIDANCE: "
-                "1) CITATION PLACEMENT: You may place citations inline near referenced facts, group multiple sources together, or use a 'Sources' footnote list at the end of your response when citing broad summaries or many sources. "
-                "2) CAPITALIZED BRAND NAMES: Always use proper capitalized site names in link text (e.g. [Israel Hayom](url) or [VINnews](url)), NEVER raw lowercase TLDs like [israelhayom.com](url). "
-                "3) STAT ATTRIBUTION: Use '(via [Site Name](url))' ONLY when citing specific numerical figures or stock quotes. For general text, use standard links [Israel Hayom](url) without adding 'via'. "
-                "4) SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Flight operations resumed on Friday. [Israel Hayom](url)')."
+                "1) CAPITALIZED BRAND NAMES: Always use proper capitalized site names in link text (e.g. [Israel Hayom](url) or [VINnews](url)), NEVER raw lowercase TLDs like [israelhayom.com](url). "
+                "2) SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Flight operations resumed on Friday. [Israel Hayom](url)'). "
+                "3) UNCITED SOURCES FOOTER: If a search source was used to inform your response but was NOT cited inline in the text, list it under a 'Sources' heading at the very bottom of your message. "
+                "4) NO DUPLICATION: Do NOT list a source in the bottom 'Sources' list if it was already cited inline in your text."
             ),
             "inputSchema": search_schema,
             "parameters": search_schema,  # OpenAI compatibility
@@ -148,10 +148,10 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
             "description": (
                 f"Fetch and extract clean markdown content from web URLs. Current time/date is {now_date}. THE CURRENT YEAR IS 2026. "
                 "📌 CITATION GUIDANCE: "
-                "1) CITATION PLACEMENT: You may place citations inline near referenced facts, group multiple sources together, or use a 'Sources' footnote list at the end of your response when citing broad summaries or many sources. "
-                "2) CAPITALIZED BRAND NAMES: Always use proper capitalized site names in link text (e.g. [Israel Hayom](url) or [VINnews](url)), NEVER raw lowercase TLDs. "
-                "3) STAT ATTRIBUTION: Use '(via [Site Name](url))' ONLY when citing specific numerical figures or stock quotes. For general text, use standard links [Israel Hayom](url) without adding 'via'. "
-                "4) SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Operations resumed on Friday. [Israel Hayom](url)')."
+                "1) CAPITALIZED BRAND NAMES: Always use proper capitalized site names in link text (e.g. [Israel Hayom](url) or [VINnews](url)), NEVER raw lowercase TLDs. "
+                "2) SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Operations resumed on Friday. [Israel Hayom](url)'). "
+                "3) UNCITED SOURCES FOOTER: If an extracted source was used to inform your response but was NOT cited inline in the text, list it under a 'Sources' heading at the very bottom of your message. "
+                "4) NO DUPLICATION: Do NOT list a source in the bottom 'Sources' list if it was already cited inline in your text."
             ),
             "inputSchema": extract_schema,
             "parameters": extract_schema,  # OpenAI compatibility

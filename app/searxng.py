@@ -122,12 +122,14 @@ def format_citation(
     site_name = get_clean_source_name(title, domain)
     if style == "site_name":
         return f"[{site_name}]({url})"
-    elif style == "site_name_bold":
-        return f"[**{site_name}**]({url})"
-    elif style == "site_name_italic":
-        return f"[*{site_name}*]({url})"
     elif style == "site_name_code":
         return f"[`{site_name}`]({url})"
+    elif style == "site_name_bold":
+        return f"[**{site_name}**]({url})"
+    elif style == "site_name_bold_code":
+        return f"[**`{site_name}`**]({url})"
+    elif style == "site_name_italic":
+        return f"[*{site_name}*]({url})"
     elif style == "superscript":
         return f"<sup>[{site_name}]({url})</sup>"
     elif style == "bracket_numeric":
@@ -319,9 +321,9 @@ def search_searxng(
         f"📅 Date: {now_utc}. THE CURRENT YEAR IS 2026.\n"
         "📌 CITATION RULES:\n"
         f"1. Use capitalized site name links: {sample_cit}.\n"
-        "2. Place citations near key facts or in section headers. Do NOT repeat the same citation on every single consecutive sentence.\n"
-        "3. Do NOT add a redundant 'Sources' list at the bottom if inline citations are already used.\n"
-        f"4. Place sentence periods before links (e.g. 'Shares fell 4%. {sample_cit}')."
+        f"2. Place sentence periods before links (e.g. 'Shares fell 4%. {sample_cit}'). Do NOT repeat the same citation on every single sentence.\n"
+        "3. UNCITED SOURCES FOOTER: If a search source was used to inform your response but was NOT cited inline, list it under a 'Sources' heading at the very bottom of your message.\n"
+        "4. NO DUPLICATION: Do NOT list a source in the bottom 'Sources' list if it was already cited inline in your text."
     )
 
     return {

@@ -827,10 +827,10 @@ async def extract_url(
 
     citation_footer = (
         f"\n\n📌 CITATION GUIDANCE:\n"
-        "1. CITATION PLACEMENT: You may place citations inline near referenced facts, group multiple sources together, or use a 'Sources' footnote list at the end of your response when citing broad summaries or many sources.\n"
-        f"2. CAPITALIZED BRAND NAMES: Always use proper capitalized site names in link text (e.g. {citation_markdown}), NEVER raw lowercase TLDs.\n"
-        f"3. STAT ATTRIBUTION: Use '(via {citation_markdown})' ONLY when citing specific numerical figures or stock quotes. For general text, use standard links {citation_markdown} without adding 'via'.\n"
-        f"4. SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Operations resumed on Friday. {citation_markdown}')."
+        f"1. CAPITALIZED BRAND NAMES: Always use proper capitalized site names in link text (e.g. {citation_markdown}), NEVER raw lowercase TLDs.\n"
+        f"2. SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Operations resumed on Friday. {citation_markdown}').\n"
+        "3. UNCITED SOURCES FOOTER: If an extracted source was used to inform your response but was NOT cited inline, list it under a 'Sources' heading at the very bottom of your message.\n"
+        "4. NO DUPLICATION: Do NOT list a source in the bottom 'Sources' list if it was already cited inline in your text."
     )
     if citation_footer not in content:
         content = content.strip() + f"\n\n{citation_footer}"
