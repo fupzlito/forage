@@ -72,23 +72,43 @@ def get_favicon_url(domain: str) -> str:
     return f"https://www.google.com/s2/favicons?domain={domain}&sz=32"
 
 
+KNOWN_DOMAINS = {
+    "israelhayom.com": "Israel Hayom",
+    "timesofisrael.com": "Times of Israel",
+    "vinnews.com": "VINnews",
+    "yahoo.com": "Yahoo Finance",
+    "finance.yahoo.com": "Yahoo Finance",
+    "marketwatch.com": "MarketWatch",
+    "bloomberg.com": "Bloomberg",
+    "reuters.com": "Reuters",
+    "wikipedia.org": "Wikipedia",
+    "impactwealth.org": "Impact Wealth",
+}
+
+
 def get_clean_source_name(title: str, domain: str) -> str:
     """Extract clean brand/site name from title or fallback to domain."""
-    if not title:
-        return domain or "Source"
-    clean = title.strip()
-    for delim in (" - ", " | ", " — ", " :: "):
-        if delim in clean:
-            parts = clean.split(delim)
-            last = parts[-1].strip()
-            if 2 <= len(last) <= 30:
-                return last
-            first = parts[0].strip()
-            if 2 <= len(first) <= 30:
-                return first
-    if len(clean) <= 25:
-        return clean
-    return domain or clean[:25]
+    if title:
+        clean = title.strip()
+        for delim in (" - ", " | ", " — ", " :: "):
+            if delim in clean:
+                parts = clean.split(delim)
+                last = parts[-1].strip()
+                if 2 <= len(last) <= 30:
+                    return last
+                first = parts[0].strip()
+                if 2 <= len(first) <= 30:
+                    return first
+        if len(clean) <= 25:
+            return clean
+
+    if domain:
+        dom_lower = domain.lower()
+        if dom_lower in KNOWN_DOMAINS:
+            return KNOWN_DOMAINS[dom_lower]
+        dom_name = domain.split(".")[0]
+        return dom_name.title()
+    return "Source"
 
 
 def format_citation(
@@ -274,8 +294,16 @@ def search_searxng(
         for r in unified_results
     ]
     formatted_results = "\n\n".join(formatted_lines)
-    sample_cit = format_citation("Yahoo Finance", "finance.yahoo.com", "https://finance.yahoo.com/quote/SPCX/", 1, getattr(config.search, "citation_style", "site_name"))
-    formatted_results += f"\n\n📅 CURRENT YEAR NOTICE: The current date is {now_utc}. THE CURRENT YEAR IS 2026. Always generate queries for current year (2026) instead of past years (2025).\n📌 CITATION PLACEMENT & FORMATTING GUIDANCE:\n1. For inline stats or quotes: Integrate parenthetically without extra spaces, e.g. 'SPCX closed at $136.97 (+2.22% via {sample_cit}).'\n2. For lists, tables, or paragraphs: Place citation in the header, e.g. '**Key stats** *(via {sample_cit})*:'.\n3. Do NOT add extra spaces before periods or colons. Do NOT use raw HTML tags like <sup>. 🕒 Search timestamp: {now_utc}"
+    sample_cit = format_citation("Israel Hayom", "israelhayom.com", "https://www.israelhayom.com/...", 1, getattr(config.search, "citation_style", "site_name"))
+    formatted_results += (
+        f"\n\n📅 CURRENT YEAR NOTICE: The current date is {now_utc}. THE CURRENT YEAR IS 2026. Always generate queries for current year (2026) instead of past years (2025).\n"
+        "📌 CITATION REQUIREMENTS (STRICT):\n"
+        "1. MANDATORY INLINE CITATIONS: You MUST place inline citations directly inside your text for every claim or quote. NEVER dump citations only at the end of your message.\n"
+        "2. CAPITALIZED BRAND NAMES: Always use proper capitalized site names in link text (e.g. [Israel Hayom](url) or [VINnews](url)), NEVER raw lowercase TLDs like [israelhayom.com](url).\n"
+        "3. NATURAL LINK PLACEMENT: Format links as [Israel Hayom](url) or ([Israel Hayom](url)). Do NOT force the word 'via' into every sentence.\n"
+        f"4. BLOCK ATTRIBUTION FOR LISTS: For bullet lists or data tables from a single source, place the citation in the section header (e.g. '**Overview** {sample_cit}:').\n"
+        f"🕒 Search timestamp: {now_utc}"
+    )
 
     openwebui_sources = [
         {

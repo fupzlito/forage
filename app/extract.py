@@ -824,7 +824,13 @@ async def extract_url(
     cit_style = getattr(config.extract, "citation_style", "site_name")
     citation_markdown = format_citation(title, domain, original_url, position=1, style=cit_style)
 
-    citation_footer = f"\n\n📌 CITATION PLACEMENT & FORMATTING GUIDANCE:\n1. For inline stats or quotes: Integrate parenthetically without extra spaces, e.g. '(via {citation_markdown}).'\n2. For lists, tables, or paragraphs: Place citation in the header, e.g. '**Overview** *(via {citation_markdown})*:'.\n3. Do NOT add extra spaces before periods or colons. Do NOT use raw HTML tags like <sup>."
+    citation_footer = (
+        f"\n\n📌 CITATION REQUIREMENTS (STRICT):\n"
+        "1. MANDATORY INLINE CITATIONS: You MUST place inline citations directly inside your text for every claim or quote. NEVER dump citations only at the end of your message.\n"
+        f"2. CAPITALIZED BRAND NAMES: Always use proper capitalized site names in link text (e.g. {citation_markdown}), NEVER raw lowercase TLDs.\n"
+        f"3. NATURAL LINK PLACEMENT: Format links as {citation_markdown} or ({citation_markdown}). Do NOT force the word 'via' into every sentence.\n"
+        f"4. BLOCK ATTRIBUTION FOR LISTS: For bullet lists or data tables from a single source, place the citation in the section header (e.g. '**Overview** {citation_markdown}:')."
+    )
     if citation_footer not in content:
         content = content.strip() + f"\n\n{citation_footer}"
     if citation_footer not in raw_content:
