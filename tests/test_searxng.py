@@ -77,6 +77,16 @@ class TestSearXNG(unittest.TestCase):
         self.assertIn("google (Timeout)", res["warning"])
         self.assertIn("Do NOT hammer", res["warning"])
 
+    def test_unknown_config_keys_ignored(self):
+        raw_dict = {
+            "search": {
+                "ban_detector": {"default": {"suspend_time": 300}},
+                "engines": ["google", "bing"],
+            }
+        }
+        config = ForageConfig.from_dict(raw_dict, source_path="test")
+        self.assertEqual(config.search.engines, ("google", "bing"))
+
 
 if __name__ == "__main__":
     unittest.main()

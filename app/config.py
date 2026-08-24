@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import Any, Dict, Optional
 
 import yaml
@@ -98,6 +98,12 @@ def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]
         else:
             merged[key] = value
     return merged
+
+
+def _filter_dataclass_dict(cls: type, data: Dict[str, Any]) -> Dict[str, Any]:
+    """Filter dict keys to only include valid fields defined on the dataclass."""
+    valid_fields = {f.name for f in fields(cls)}
+    return {k: v for k, v in data.items() if k in valid_fields}
 
 
 @dataclass(frozen=True)
@@ -219,38 +225,41 @@ class ForageConfig:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any], source_path: str) -> "ForageConfig":
-        server = data.get("server", {})
+        server = _filter_dataclass_dict(ServerConfig, data.get("server", {}))
         cache = data.get("cache", {})
-        tools = data.get("tools", {})
-        search = data.get("search", {})
-        extract = data.get("extract", {})
-        browser = data.get("browser", {})
-        auth = data.get("auth", {})
+        tools = _filter_dataclass_dict(ToolsConfig, data.get("tools", {}))
+        search = _filter_dataclass_dict(SearchConfig, data.get("search", {}))
+        extract = _filter_dataclass_dict(ExtractConfig, data.get("extract", {}))
+        browser = _filter_dataclass_dict(BrowserConfig, data.get("browser", {}))
+        auth = _filter_dataclass_dict(AuthConfig, data.get("auth", {}))
+
+        if "engines" in search:
+            search["engines"] = tuple(search["engines"])
+        if "available_engines" in search:
+            search["available_engines"] = tuple(search["available_engines"])
+
+        if "domain_overrides" in extract:
+            raw_overrides = extract.get("domain_overrides", {})
+            if isinstance(raw_overrides, dict):
+                extract["domain_overrides"] = tuple(
+                    DomainOverride(pattern=pattern, **_filter_dataclass_dict(DomainOverride, over))
+                    for pattern, over in raw_overrides.items()
+                )
+
+        cache_search = _filter_dataclass_dict(CacheOpConfig, cache.get("search", {}))
+        cache_extract = _filter_dataclass_dict(CacheOpConfig, cache.get("extract", {}))
+
         return cls(
             server=ServerConfig(**server),
             cache=CacheConfig(
                 enabled=cache.get("enabled", True),
                 max_entries=cache.get("max_entries", 500),
-                search=CacheOpConfig(**cache.get("search", {})),
-                extract=CacheOpConfig(**cache.get("extract", {})),
+                search=CacheOpConfig(**cache_search),
+                extract=CacheOpConfig(**cache_extract),
             ),
             tools=ToolsConfig(**tools),
-            search=SearchConfig(
-                **{
-                    **search,
-                    "engines": tuple(search.get("engines", DEFAULTS["search"]["engines"])),
-                    "available_engines": tuple(search.get("available_engines", DEFAULTS["search"]["available_engines"])),
-                }
-            ),
-            extract=ExtractConfig(
-                **{
-                    **extract,
-                    "domain_overrides": tuple(
-                        DomainOverride(pattern=pattern, **over)
-                        for pattern, over in extract.get("domain_overrides", {}).items()
-                    ),
-                }
-            ),
+            search=SearchConfig(**search),
+            extract=ExtractConfig(**extract),
             browser=BrowserConfig(**browser),
             auth=AuthConfig(**auth),
             source_path=source_path,
