@@ -27,13 +27,24 @@ cache:
     enabled: true          # short TTL: fast repeat extraction, bounded staleness
     ttl: 60                # seconds (1 min)
 
+# --- Tools ---------------------------------------------------
+# Custom tool names for OpenWebUI and MCP integration
+tools:
+  search_name: web_search  # tool call name presented to LLMs (e.g. web_search, search_web)
+  extract_name: web_extract # tool call name presented to LLMs (e.g. web_extract, fetch_page)
+
 # --- Search (SearXNG) ----------------------------------------
 # Point this at your SearXNG instance. See docs/SEARXNG.md for setup.
 search:
   searxng_url: http://searxng:8080   # service name on the shared docker network
-  default_lang: pt-BR     # language passed to SearXNG
-  engines: [google, bing, brave, startpage]  # optional engine filter
+  default_lang: en-US     # language passed to SearXNG
+  engines: [google, qwant, brave, bing, duckduckgo, startpage, reddit]  # default engine filter
+  available_engines: [google, qwant, qwant news, brave, bing, startpage, duckduckgo, reddit, wikipedia, youtube, github, searxng, yahoo, wikidata] # engines available on your SearXNG instance
   timeout: 15              # seconds per search
+  default_limit: 10        # default number of search results returned
+  max_limit: 50            # maximum search results allowed per call
+  max_snippet_chars: 350   # max length per search result snippet
+  max_total_snippet_chars: 3000 # total char cap across all snippets per response
 
 # --- Extract ------------------------------------------------
 extract:
@@ -150,14 +161,10 @@ extract:
       engine: readability       # traf: timeout 60s; readability ok (4.4s)
     git-scm.com:
       engine: readability       # traf: timeout 60s; readability ok (1.8s)
-    reddit.com/r/:              # classic UI serves comments server-side
-      url_rewrite: "old.reddit.com/r/"
-    reddit.com/u/:
-      url_rewrite: "old.reddit.com/u/"
-    reddit.com/user/:
-      url_rewrite: "old.reddit.com/u/"
-    reddit.com:                 # after rewrite, keep full text (comments)
+    reddit.com:                 # render via browser and keep full text / comments
+      force_render: true
       full_text: true
+      timeout: 45
     fandom.com:
       force_render: true        # 3.3MB HTML (16-24s in the benchmark)
       network_idle_timeout: 10

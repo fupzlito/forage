@@ -24,7 +24,7 @@ from markdownify import markdownify as _markdownify
 
 from .browser import BrowserPool
 from .config import ForageConfig
-from .documents import extract_document_bytes, looks_like_document
+from .documents import extract_document_bytes, looks_like_document, parse_reddit_json
 
 logger = logging.getLogger(__name__)
 
@@ -428,6 +428,33 @@ def _extract_text(html: str, only_main_content: bool, max_chars: int) -> str:
     return text[:max_chars]
 
 
+def _strip_reddit_ads_from_html(html: str) -> str:
+    """Strip Reddit ad web-components (<shreddit-ad-post>, .promotedlink, alb.reddit.com) from HTML prior to extraction."""
+    if not html:
+        return html
+    # Remove <shreddit-ad-post>...</shreddit-ad-post>
+    html = re.sub(r"<shreddit-ad-post[^>]*>.*?</shreddit-ad-post>", "", html, flags=re.DOTALL | re.IGNORECASE)
+    # Remove <shreddit-comments-page-ad>...</shreddit-comments-page-ad>
+    html = re.sub(r"<shreddit-comments-page-ad[^>]*>.*?</shreddit-comments-page-ad>", "", html, flags=re.DOTALL | re.IGNORECASE)
+    # Remove promoted links (<div class="...promotedlink...">...</div>)
+    html = re.sub(r'<div[^>]*class="[^"]*promotedlink[^"]*"[^>]*>.*?</div>', "", html, flags=re.DOTALL | re.IGNORECASE)
+    # Remove tracking ad links (<a href="...alb.reddit.com...">...</a>)
+    html = re.sub(r'<a[^>]*href="[^"]*alb\.reddit\.com[^"]*"[^>]*>.*?</a>', "", html, flags=re.DOTALL | re.IGNORECASE)
+    return html
+
+
+def _clean_reddit_markdown(text: str) -> str:
+    """Clean up leading empty hr lines and multiple blank lines from Reddit markdown."""
+    if not text:
+        return text
+    lines = text.splitlines()
+    header = lines[0] if lines and lines[0].startswith("#") else ""
+    rest = "\n".join(lines[1:]) if header else text
+    rest = re.sub(r"^(?:\s*---\s*\n)+", "", rest)
+    rest = re.sub(r"\n{3,}", "\n\n", rest).strip()
+    return f"{header}\n\n{rest}" if header else rest
+
+
 def _to_output(
     html: str,
     fmt: str,
@@ -463,6 +490,80 @@ def _scroll_steps_for(config: ForageConfig, scroll: bool) -> int:
     if not scroll:
         return 0
     return max(config.browser.scroll_steps, 1)
+
+
+async def _try_reddit_extract(config: ForageConfig, url: str, timeout: int) -> Optional[Dict[str, Any]]:
+    """3-tier extraction for Reddit: 1) .json API, 2) Redlib mirror, 3) None (fallback to browser)."""
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if host not in ("reddit.com", "www.reddit.com", "old.reddit.com", "sh.reddit.com"):
+        return None
+    path = parsed.path or ""
+    if "/comments/" not in path and not path.endswith(".json"):
+        return None
+
+    # --- Tier 1: Official Reddit .json endpoint ---
+    json_url = url
+    if not path.endswith(".json"):
+        clean_path = path.rstrip("/") + ".json"
+        json_url = f"{parsed.scheme or 'https'}://{parsed.netloc}{clean_path}"
+        if parsed.query:
+            json_url += f"?{parsed.query}"
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=min(timeout, 10), headers=headers, follow_redirects=True) as client:
+            resp = await client.get(json_url)
+            if resp.status_code == 200 and resp.text:
+                try:
+                    data = resp.json()
+                    markdown_content, title = parse_reddit_json(data)
+                    return {
+                        "title": title,
+                        "content": markdown_content,
+                        "raw_content": markdown_content,
+                        "method": "reddit+json",
+                    }
+                except Exception:  # noqa: BLE001
+                    pass
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Reddit Tier 1 (.json) failed for %s: %s", url, exc)
+
+    # --- Tier 2: Redlib Mirror (safereddit) ---
+    mirror_url = f"https://safereddit.com{path}"
+    if parsed.query:
+        mirror_url += f"?{parsed.query}"
+
+    try:
+        async with httpx.AsyncClient(timeout=min(timeout, 10), headers=headers, follow_redirects=True) as client:
+            mresp = await client.get(mirror_url)
+            if mresp.status_code == 200 and mresp.text:
+                html = mresp.text
+                title = _extract_title(html)
+                content, raw_content = _to_output(
+                    html,
+                    "markdown",
+                    readability=False,
+                    main=False,
+                    max_chars=config.extract.max_content_chars,
+                    raw_md=config.extract.raw_content_markdown,
+                )
+                if content and "Welcome to Reddit" not in title and "Log in to use old Reddit" not in content:
+                    return {
+                        "title": title or _title_from_url(url),
+                        "content": content,
+                        "raw_content": raw_content,
+                        "method": "reddit+mirror",
+                    }
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Reddit Tier 2 (mirror) failed for %s: %s", url, exc)
+
+    # --- Tier 3: None (caller falls back to browser render) ---
+    return None
 
 
 async def extract_url(
@@ -535,6 +636,12 @@ async def extract_url(
         if doc_result is not None:
             doc_result["url"] = original_url
             return doc_result
+
+        reddit_result = await _try_reddit_extract(config, url, effective_timeout)
+        if reddit_result is not None:
+            reddit_result["url"] = original_url
+            reddit_result["citation"] = f"[Source: {reddit_result['title']}]({original_url})"
+            return reddit_result
 
     # The extract engine (trafilatura vs readability) applies ONLY to browser
     # renders. It must NOT force the browser: pages that extract fine with
@@ -642,6 +749,9 @@ async def extract_url(
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Browser render failed for %s: %s", url, exc)
 
+    if isinstance(html, str) and ("reddit.com" in original_url.lower() or "safereddit.com" in original_url.lower()):
+        html = _strip_reddit_ads_from_html(html)
+
     content, raw_content = _to_output(
         html,
         output_format,
@@ -673,7 +783,7 @@ async def extract_url(
                 logger.warning("Solver retry failed for %s: %s", url, exc)
                 solver_html = None
             if solver_html:
-                html = solver_html
+                html = _strip_reddit_ads_from_html(solver_html) if ("reddit.com" in original_url.lower() or "safereddit.com" in original_url.lower()) else solver_html
                 method = "browser+solver"
                 title = _extract_title(html)
                 content, raw_content = _to_output(
@@ -698,12 +808,42 @@ async def extract_url(
     if readability_rendered and method == "browser":
         method = "browser+readability"
 
+    if "reddit.com" in original_url.lower() or "safereddit.com" in original_url.lower():
+        if title and not content.startswith("# "):
+            content = f"# {title}\n\n" + content
+            raw_content = f"# {title}\n\n" + raw_content
+        content = _clean_reddit_markdown(content)
+        raw_content = _clean_reddit_markdown(raw_content)
+
+    from datetime import datetime, timezone
+    from .searxng import extract_domain, get_favicon_url
+
+    domain = extract_domain(original_url)
+    favicon = get_favicon_url(domain)
+    extracted_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    cit_title = f"{title} ({domain})" if (title and domain) else (title or domain or original_url)
+    short_cit = f"[{domain}]({original_url})" if domain else f"[{original_url}]({original_url})"
+    citation_markdown = f"[Source: {cit_title}]({original_url})"
+
+    citation_footer = f"\n\n{citation_markdown}\n📌 MANDATORY CITATION REQUIREMENT: You MUST attach the source URL to inline citations using short link chips like [1]({original_url}) or {short_cit} directly inline at the EXACT sentence or bullet point where facts are referenced in your response."
+    if citation_footer not in content:
+        content = content.strip() + f"\n\n{citation_footer}"
+    if citation_footer not in raw_content:
+        raw_content = raw_content.strip() + f"\n\n{citation_footer}"
+
     result: Dict[str, Any] = {
+        "id": 1,
+        "source_id": "1",
+        "name": title or domain or original_url,
         "url": original_url,
         "title": title,
+        "domain": domain,
+        "favicon": favicon,
         "content": content,
         "raw_content": raw_content,
         "method": method,
+        "citation": citation_markdown,
+        "extracted_at": extracted_at,
     }
     if url != original_url:
         result["rewritten_url"] = url

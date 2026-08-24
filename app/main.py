@@ -1,6 +1,7 @@
-"""Forage: self-hosted web search & extract service for Hermes.
+"""Forage: self-hosted web search & extract service for Hermes and OpenWebUI.
 
-Phase 3: /search (SearXNG) + /extract (hybrid static -> browser).
+Provides /search (SearXNG), /extract (hybrid static -> browser), and full
+MCP (Model Context Protocol) & OpenAI API tool call compatibility.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
@@ -21,6 +23,7 @@ from .browser import BrowserPool
 from .cache import TTLCache
 from .config import load_config
 from .extract import extract_url
+from .mcp import mcp_router
 from .searxng import search_searxng
 
 config = load_config()
@@ -45,15 +48,15 @@ def require_auth(
     """Reject unauthenticated requests when auth.enabled is true."""
     if not config.auth.enabled:
         return
-    # HTTPBearer already strips the "Bearer " scheme; credentials.credentials
-    # is the raw token. Do NOT run extract_bearer again here.
     token = credentials.credentials if credentials else None
     if not key_is_valid(token, api_keys):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI):
+async def lifespan(app: FastAPI):
+    app.state.config = config
+    app.state.browser_pool = browser_pool
     await browser_pool.start()
     yield
     await browser_pool.stop()
@@ -62,26 +65,76 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(
     title="Forage",
     version=__version__,
-    description="Self-hosted web search & extract service for Hermes.",
+    description="Self-hosted web search & extract service for OpenWebUI and Hermes.",
     lifespan=lifespan,
 )
 
+app.include_router(mcp_router)
+
 
 class SearchRequest(BaseModel):
-    query: str = Field(min_length=1, max_length=500)
-    limit: int = Field(default=5, ge=1, le=50)
-    language: Optional[str] = Field(default=None, max_length=20)
-    engines: Optional[List[str]] = None
+    query: str = Field(
+        ...,
+        min_length=1,
+        max_length=500,
+        description="The search query string (keywords or question). Be specific and concise.",
+    )
+    limit: int = Field(
+        default=5,
+        ge=1,
+        le=50,
+        description="Number of search results to return (1 to 50, default 5).",
+    )
+    language: Optional[str] = Field(
+        default=None,
+        max_length=20,
+        description="Optional language code for search results (e.g. 'en-US', 'pt-BR', 'es', 'de').",
+    )
+    engines: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            f"Optional list of search engines to query. Available engines: {', '.join(config.search.available_engines)}. "
+            "Engine name aliases (e.g. 'ddg', 'google_search') will be auto-mapped or filtered gracefully."
+        ),
+    )
 
 
 class ExtractRequest(BaseModel):
-    urls: List[str] = Field(min_length=1, max_length=20)
-    formats: Optional[List[str]] = Field(default=None, max_length=5)
-    only_main_content: bool = True
-    force_render: bool = False
-    wait_for: Optional[str] = Field(default=None, max_length=200)
-    timeout: Optional[int] = Field(default=None, ge=1, le=120)
-    engine: Optional[str] = Field(default=None, pattern="^(trafilatura|readability)$")
+    urls: List[str] = Field(
+        ...,
+        min_length=1,
+        max_length=20,
+        description="List of HTTP/HTTPS URLs to fetch and extract content from (1 to 20 URLs).",
+    )
+    formats: Optional[List[str]] = Field(
+        default=None,
+        max_length=5,
+        description="Desired output formats: ['markdown'] (default) or ['html'].",
+    )
+    only_main_content: bool = Field(
+        default=True,
+        description="If true (default), strips headers, footers, ads, and navigation for clean article text. Set to false to extract full page content including comments and sidebars.",
+    )
+    force_render: bool = Field(
+        default=False,
+        description="Force full headless browser rendering (Chromium) for JavaScript SPAs, dynamic sites, or when static fetch returns incomplete content.",
+    )
+    wait_for: Optional[str] = Field(
+        default=None,
+        max_length=200,
+        description="Optional CSS selector or delay in seconds to wait for before extracting page content (browser mode only).",
+    )
+    timeout: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=120,
+        description="Maximum extraction timeout per URL in seconds (1 to 120).",
+    )
+    engine: Optional[str] = Field(
+        default=None,
+        pattern="^(trafilatura|readability)$",
+        description="Extraction engine: 'trafilatura' (default, fast main-content markdown parser) or 'readability' (Mozilla Readability.js + markdownify, recommended for e-commerce buyboxes, forums, and complex page layouts).",
+    )
 
 
 def _search_cache_key(req: SearchRequest) -> str:
@@ -93,6 +146,33 @@ def _extract_cache_key(urls: List[str], force_render: bool, wait_for: Optional[s
     return f"extract:{','.join(urls)}|{force_render}|{wait_for or ''}|{fmt}|{engine or ''}"
 
 
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    openapi_schema = get_openapi(
+        title="Forage API",
+        version=__version__,
+        description="Self-hosted web search & extract service for OpenWebUI and LLM harnesses.",
+        routes=app.routes,
+    )
+    paths = openapi_schema.get("paths", {})
+    search_name = config.tools.search_name
+    extract_name = config.tools.extract_name
+
+    if "/search" in paths and "post" in paths["/search"]:
+        paths["/search"]["post"]["operationId"] = search_name
+        paths["/search"]["post"]["summary"] = "Web Search"
+    if "/extract" in paths and "post" in paths["/extract"]:
+        paths["/extract"]["post"]["operationId"] = extract_name
+        paths["/extract"]["post"]["summary"] = "Web Extract"
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi
+
+
 @app.get("/health")
 async def health() -> dict:
     """Liveness probe: cheap, no I/O."""
@@ -102,6 +182,14 @@ async def health() -> dict:
         "version": __version__,
         "config_source": config.source_path,
         "browser_engine": config.browser.engine,
+        "tools": {
+            "search_name": config.tools.search_name,
+            "extract_name": config.tools.extract_name,
+        },
+        "search": {
+            "available_engines": list(config.search.available_engines),
+            "default_engines": list(config.search.engines),
+        },
         "cache": {
             "enabled": config.cache.enabled,
             "max_entries": config.cache.max_entries,
@@ -124,7 +212,7 @@ async def search(
     cache_control: Optional[str] = Header(default=None),
     _auth: None = Depends(require_auth),
 ) -> JSONResponse:
-    """Search via SearXNG, normalized to the Hermes web-search envelope."""
+    """Search via SearXNG, normalized to the web-search envelope with sources & citations."""
     bypass = bool(cache_control and "no-cache" in cache_control.lower())
     cache_enabled = config.cache.enabled and config.cache.search.enabled and not bypass
 
@@ -190,9 +278,6 @@ async def extract(
             logger.exception("Extract failed for %s", url)
             return {"url": url, "error": str(exc)}
 
-    # Parallel extraction: static fetches run concurrently; browser renders are
-    # bounded by the pool semaphore (browser.max_instances). gather preserves
-    # the input URL order in the envelope.
     results = await asyncio.gather(*(_extract_one(u) for u in req.urls))
     payload = {"success": True, "data": results}
 

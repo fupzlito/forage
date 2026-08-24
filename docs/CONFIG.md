@@ -32,13 +32,21 @@ In-memory LRU only (lost on restart, by design). The master switch `enabled` tur
 
 Bypass per request with the `Cache-Control: no-cache` header; the response header `X-Forage-Cache` reports `hit|miss|bypass|disabled`.
 
+## `tools`
+
+| Key | Default | Description |
+|---|---|---|
+| `search_name` | `web_search` | Custom tool call name presented in OpenAPI schemas and MCP tools list for web search (e.g. `web_search`, `search_web`). |
+| `extract_name` | `web_extract` | Custom tool call name presented in OpenAPI schemas and MCP tools list for web extraction (e.g. `web_extract`, `fetch_page`). |
+
 ## `search`
 
 | Key | Default | Description |
 |---|---|---|
 | `searxng_url` | `http://searxng:8080` | Base URL of the SearXNG instance. On Docker, use the service name on the shared network (see docs/SEARXNG.md). |
 | `default_lang` | `pt-BR` | Language passed to SearXNG. |
-| `engines` | `[google, bing, brave, startpage]` | Optional engine filter sent to SearXNG. |
+| `engines` | `[google, bing, brave, startpage]` | Default engine filter sent to SearXNG. |
+| `available_engines` | `[google, bing, brave, startpage, duckduckgo, wikipedia, github, qwant, searxng, yahoo, wikidata]` | List of enabled search engines on your SearXNG instance. Used for validation, model guidance, and engine alias mapping. |
 | `timeout` | `15` | Timeout in seconds per search request. |
 
 ## `extract`

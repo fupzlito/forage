@@ -1,0 +1,479 @@
+"""MCP (Model Context Protocol) & OpenAI API Tools Handler for Forage.
+
+Implements:
+1. MCP Protocol over HTTP POST (/mcp) and SSE (/mcp/sse, /mcp/messages).
+2. OpenAI-compatible tools endpoints (/v1/tools, /v1/tools/call).
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import uuid
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi.responses import JSONResponse, StreamingResponse
+
+from .auth import key_is_valid, load_api_keys
+from .browser import BrowserPool
+from .config import ForageConfig
+from .extract import extract_url
+from .searxng import search_searxng
+
+logger = logging.getLogger("forage.mcp")
+
+mcp_router = APIRouter()
+
+# Active SSE sessions for MCP
+_sse_sessions: Dict[str, asyncio.Queue] = {}
+
+
+def _get_config_and_pool(request: Request):
+    """Retrieve config and browser_pool from app.state or fallback to main module globals."""
+    cfg = getattr(request.app.state, "config", None)
+    pool = getattr(request.app.state, "browser_pool", None)
+    if cfg is None or pool is None:
+        from .main import browser_pool as main_pool, config as main_config
+        cfg = cfg or main_config
+        pool = pool or main_pool
+    return cfg, pool
+
+
+def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
+    """Return JSON schemas for MCP and OpenAI API tools."""
+    from datetime import datetime, timezone
+
+    search_name = config.tools.search_name
+    extract_name = config.tools.extract_name
+    default_engines_str = ", ".join(config.search.engines)
+    available_engines_str = ", ".join(config.search.available_engines)
+    now_date = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    search_schema = {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": (
+                    "Search query terms. Keep queries focused on essential keywords (e.g. 'Ben Gurion Airport strike disruption' "
+                    "rather than long conversational sentences)."
+                ),
+            },
+            "limit": {
+                "type": "integer",
+                "description": f"Number of search results to return (1 to 50, default {config.search.default_limit}). Set higher (e.g. 10-15) for broad topics instead of making multiple search calls.",
+                "default": config.search.default_limit,
+                "minimum": 1,
+                "maximum": config.search.max_limit,
+            },
+            "engines": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    f"Optional list of specific engines to query. Default engines used automatically: [{default_engines_str}]. "
+                    f"All available engines: [{available_engines_str}]. Do NOT specify engines unless targeting a specific engine (e.g. ['youtube'] for videos)."
+                ),
+            },
+            "language": {
+                "type": "string",
+                "description": "Optional language code for search results (e.g. 'en-US', 'pt-BR', 'es', 'de').",
+            },
+        },
+        "required": ["query"],
+    }
+
+    extract_schema = {
+        "type": "object",
+        "properties": {
+            "urls": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "List of HTTP/HTTPS URLs to fetch and extract content from (1 to 20 URLs).",
+            },
+            "force_render": {
+                "type": "boolean",
+                "description": "Force full headless browser rendering (Chromium) for JavaScript SPAs, dynamic sites, or when static fetch is incomplete.",
+                "default": False,
+            },
+            "only_main_content": {
+                "type": "boolean",
+                "description": "If true (default), strips headers, footers, ads, and navigation for clean article text. Set to false to extract full page text including comments and sidebars.",
+                "default": True,
+            },
+            "wait_for": {
+                "type": "string",
+                "description": "Optional CSS selector or delay in seconds to wait for before extracting page DOM (browser mode only).",
+            },
+            "engine": {
+                "type": "string",
+                "enum": ["trafilatura", "readability"],
+                "description": "Extraction engine: 'trafilatura' (default, fast main-content markdown parser) or 'readability' (Mozilla Readability.js + markdownify, recommended for e-commerce buyboxes, forums, and complex page layouts).",
+                "default": "trafilatura",
+            },
+            "timeout": {
+                "type": "integer",
+                "description": "Maximum extraction timeout per URL in seconds (1 to 120).",
+                "default": 30,
+                "minimum": 1,
+                "maximum": 120,
+            },
+            "formats": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Desired output format: ['markdown'] (default) or ['html'].",
+            },
+        },
+        "required": ["urls"],
+    }
+
+    return [
+        {
+            "name": search_name,
+            "description": (
+                f"Perform a web search using SearXNG. Current time/date is {now_date}. Consider this when generating search queries, picking sources, or reasoning. "
+                f"Default engines used automatically: [{default_engines_str}]. All available engines: [{available_engines_str}]. "
+                "CRITICAL MANDATE: You MUST attach source URLs to short inline citations like [1](url) or [domain.com](url) directly inline at the EXACT sentence or bullet point where each fact is referenced (e.g. 'Flight delays averaged 90 minutes [1](https://...).'). This renders clickable inline citation chips in OpenWebUI."
+            ),
+            "inputSchema": search_schema,
+            "parameters": search_schema,  # OpenAI compatibility
+        },
+        {
+            "name": extract_name,
+            "description": (
+                f"Fetch and extract clean markdown content from web URLs. Current time/date is {now_date}. "
+                "CRITICAL MANDATE: You MUST attach source URLs to short inline citations like [1](url) or [domain.com](url) directly inline at the EXACT sentence or bullet point where facts/quotes are referenced. This renders clickable inline citation chips in OpenWebUI."
+            ),
+            "inputSchema": extract_schema,
+            "parameters": extract_schema,  # OpenAI compatibility
+        },
+    ]
+
+
+async def execute_tool_call(
+    name: str,
+    arguments: Dict[str, Any],
+    config: ForageConfig,
+    browser_pool: BrowserPool,
+) -> Dict[str, Any]:
+    """Execute a tool call by name and return a structured response dictionary."""
+    search_name = config.tools.search_name
+    extract_name = config.tools.extract_name
+
+    if name == search_name or name == "web_search":
+        query = str(arguments.get("query", "")).strip()
+        if not query:
+            return {"error": "Missing required parameter 'query'"}
+        limit = max(1, min(int(arguments.get("limit", 5)), 50))
+        language = arguments.get("language")
+        engines = arguments.get("engines")
+        if isinstance(engines, str):
+            engines = [e.strip() for e in engines.split(",") if e.strip()]
+
+        res = search_searxng(config, query=query, limit=limit, language=language, engines=engines)
+        if not res.get("success"):
+            return {"error": res.get("error", "Search failed")}
+
+        data = res.get("data", {})
+        web = data.get("web", [])
+        sources = data.get("sources", [])
+        formatted = data.get("formatted_results", "")
+        warning = res.get("warning")
+
+        output_text = formatted
+        if warning:
+            output_text = f"⚠️ [Search Warning]: {warning}\n\n" + output_text
+
+        return {
+            "results": res.get("results", []),
+            "sources": res.get("sources", []),
+            "content": output_text,
+            "formatted_text": output_text,
+            "warning": warning,
+            "unresponsive_engines": res.get("unresponsive_engines"),
+            "used_engines": res.get("used_engines"),
+        }
+
+    elif name == extract_name or name == "web_extract":
+        raw_urls = arguments.get("urls") or arguments.get("url")
+        if isinstance(raw_urls, str):
+            urls = [raw_urls]
+        elif isinstance(raw_urls, list):
+            urls = [str(u) for u in raw_urls if u]
+        else:
+            urls = []
+
+        if not urls:
+            return {"error": "Missing required parameter 'urls'"}
+
+        urls = urls[:20]
+        force_render = bool(arguments.get("force_render", False))
+        only_main_content = bool(arguments.get("only_main_content", True))
+        wait_for = arguments.get("wait_for")
+        timeout = arguments.get("timeout")
+        engine = arguments.get("engine")
+        formats = arguments.get("formats")
+        fmt = "markdown"
+        if formats and ("html" in formats or "raw_html" in formats):
+            fmt = "html"
+
+        async def _one(u: str) -> Dict[str, Any]:
+            try:
+                return await extract_url(
+                    config,
+                    browser_pool,
+                    u,
+                    force_render=force_render,
+                    wait_for=wait_for,
+                    output_format=fmt,
+                    only_main_content=only_main_content,
+                    timeout=timeout,
+                    engine=engine,
+                )
+            except Exception as exc:  # noqa: BLE001
+                return {"url": u, "error": str(exc)}
+
+        extracted = await asyncio.gather(*(_one(u) for u in urls))
+        sources = [
+            {
+                "url": r.get("url"),
+                "title": r.get("title", ""),
+                "citation": r.get("citation", f"[Source]({r.get('url')})"),
+            }
+            for r in extracted if "error" not in r
+        ]
+
+        formatted_blocks = []
+        for idx, r in enumerate(extracted):
+            if "error" in r:
+                formatted_blocks.append(f"### Source [{idx+1}]: {r['url']}\n❌ Extraction Error: {r['error']}")
+            else:
+                t = r.get("title", r["url"])
+                c = r.get("content", "")
+                m = r.get("method", "unknown")
+                formatted_blocks.append(f"### [{idx+1}] [{t}]({r['url']}) (method: {m})\n{c}")
+
+        return {
+            "results": list(extracted),
+            "sources": sources,
+            "formatted_text": "\n\n---\n\n".join(formatted_blocks),
+        }
+
+    else:
+        return {"error": f"Unknown tool: '{name}'. Available tools: '{search_name}', '{extract_name}'."}
+
+
+async def process_mcp_rpc(
+    payload: Dict[str, Any],
+    config: ForageConfig,
+    browser_pool: BrowserPool,
+) -> Optional[Dict[str, Any]]:
+    """Process an MCP JSON-RPC request and return the JSON-RPC response dict (or None for notifications)."""
+    msg_id = payload.get("id")
+    method = payload.get("method", "")
+    params = payload.get("params", {})
+
+    if method == "initialize":
+        return {
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "result": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {"tools": {}},
+                "serverInfo": {
+                    "name": "forage",
+                    "version": "0.8.1",
+                },
+            },
+        }
+
+    elif method == "notifications/initialized":
+        # Client acknowledgement, no RPC response needed
+        return None
+
+    elif method == "ping":
+        return {"jsonrpc": "2.0", "id": msg_id, "result": {}}
+
+    elif method == "tools/list":
+        tools_def = get_tool_definitions(config)
+        mcp_tools = [
+            {
+                "name": t["name"],
+                "description": t["description"],
+                "inputSchema": t["inputSchema"],
+            }
+            for t in tools_def
+        ]
+        return {
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "result": {"tools": mcp_tools},
+        }
+
+    elif method == "tools/call":
+        tool_name = params.get("name", "")
+        arguments = params.get("arguments", {})
+        res = await execute_tool_call(tool_name, arguments, config, browser_pool)
+
+        if "error" in res:
+            return {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "result": {
+                    "content": [{"type": "text", "text": f"Error executing tool '{tool_name}': {res['error']}"}],
+                    "isError": True,
+                },
+            }
+
+        formatted_text = res.get("formatted_text", json.dumps(res, indent=2))
+        return {
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "result": {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": formatted_text,
+                    }
+                ],
+                "isError": False,
+            },
+        }
+
+    else:
+        return {
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "error": {
+                "code": -32601,
+                "message": f"Method '{method}' not found",
+            },
+        }
+
+
+# --- API Routes ---
+
+@mcp_router.post("/mcp")
+async def mcp_post(
+    request: Request,
+) -> JSONResponse:
+    """Standard HTTP POST JSON-RPC endpoint for MCP clients."""
+    config, browser_pool = _get_config_and_pool(request)
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    if isinstance(body, list):
+        # Batch RPC requests
+        responses = []
+        for item in body:
+            resp = await process_mcp_rpc(item, config, browser_pool)
+            if resp:
+                responses.append(resp)
+        return JSONResponse(content=responses)
+    else:
+        resp = await process_mcp_rpc(body, config, browser_pool)
+        if resp is None:
+            return JSONResponse(status_code=202, content={"status": "accepted"})
+        return JSONResponse(content=resp)
+
+
+@mcp_router.get("/mcp/sse")
+async def mcp_sse(request: Request) -> StreamingResponse:
+    """SSE endpoint for OpenWebUI MCP connection."""
+    session_id = str(uuid.uuid4())
+    queue: asyncio.Queue = asyncio.Queue()
+    _sse_sessions[session_id] = queue
+
+    async def event_generator():
+        try:
+            # First message: tell client where to POST messages
+            yield f"event: endpoint\ndata: /mcp/messages?session_id={session_id}\n\n"
+            while True:
+                data = await queue.get()
+                yield f"event: message\ndata: {json.dumps(data)}\n\n"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            _sse_sessions.pop(session_id, None)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@mcp_router.post("/mcp/messages")
+async def mcp_sse_messages(
+    request: Request,
+    session_id: str,
+) -> JSONResponse:
+    """Receives JSON-RPC messages from SSE MCP clients and pushes responses to SSE queue."""
+    config, browser_pool = _get_config_and_pool(request)
+
+    queue = _sse_sessions.get(session_id)
+    if not queue:
+        raise HTTPException(status_code=404, detail="SSE session not found or expired")
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    resp = await process_mcp_rpc(body, config, browser_pool)
+    if resp:
+        await queue.put(resp)
+
+    return JSONResponse(content={"status": "received"})
+
+
+@mcp_router.get("/v1/tools")
+async def get_v1_tools(request: Request) -> JSONResponse:
+    """OpenAI API compatible tools listing endpoint."""
+    config, _ = _get_config_and_pool(request)
+    tools_def = get_tool_definitions(config)
+    openai_tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": t["name"],
+                "description": t["description"],
+                "parameters": t["parameters"],
+            },
+        }
+        for t in tools_def
+    ]
+    return JSONResponse(content={"tools": openai_tools})
+
+
+@mcp_router.post("/v1/tools/call")
+async def post_v1_tools_call(request: Request) -> JSONResponse:
+    """OpenAI API compatible tool invocation endpoint."""
+    config, browser_pool = _get_config_and_pool(request)
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    name = body.get("name") or body.get("function")
+    arguments = body.get("arguments") or body.get("parameters") or {}
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except Exception:
+            pass
+
+    if not name:
+        raise HTTPException(status_code=400, detail="Missing required 'name' field")
+
+    result = await execute_tool_call(name, arguments, config, browser_pool)
+    return JSONResponse(content={"success": "error" not in result, "result": result})

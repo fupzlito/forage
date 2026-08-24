@@ -33,11 +33,23 @@ DEFAULTS: Dict[str, Any] = {
         "search": {"enabled": True, "ttl": 300},
         "extract": {"enabled": False, "ttl": 3600},
     },
+    "tools": {
+        "search_name": "web_search",
+        "extract_name": "web_extract",
+    },
     "search": {
         "searxng_url": "http://searxng:8080",
-        "default_lang": "pt-BR",
-        "engines": ["google", "bing", "brave", "startpage"],
+        "default_lang": "en-US",
+        "engines": ["google", "qwant", "brave", "bing", "duckduckgo", "startpage", "reddit"],
+        "available_engines": [
+            "google", "qwant", "qwant news", "brave", "bing", "startpage", "duckduckgo", "reddit",
+            "wikipedia", "youtube", "github", "searxng", "yahoo", "wikidata"
+        ],
         "timeout": 15,
+        "default_limit": 10,
+        "max_limit": 50,
+        "max_snippet_chars": 350,
+        "max_total_snippet_chars": 3000,
     },
     "extract": {
         "timeout": 30,
@@ -109,11 +121,25 @@ class CacheConfig:
 
 
 @dataclass(frozen=True)
+class ToolsConfig:
+    search_name: str = "web_search"
+    extract_name: str = "web_extract"
+
+
+@dataclass(frozen=True)
 class SearchConfig:
     searxng_url: str = "http://host.docker.internal:8080"
-    default_lang: str = "pt-BR"
-    engines: tuple = ("google", "bing", "brave", "startpage")
+    default_lang: str = "en-US"
+    engines: tuple = ("google", "qwant", "brave", "bing", "duckduckgo", "startpage", "reddit")
+    available_engines: tuple = (
+        "google", "qwant", "qwant news", "brave", "bing", "startpage", "duckduckgo", "reddit",
+        "wikipedia", "youtube", "github", "searxng", "yahoo", "wikidata"
+    )
     timeout: int = 15
+    default_limit: int = 10
+    max_limit: int = 50
+    max_snippet_chars: int = 350
+    max_total_snippet_chars: int = 3000
 
 
 @dataclass(frozen=True)
@@ -180,6 +206,7 @@ class AuthConfig:
 class ForageConfig:
     server: ServerConfig
     cache: CacheConfig
+    tools: ToolsConfig
     search: SearchConfig
     extract: ExtractConfig
     browser: BrowserConfig
@@ -190,6 +217,7 @@ class ForageConfig:
     def from_dict(cls, data: Dict[str, Any], source_path: str) -> "ForageConfig":
         server = data.get("server", {})
         cache = data.get("cache", {})
+        tools = data.get("tools", {})
         search = data.get("search", {})
         extract = data.get("extract", {})
         browser = data.get("browser", {})
@@ -202,10 +230,12 @@ class ForageConfig:
                 search=CacheOpConfig(**cache.get("search", {})),
                 extract=CacheOpConfig(**cache.get("extract", {})),
             ),
+            tools=ToolsConfig(**tools),
             search=SearchConfig(
                 searxng_url=search.get("searxng_url", DEFAULTS["search"]["searxng_url"]),
                 default_lang=search.get("default_lang", DEFAULTS["search"]["default_lang"]),
                 engines=tuple(search.get("engines", DEFAULTS["search"]["engines"])),
+                available_engines=tuple(search.get("available_engines", DEFAULTS["search"]["available_engines"])),
                 timeout=search.get("timeout", DEFAULTS["search"]["timeout"]),
             ),
             extract=ExtractConfig(

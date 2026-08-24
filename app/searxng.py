@@ -1,21 +1,118 @@
 """SearXNG client for Forage search.
 
 Calls the configured SearXNG instance (/search?format=json) and normalizes
-the results into the Hermes web-search envelope:
+the results into the Hermes web-search envelope enhanced with OpenWebUI
+citation formatting, engine alias mapping, and error/timeout guidance:
 
-    {"success": true, "data": {"web": [{title, url, description, position}]}}
+    {
+        "success": true,
+        "data": {
+            "web": [{title, url, description, position}],
+            "sources": [{id, title, url, snippet, citation}],
+            "formatted_results": "[1] [Title](url)\nSnippet..."
+        },
+        "warning": None,
+        "unresponsive_engines": [...],
+        "used_engines": [...],
+        "available_engines": [...]
+    }
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
 from .config import ForageConfig
 
 logger = logging.getLogger(__name__)
+
+from datetime import datetime, timezone
+from urllib.parse import urlparse
+
+# Standard model alias normalization table for common hallucinated engine names
+ENGINE_ALIASES: Dict[str, str] = {
+    "google_search": "google",
+    "googlesearch": "google",
+    "bing_search": "bing",
+    "bingsearch": "bing",
+    "ddg": "duckduckgo",
+    "duckduckgo_search": "duckduckgo",
+    "brave_search": "brave",
+    "startpage_search": "startpage",
+    "qwant_news": "qwant news",
+    "qwantnews": "qwant news",
+    "wiki": "wikipedia",
+    "wikipedia_search": "wikipedia",
+    "github_search": "github",
+    "yahoo_search": "yahoo",
+}
+
+
+def extract_domain(url: str) -> str:
+    """Extract clean domain name (TLD/host) from a URL."""
+    if not url:
+        return ""
+    try:
+        parsed = urlparse(url)
+        host = (parsed.netloc or parsed.path).split(":")[0].lower()
+        if host.startswith("www."):
+            host = host[4:]
+        return host
+    except Exception:
+        return url
+
+
+def get_favicon_url(domain: str) -> str:
+    """Generate Google favicon service URL for domain."""
+    if not domain:
+        return ""
+    return f"https://www.google.com/s2/favicons?domain={domain}&sz=32"
+
+
+def normalize_and_validate_engines(
+    requested: Optional[List[str]],
+    default_engines: Tuple[str, ...],
+    available_engines: Tuple[str, ...],
+) -> Tuple[List[str], Optional[str]]:
+    """Resolve aliases and validate requested engines against available SearXNG engines.
+
+    Returns:
+        (valid_engines_list, warning_message_if_any)
+    """
+    if not requested:
+        return list(default_engines), None
+
+    available_set = {e.lower() for e in available_engines}
+    normalized: List[str] = []
+    invalid: List[str] = []
+
+    for eng in requested:
+        clean = eng.strip().lower()
+        resolved = ENGINE_ALIASES.get(clean, clean)
+        if resolved in available_set:
+            if resolved not in normalized:
+                normalized.append(resolved)
+        else:
+            invalid.append(eng)
+
+    warning: Optional[str] = None
+    if invalid:
+        if normalized:
+            warning = (
+                f"Ignored unknown or unsupported search engine(s): {invalid}. "
+                f"Used available engine(s): {normalized}. Available engines: {list(available_engines)}."
+            )
+        else:
+            normalized = list(default_engines)
+            warning = (
+                f"None of the requested engines {invalid} are available. "
+                f"Auto-selected default engine(s): {normalized}. Available engines: {list(available_engines)}."
+            )
+
+    return normalized, warning
 
 
 def search_searxng(
@@ -25,8 +122,14 @@ def search_searxng(
     language: Optional[str] = None,
     engines: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    """Execute a search against SearXNG and return the Hermes envelope."""
+    """Execute a search against SearXNG and return normalized web results with sources & guidance."""
     base = config.search.searxng_url.rstrip("/")
+    validated_engines, engine_warning = normalize_and_validate_engines(
+        engines,
+        config.search.engines,
+        config.search.available_engines,
+    )
+
     params: Dict[str, Any] = {
         "q": query,
         "format": "json",
@@ -34,8 +137,8 @@ def search_searxng(
     }
     if language:
         params["language"] = language
-    if engines:
-        params["engines"] = ",".join(engines)
+    if validated_engines:
+        params["engines"] = ",".join(validated_engines)
 
     try:
         resp = httpx.get(
@@ -49,13 +152,17 @@ def search_searxng(
         logger.warning("SearXNG HTTP error: %s", exc)
         return {
             "success": False,
-            "error": f"SearXNG returned HTTP {exc.response.status_code}",
+            "error": f"SearXNG returned HTTP {exc.response.status_code}. Do not hammer search; wait or try alternative query terms.",
+            "retryable": False,
+            "available_engines": list(config.search.available_engines),
         }
     except httpx.RequestError as exc:
         logger.warning("SearXNG request error: %s", exc)
         return {
             "success": False,
-            "error": f"Could not reach SearXNG at {base}: {exc}",
+            "error": f"Could not reach SearXNG at {base} (timeout or network error): {exc}. Avoid rapid repeated retries.",
+            "retryable": False,
+            "available_engines": list(config.search.available_engines),
         }
 
     try:
@@ -65,20 +172,115 @@ def search_searxng(
         return {"success": False, "error": "Could not parse SearXNG response as JSON"}
 
     raw_results = data.get("results", [])
-    # Rank by SearXNG score, then cap to requested limit.
+    raw_unresponsive = data.get("unresponsive_engines", [])
+    unresponsive_engines = [
+        {"engine": item[0], "reason": item[1]} if isinstance(item, (list, tuple)) and len(item) >= 2 else {"engine": str(item), "reason": "unknown"}
+        for item in raw_unresponsive
+    ]
+
+    # Identify engines that successfully returned data vs unresponsive
+    unresponsive_set = {u["engine"].lower() for u in unresponsive_engines}
+    engines_with_data = {r.get("engine", "").lower() for r in raw_results if r.get("engine")}
+    successful_engines = sorted(list(engines_with_data or ({e for e in validated_engines if e not in unresponsive_set})))
+
+    now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    effective_limit = min(limit or getattr(config.search, "default_limit", 10), getattr(config.search, "max_limit", 50))
+
+    unified_results = []
+    total_snippet_chars = 0
+    max_snippet_len = getattr(config.search, "max_snippet_chars", 350)
+    max_total_len = getattr(config.search, "max_total_snippet_chars", 3000)
+
+    # Rank by SearXNG score
     sorted_results = sorted(
         raw_results,
         key=lambda r: float(r.get("score", 0) or 0),
         reverse=True,
-    )[:limit]
+    )
 
-    web = [
-        {
-            "title": r.get("title", ""),
-            "url": r.get("url", ""),
-            "description": r.get("content", ""),
+    for idx, r in enumerate(sorted_results[:effective_limit]):
+        u = r.get("url", "")
+        t = r.get("title", "")
+        c = r.get("content", "") or ""
+        dom = extract_domain(u)
+        fav = get_favicon_url(dom)
+
+        if len(c) > max_snippet_len:
+            c = c[:max_snippet_len].rsplit(" ", 1)[0] + "..."
+
+        if total_snippet_chars + len(c) > max_total_len and idx > 0:
+            c = c[: max(0, max_total_len - total_snippet_chars)].rsplit(" ", 1)[0] + "..."
+
+        total_snippet_chars += len(c)
+        cit_title = f"{t} ({dom})" if dom else t
+
+        unified_results.append({
+            "id": idx + 1,
+            "source_id": str(idx + 1),
             "position": idx + 1,
-        }
-        for idx, r in enumerate(sorted_results)
+            "name": t,
+            "title": t,
+            "domain": dom,
+            "favicon": fav,
+            "url": u,
+            "snippet": c,
+            "citation": f"[{idx + 1}]({u})",
+        })
+
+    formatted_lines = [
+        f"[{r['position']}] [{r['title']} - {r['domain']}]({r['url']})\n{r['snippet']}"
+        for r in unified_results
     ]
-    return {"success": True, "data": {"web": web}}
+    formatted_results = "\n\n".join(formatted_lines)
+    formatted_results += f"\n\n📌 MANDATORY CITATION REQUIREMENT: You MUST attach source URLs to inline citations using [1](url) or [domain.com](url) directly inline at the EXACT sentence or bullet point where facts are referenced (e.g., 'Landings were suspended for six hours [1](https://...).'). This renders clickable inline citation chips in OpenWebUI.\n🕒 Search timestamp: {now_utc}"
+
+    openwebui_sources = [
+        {
+            "id": r["id"],
+            "source_id": r["source_id"],
+            "name": r["title"],
+            "title": r["title"],
+            "url": r["url"],
+            "domain": r["domain"],
+            "snippet": r["snippet"],
+        }
+        for r in unified_results
+    ]
+
+    # Formulate explicit model guidance warning if empty or unresponsive
+    warnings: List[str] = []
+    if engine_warning:
+        warnings.append(engine_warning)
+
+    if unresponsive_engines:
+        unresponsive_summary = ", ".join(f"{u['engine']} ({u['reason']})" for u in unresponsive_engines)
+        warnings.append(f"Unresponsive engines (failed/CAPTCHA'd): {unresponsive_summary}.")
+        if successful_engines:
+            warnings.append(f"Results were retrieved ONLY from working engine(s): {successful_engines}. Results may be off-topic or limited.")
+
+    if not sorted_results:
+        if unresponsive_engines:
+            warnings.append("Search returned 0 results because underlying engines timed out or failed. Do NOT hammer the search tool with repeated identical queries.")
+        else:
+            warnings.append(f"No search results found for query '{query}'. Consider revising search keywords or adjusting filters.")
+
+    combined_warning = " ".join(warnings) if warnings else None
+
+    return {
+        "success": True,
+        "timestamp": now_utc,
+        "results": unified_results,
+        "sources": openwebui_sources,
+        "content": formatted_results,
+        "data": {
+            "web": unified_results,
+            "sources": openwebui_sources,
+            "formatted_results": formatted_results,
+            "total_results": len(unified_results),
+        },
+        "warning": combined_warning,
+        "successful_engines": successful_engines,
+        "unresponsive_engines": unresponsive_engines,
+        "used_engines": validated_engines,
+        "available_engines": list(config.search.available_engines),
+    }

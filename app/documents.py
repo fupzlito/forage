@@ -193,3 +193,57 @@ def extract_document_bytes(
     text = text[:max_chars]
     title = meta_title or _title_from_url(url)
     return text, title, kind
+
+
+def format_reddit_comments(children: list, indent: int = 0) -> list[str]:
+    lines = []
+    prefix = "  " * indent + "> " if indent > 0 else "### "
+    for child in children:
+        if not isinstance(child, dict) or child.get("kind") != "t1":
+            continue
+        cdata = child.get("data", {})
+        author = cdata.get("author", "[deleted]")
+        body = cdata.get("body", "")
+        score = cdata.get("score", 0)
+        if not body or body == "[deleted]" or body == "[removed]":
+            continue
+
+        lines.append(f"{prefix}**u/{author}** (Score: {score})\n{prefix}{body}\n")
+
+        replies = cdata.get("replies")
+        if isinstance(replies, dict) and "data" in replies:
+            reply_children = replies.get("data", {}).get("children", [])
+            lines.extend(format_reddit_comments(reply_children, indent + 1))
+    return lines
+
+
+def parse_reddit_json(raw_json: Any) -> Tuple[str, str]:
+    """Parse Reddit JSON response into (markdown_content, title)."""
+    if not isinstance(raw_json, list) or not raw_json:
+        raise ValueError("Invalid Reddit JSON response format")
+
+    post_data = raw_json[0].get("data", {}).get("children", [{}])[0].get("data", {})
+    title = post_data.get("title", "Reddit Post")
+    subreddit = post_data.get("subreddit_name_prefixed", post_data.get("subreddit", ""))
+    author = post_data.get("author", "[deleted]")
+    score = post_data.get("score", 0)
+    num_comments = post_data.get("num_comments", 0)
+    selftext = post_data.get("selftext", "")
+    url = post_data.get("url", "")
+
+    header = f"# {title}\n\n**Subreddit**: {subreddit} | **Author**: u/{author} | **Score**: {score} | **Comments**: {num_comments}\n"
+    if url and not url.startswith("https://www.reddit.com") and not url.startswith("https://reddit.com"):
+        header += f"\n**Link**: [{url}]({url})\n"
+
+    body_parts = [header]
+    if selftext:
+        body_parts.append(f"\n{selftext}\n")
+
+    if len(raw_json) > 1 and isinstance(raw_json[1], dict):
+        comments_children = raw_json[1].get("data", {}).get("children", [])
+        comment_lines = format_reddit_comments(comments_children)
+        if comment_lines:
+            body_parts.append("\n---\n\n## Comments\n\n" + "\n".join(comment_lines))
+
+    markdown_text = "\n".join(body_parts)
+    return markdown_text, title

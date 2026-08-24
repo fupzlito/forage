@@ -1,11 +1,11 @@
 services:
   forage:
     build: .
-    image: forage:0.9.0
+    image: fupzlito/forage:latest
     container_name: forage
     restart: always
     ports:
-      - "127.0.0.1:3672:3672"   # host-only bind: nothing external reaches it
+      - "3672:3672"            # expose port 3672 (or use "127.0.0.1:3672:3672" for localhost-only)
     volumes:
       - ./config.yaml:/etc/forage/config.yaml:ro   # bind mount, read-only
     env_file: .env

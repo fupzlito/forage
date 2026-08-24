@@ -186,6 +186,15 @@ If a page is behind an anti-bot challenge (Cloudflare etc.), Forage returns a cl
 
 Clears the in-memory caches (auth-gated). Returns `{ "cleared": N }`.
 
+### OpenWebUI & MCP (Model Context Protocol) Integration
+
+Forage natively supports MCP and OpenAI API tool connections for OpenWebUI and LLM clients:
+
+- **MCP over SSE (`GET /mcp/sse` & `POST /mcp/messages`)**: Connect OpenWebUI directly as an MCP server using `http://forage:3672/mcp/sse`.
+- **MCP over HTTP (`POST /mcp`)**: Direct JSON-RPC MCP 2024-11-05 endpoint.
+- **OpenAI Tools API (`GET /v1/tools` & `POST /v1/tools/call`)**: Standard OpenAI function-calling format endpoint.
+- **OpenAPI Schema (`GET /openapi.json`)**: Import directly into OpenWebUI's OpenAPI tool integration with clean tool names (`web_search`, `web_extract`) and rich parameter descriptions.
+
 ## Configuration
 
 All behavior is driven by `config.yaml` (bind-mounted read-only into the container) and env vars for secrets. Every option is documented in **[docs/CONFIG.md](docs/CONFIG.md)**. Here is the shape:

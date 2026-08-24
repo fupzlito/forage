@@ -2,12 +2,16 @@ FROM python:3.12-slim
 
 WORKDIR /srv/forage
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
 # Dependencies first (layer caching). Playwright downloads Chromium + system deps.
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
     && playwright install --with-deps chromium \
-    && patchright install chromium \
-    && scrapling install
+    && (patchright install chromium || true)
 
 # Application code
 COPY app/ app/
