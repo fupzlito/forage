@@ -44,10 +44,15 @@ Bypass per request with the `Cache-Control: no-cache` header; the response heade
 | Key | Default | Description |
 |---|---|---|
 | `searxng_url` | `http://searxng:8080` | Base URL of the SearXNG instance. On Docker, use the service name on the shared network (see docs/SEARXNG.md). |
-| `default_lang` | `pt-BR` | Language passed to SearXNG. |
-| `engines` | `[google, bing, brave, startpage]` | Default engine filter sent to SearXNG. |
-| `available_engines` | `[google, bing, brave, startpage, duckduckgo, wikipedia, github, qwant, searxng, yahoo, wikidata]` | List of enabled search engines on your SearXNG instance. Used for validation, model guidance, and engine alias mapping. |
+| `default_lang` | `en-US` | Language passed to SearXNG. |
+| `engines` | `[google, qwant, brave, bing, duckduckgo, startpage, reddit]` | Default engine filter sent to SearXNG. |
+| `available_engines` | `[google, qwant, qwant news, brave, bing, startpage, duckduckgo, reddit, wikipedia, youtube, github, searxng, yahoo, wikidata]` | List of enabled search engines on your SearXNG instance. Used for validation, model guidance, and engine alias mapping. |
 | `timeout` | `15` | Timeout in seconds per search request. |
+| `default_limit` | `10` | Default number of search results returned. |
+| `max_limit` | `50` | Maximum allowed search limit per query. |
+| `max_snippet_chars` | `350` | Max character cap per search result snippet. |
+| `max_total_snippet_chars` | `3000` | Total character cap across all snippets per response. |
+| `citation_style` | `site_name` | Citation link style format: `site_name` (`[Site Name](url)`), `site_name_code` (``[`Site Name`](url)``), `site_name_bold` (`[**Site Name**](url)`), `site_name_italic` (`[*Site Name*](url)`), `superscript` (`<sup>[Site Name](url)</sup>`), `bracket_numeric` (`[1](url)`), `bracket_domain` (`[domain.com](url)`), `bracket_title` (`[Source: Title](url)`). |
 
 ## `extract`
 
@@ -127,13 +132,28 @@ otherwise                                                 → static result
 
 Keys come from the `FORAGE_API_KEYS` env var (comma-separated) and are compared in constant time.
 
+## `prompts`
+
+Customize citation rules, tool descriptions, and OpenAPI/MCP parameter descriptions. Supports dynamic template placeholders: `{now_date}` (e.g. `2026-08-24 03:57 UTC`), `{year}` (`2026`), `{default_engines}`, `{available_engines}`, `{default_limit}`, `{citation_guidelines}`.
+
+| Key | Default | Description |
+|---|---|---|
+| `prompts_path` | `null` | Optional absolute path to an external prompts YAML file (e.g. `/etc/forage/prompts.yaml`). |
+| `citation_guidelines` | *(citation rules block)* | Reusable citation rules template. Automatically interpolated into tool descriptions via `{citation_guidelines}`. |
+| `search_tool_description` | *(search template)* | Tool description presented in OpenAPI and MCP schemas for web search. |
+| `extract_tool_description` | *(extract template)* | Tool description presented in OpenAPI and MCP schemas for web extraction. |
+| `search_params` | `{query, limit, ...}` | Dictionary of argument descriptions for web search parameters. |
+| `extract_params` | `{urls, force_render, ...}` | Dictionary of argument descriptions for web extract parameters. |
+
 ## Environment variables
 
 | Variable | Where | Purpose |
 |---|---|---|
 | `FORAGE_API_KEYS` | service `.env` | Comma-separated Bearer API keys (used when `auth.enabled: true`). |
 | `FORAGE_CONFIG` | service `.env` | Config file path inside the container (default `/etc/forage/config.yaml`). |
+| `FORAGE_PROMPTS_CONFIG` | service `.env` | Optional standalone prompts config path (default `/etc/forage/prompts.yaml`). |
 | `TZ` | service `.env` | Container timezone. |
 | `FORAGE_URL` | Hermes `.env` | Base URL the Hermes plugin calls (e.g. `http://localhost:3672`). |
 | `FORAGE_API_KEY` | Hermes `.env` | Key the plugin sends when auth is enabled. |
 | `FORAGE_BYPASS_CACHE` | Hermes `.env` | `true` makes the plugin always send `Cache-Control: no-cache`. |
+
