@@ -186,22 +186,17 @@ async def execute_tool_call(
             return {"error": res.get("error", "Search failed")}
 
         results = res.get("results", [])
-        instructions = res.get("instructions", "")
+        output_text = res.get("content", "")
         warning = res.get("warning")
 
-        formatted_lines = [
-            f"[{r['position']}] [{r['title']}]({r['url']})\n{r['snippet']}"
-            for r in results
-        ]
-        formatted = "\n\n".join(formatted_lines)
-        if instructions:
-            formatted += f"\n\n{instructions}"
-        if warning:
-            formatted = f"⚠️ [Search Warning]: {warning}\n\n" + formatted
+        if warning and output_text:
+            output_text = f"⚠️ [Search Warning]: {warning}\n\n" + output_text
 
         return {
             "results": results,
-            "formatted_text": formatted,
+            "data": res.get("data", {}),
+            "content": output_text,
+            "formatted_text": output_text,
             "warning": warning,
             "unresponsive_engines": res.get("unresponsive_engines"),
             "used_engines": res.get("used_engines"),

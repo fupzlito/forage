@@ -315,12 +315,21 @@ def search_searxng(
     combined_warning = " ".join(warnings) if warnings else None
 
     sample_cit = format_citation("Investopedia", "investopedia.com", "https://investopedia.com/...", 1, getattr(config.search, "citation_style", "site_name"))
-    instructions = (
+
+    result_blocks = [
+        f"[{r['position']}] [{r['title']}]({r['url']})\n{r['snippet']}"
+        for r in unified_results
+    ]
+    results_text = "\n\n".join(result_blocks)
+
+    formatted_results = (
+        f"Search retrieved {len(unified_results)} result(s) for '{query}'.\n\n"
+        f"{results_text}\n\n"
         f"📅 Date: {now_utc}. THE CURRENT YEAR IS 2026.\n"
         "📌 CITATION RULES:\n"
         "1. NO PREPOSITIONS IN HYPERLINKS: Do NOT put words like 'per', 'via', or 'according to' INSIDE hyperlink brackets. Keep prepositions outside as plain text, e.g. 'per [CNBC](url)' or 'via [Investopedia](url)', NEVER '[per CNBC](url)'.\n"
         f"2. CITATION FORMATS: Link capitalized site names (e.g. [CNBC](url), {sample_cit}) OR anchor links to descriptive nouns like [repo](url), [channel](url), or [docs](url) (e.g. 'per its own [repo](url)').\n"
-        "3. SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Shares fell 4%. {sample_cit}'). Do NOT repeat the same citation on every single sentence.\n"
+        f"3. SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Shares fell 4%. {sample_cit}'). Do NOT repeat the same citation on every single sentence.\n"
         "4. UNCITED SOURCES FOOTER: If a search source was used to inform your response but was NOT cited inline in your text, list it under a 'Sources' heading at the very bottom of your message.\n"
         "5. NO DUPLICATION: Do NOT list a source in the bottom 'Sources' list if it was already cited inline in your text."
     )
@@ -339,8 +348,9 @@ def search_searxng(
     return {
         "success": True,
         "timestamp": now_utc,
-        "instructions": instructions,
+        "instructions": formatted_results,
         "results": unified_results,
+        "content": formatted_results,
         "data": {
             "web": [
                 {
@@ -352,6 +362,7 @@ def search_searxng(
                 for r in unified_results
             ],
             "sources": sources,
+            "formatted_results": formatted_results,
         },
         "warning": combined_warning,
         "successful_engines": successful_engines,
