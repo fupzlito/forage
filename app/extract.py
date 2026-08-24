@@ -815,17 +815,15 @@ async def extract_url(
         content = _clean_reddit_markdown(content)
         raw_content = _clean_reddit_markdown(raw_content)
 
-    from datetime import datetime, timezone
-    from .searxng import extract_domain, get_favicon_url
+    from .searxng import extract_domain, get_favicon_url, format_citation
 
     domain = extract_domain(original_url)
     favicon = get_favicon_url(domain)
     extracted_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    cit_title = f"{title} ({domain})" if (title and domain) else (title or domain or original_url)
-    short_cit = f"[{domain}]({original_url})" if domain else f"[{original_url}]({original_url})"
-    citation_markdown = f"[Source: {cit_title}]({original_url})"
+    cit_style = getattr(config.extract, "citation_style", "superscript")
+    citation_markdown = format_citation(title, domain, original_url, position=1, style=cit_style)
 
-    citation_footer = f"\n\n{citation_markdown}\n📌 MANDATORY CITATION REQUIREMENT: You MUST attach the source URL to inline citations using short link chips like [1]({original_url}) or {short_cit} directly inline at the EXACT sentence or bullet point where facts are referenced in your response."
+    citation_footer = f"\n\n📌 MANDATORY CITATION REQUIREMENT: You MUST place inline citations like {citation_markdown} directly inline at the EXACT sentence or bullet point where facts/quotes are referenced in your response."
     if citation_footer not in content:
         content = content.strip() + f"\n\n{citation_footer}"
     if citation_footer not in raw_content:

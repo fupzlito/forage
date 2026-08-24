@@ -72,6 +72,46 @@ def get_favicon_url(domain: str) -> str:
     return f"https://www.google.com/s2/favicons?domain={domain}&sz=32"
 
 
+def get_clean_source_name(title: str, domain: str) -> str:
+    """Extract clean brand/site name from title or fallback to domain."""
+    if not title:
+        return domain or "Source"
+    clean = title.strip()
+    for delim in (" - ", " | ", " — ", " :: "):
+        if delim in clean:
+            parts = clean.split(delim)
+            last = parts[-1].strip()
+            if 2 <= len(last) <= 30:
+                return last
+            first = parts[0].strip()
+            if 2 <= len(first) <= 30:
+                return first
+    if len(clean) <= 25:
+        return clean
+    return domain or clean[:25]
+
+
+def format_citation(
+    title: str,
+    domain: str,
+    url: str,
+    position: int = 1,
+    style: str = "superscript",
+) -> str:
+    """Format citation link based on requested citation_style."""
+    site_name = get_clean_source_name(title, domain)
+    if style == "superscript":
+        return f"<sup>[{site_name}]({url})</sup>"
+    elif style == "bracket_numeric":
+        return f"[{position}]({url})"
+    elif style == "bracket_domain":
+        return f"[{domain}]({url})" if domain else f"[{position}]({url})"
+    elif style == "bracket_title":
+        return f"[Source: {site_name}]({url})"
+    else:
+        return f"<sup>[{site_name}]({url})</sup>"
+
+
 def normalize_and_validate_engines(
     requested: Optional[List[str]],
     default_engines: Tuple[str, ...],
@@ -211,8 +251,8 @@ def search_searxng(
         if total_snippet_chars + len(c) > max_total_len and idx > 0:
             c = c[: max(0, max_total_len - total_snippet_chars)].rsplit(" ", 1)[0] + "..."
 
-        total_snippet_chars += len(c)
-        cit_title = f"{t} ({dom})" if dom else t
+        cit_style = getattr(config.search, "citation_style", "superscript")
+        cit_link = format_citation(t, dom, u, position=idx + 1, style=cit_style)
 
         unified_results.append({
             "id": idx + 1,
@@ -224,7 +264,7 @@ def search_searxng(
             "favicon": fav,
             "url": u,
             "snippet": c,
-            "citation": f"[{idx + 1}]({u})",
+            "citation": cit_link,
         })
 
     formatted_lines = [
@@ -232,7 +272,8 @@ def search_searxng(
         for r in unified_results
     ]
     formatted_results = "\n\n".join(formatted_lines)
-    formatted_results += f"\n\n📌 MANDATORY CITATION REQUIREMENT: You MUST attach source URLs to inline citations using [1](url) or [domain.com](url) directly inline at the EXACT sentence or bullet point where facts are referenced (e.g., 'Landings were suspended for six hours [1](https://...).'). This renders clickable inline citation chips in OpenWebUI.\n🕒 Search timestamp: {now_utc}"
+    sample_cit = format_citation("Yahoo Finance", "finance.yahoo.com", "https://finance.yahoo.com/quote/SPCX/", 1, getattr(config.search, "citation_style", "superscript"))
+    formatted_results += f"\n\n📌 MANDATORY CITATION REQUIREMENT: You MUST place inline citations directly inline at the EXACT sentence or bullet point where each fact is referenced (e.g., 'SPCX closed at $136.97{sample_cit}.'). Do NOT dump citations in a footer list at the bottom of your message.\n🕒 Search timestamp: {now_utc}"
 
     openwebui_sources = [
         {

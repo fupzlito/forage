@@ -134,7 +134,7 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
             "description": (
                 f"Perform a web search using SearXNG. Current time/date is {now_date}. Consider this when generating search queries, picking sources, or reasoning. "
                 f"Default engines used automatically: [{default_engines_str}]. All available engines: [{available_engines_str}]. "
-                "CRITICAL MANDATE: You MUST attach source URLs to short inline citations like [1](url) or [domain.com](url) directly inline at the EXACT sentence or bullet point where each fact is referenced (e.g. 'Flight delays averaged 90 minutes [1](https://...).'). This renders clickable inline citation chips in OpenWebUI."
+                "CRITICAL MANDATE: You MUST place inline superscript citations like <sup>[Yahoo Finance](https://...)</sup> or <sup>[Times of Israel](https://...)</sup> directly inline at the EXACT sentence or bullet point where each fact is referenced (e.g. 'SPCX closed at $136.97<sup>[Yahoo Finance](https://...)</sup>.'). Do NOT dump citations in a footer list at the bottom of your message."
             ),
             "inputSchema": search_schema,
             "parameters": search_schema,  # OpenAI compatibility
@@ -143,7 +143,7 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
             "name": extract_name,
             "description": (
                 f"Fetch and extract clean markdown content from web URLs. Current time/date is {now_date}. "
-                "CRITICAL MANDATE: You MUST attach source URLs to short inline citations like [1](url) or [domain.com](url) directly inline at the EXACT sentence or bullet point where facts/quotes are referenced. This renders clickable inline citation chips in OpenWebUI."
+                "CRITICAL MANDATE: You MUST place inline superscript citations like <sup>[Yahoo Finance](https://...)</sup> directly inline at the EXACT sentence or bullet point where facts/quotes are referenced. Do NOT dump all citations at the bottom of your message."
             ),
             "inputSchema": extract_schema,
             "parameters": extract_schema,  # OpenAI compatibility

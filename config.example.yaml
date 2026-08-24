@@ -45,6 +45,8 @@ search:
   max_limit: 50            # maximum search results allowed per call
   max_snippet_chars: 350   # max length per search result snippet
   max_total_snippet_chars: 3000 # total char cap across all snippets per response
+  citation_style: superscript # citation link format: "superscript" (default: <sup>[Site Name](url)</sup>),
+                             # "bracket_numeric" ([1](url)), "bracket_domain" ([domain.com](url)), "bracket_title" ([Source: Title](url))
 
 # --- Extract ------------------------------------------------
 extract:
