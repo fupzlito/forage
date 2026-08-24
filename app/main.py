@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
@@ -135,6 +135,10 @@ class ExtractRequest(BaseModel):
         pattern="^(trafilatura|readability)$",
         description="Extraction engine: 'trafilatura' (default, fast main-content markdown parser) or 'readability' (Mozilla Readability.js + markdownify, recommended for e-commerce buyboxes, forums, and complex page layouts).",
     )
+    stream: bool = Field(
+        default=False,
+        description="Stream extraction results via Server-Sent Events (SSE) as each URL finishes.",
+    )
 
 
 def _search_cache_key(req: SearchRequest) -> str:
@@ -187,13 +191,33 @@ async def root() -> dict:
 
 @app.get("/health")
 async def health() -> dict:
-    """Liveness probe: cheap, no I/O."""
+    """Liveness & readiness probe with SearXNG backend heartbeat."""
+    import time
+    import httpx
+
+    searxng_info: Dict[str, Any] = {
+        "url": config.search.searxng_url,
+        "status": "unknown",
+    }
+    try:
+        t0 = time.monotonic()
+        async with httpx.AsyncClient(timeout=1.5) as client:
+            resp = await client.get(f"{config.search.searxng_url.rstrip('/')}/healthz")
+            latency_ms = int((time.monotonic() - t0) * 1000)
+            if resp.status_code == 200:
+                searxng_info.update({"status": "connected", "latency_ms": latency_ms})
+            else:
+                searxng_info.update({"status": "degraded", "http_status": resp.status_code, "latency_ms": latency_ms})
+    except Exception as exc:
+        searxng_info.update({"status": "unreachable", "error": str(exc)})
+
     return {
         "status": "ok",
         "service": "forage",
         "version": __version__,
         "config_source": config.source_path,
         "browser_engine": config.browser.engine,
+        "searxng": searxng_info,
         "tools": {
             "search_name": config.tools.search_name,
             "extract_name": config.tools.extract_name,
@@ -253,12 +277,17 @@ async def search(
 async def extract(
     req: ExtractRequest,
     request: Request,
+    accept: Optional[str] = Header(default=None),
     cache_control: Optional[str] = Header(default=None),
     _auth: None = Depends(require_auth),
-) -> JSONResponse:
+) -> Response:
     """Extract URLs using the hybrid strategy (static -> browser fallback)."""
+    import json
+    from fastapi.responses import StreamingResponse
+
     bypass = bool(cache_control and "no-cache" in cache_control.lower())
     cache_enabled = config.cache.enabled and config.cache.extract.enabled and not bypass
+    is_stream = req.stream or bool(accept and "text/event-stream" in accept.lower())
 
     fmt = "markdown"
     if req.formats:
@@ -266,12 +295,6 @@ async def extract(
             fmt = "html"
         elif "raw_html" in req.formats:
             fmt = "html"
-
-    key = _extract_cache_key(req.urls, req.force_render, req.wait_for, fmt, req.engine)
-    if cache_enabled:
-        cached = extract_cache.get(key)
-        if cached is not None:
-            return JSONResponse(content=cached, headers={"X-Forage-Cache": "hit"})
 
     async def _extract_one(url: str, pos: int) -> Dict[str, Any]:
         try:
@@ -290,6 +313,22 @@ async def extract(
         except Exception as exc:  # noqa: BLE001
             logger.exception("Extract failed for %s", url)
             return {"url": url, "error": str(exc)}
+
+    if is_stream:
+        async def _stream_events():
+            tasks = [asyncio.create_task(_extract_one(u, idx + 1)) for idx, u in enumerate(req.urls)]
+            for coro in asyncio.as_completed(tasks):
+                res = await coro
+                yield f"data: {json.dumps(res, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(_stream_events(), media_type="text/event-stream")
+
+    key = _extract_cache_key(req.urls, req.force_render, req.wait_for, fmt, req.engine)
+    if cache_enabled:
+        cached = extract_cache.get(key)
+        if cached is not None:
+            return JSONResponse(content=cached, headers={"X-Forage-Cache": "hit"})
 
     results = await asyncio.gather(*(_extract_one(u, idx + 1) for idx, u in enumerate(req.urls)))
     payload = {"success": True, "data": results}

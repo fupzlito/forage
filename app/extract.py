@@ -362,6 +362,8 @@ async def _extract_document(
 async def fetch_static(
     config: ForageConfig,
     url: str,
+    extra_headers: Optional[Dict[str, str]] = None,
+    cookies: Optional[Dict[str, str]] = None,
 ) -> Tuple[Optional[str], int, str, str]:
     """Fetch URL with plain HTTP. Returns (html, status, final_url, content_type).
 
@@ -381,7 +383,17 @@ async def fetch_static(
         "User-Agent": config.extract.user_agent,
         "Accept": accept,
     }
-    async with httpx.AsyncClient(follow_redirects=True, timeout=config.extract.timeout) as client:
+    if extra_headers:
+        headers.update(extra_headers)
+
+    client_kwargs: Dict[str, Any] = {
+        "follow_redirects": True,
+        "timeout": config.extract.timeout,
+    }
+    if cookies:
+        client_kwargs["cookies"] = cookies
+
+    async with httpx.AsyncClient(**client_kwargs) as client:
         robots_error = await _check_robots(client, config, url)
         if robots_error:
             return None, 0, url, ""  # caller treats 0 as blocked-by-robots
@@ -658,8 +670,16 @@ async def extract_url(
     readability_title: Optional[str] = None
     readability_rendered = False
 
+    override_headers = override.headers if override else {}
+    override_cookies = override.cookies if override else {}
+
     if not want_browser:
-        html, status, _, content_type = await fetch_static(config, url)
+        html, status, _, content_type = await fetch_static(
+            config,
+            url,
+            extra_headers=override_headers,
+            cookies=override_cookies,
+        )
         if status == 0:
             # network error or robots-blocked; browser rarely helps, fail clean
             return {"url": original_url, "error": "Failed to fetch URL (network error or robots.txt)"}

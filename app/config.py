@@ -205,6 +205,8 @@ class DomainOverride:
     timeout: Optional[int] = None
     network_idle_timeout: Optional[int] = None
     challenge_timeout: Optional[int] = None
+    headers: Dict[str, str] = field(default_factory=dict)
+    cookies: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
