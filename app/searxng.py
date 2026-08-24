@@ -122,6 +122,12 @@ def format_citation(
     site_name = get_clean_source_name(title, domain)
     if style == "site_name":
         return f"[{site_name}]({url})"
+    elif style == "site_name_bold":
+        return f"[**{site_name}**]({url})"
+    elif style == "site_name_italic":
+        return f"[*{site_name}*]({url})"
+    elif style == "site_name_code":
+        return f"[`{site_name}`]({url})"
     elif style == "superscript":
         return f"<sup>[{site_name}]({url})</sup>"
     elif style == "bracket_numeric":
@@ -289,19 +295,15 @@ def search_searxng(
             "citation": cit_link,
         })
 
-    formatted_lines = [
-        f"[{r['position']}] [{r['title']} - {r['domain']}]({r['url']})\n{r['snippet']}"
-        for r in unified_results
-    ]
-    formatted_results = "\n\n".join(formatted_lines)
     sample_cit = format_citation("Israel Hayom", "israelhayom.com", "https://www.israelhayom.com/...", 1, getattr(config.search, "citation_style", "site_name"))
-    formatted_results += (
-        f"\n\n📅 CURRENT YEAR NOTICE: The current date is {now_utc}. THE CURRENT YEAR IS 2026. Always generate queries for current year (2026) instead of past years (2025).\n"
-        "📌 CITATION REQUIREMENTS (STRICT):\n"
-        "1. MANDATORY INLINE CITATIONS: You MUST place inline citations directly inside your text for every claim or quote. NEVER dump citations only at the end of your message.\n"
+    formatted_results = (
+        f"Search retrieved {len(unified_results)} result(s) for '{query}'.\n\n"
+        f"📅 CURRENT YEAR NOTICE: The current date is {now_utc}. THE CURRENT YEAR IS 2026. Always generate queries for current year (2026) instead of past years (2025).\n"
+        "📌 CITATION GUIDANCE:\n"
+        "1. CITATION PLACEMENT: You may place citations inline near referenced facts, group multiple sources together (e.g. [Israel Hayom](url1), [VINnews](url2)), or use a 'Sources' footnote list at the end of your response when citing broad summaries or many sources.\n"
         "2. CAPITALIZED BRAND NAMES: Always use proper capitalized site names in link text (e.g. [Israel Hayom](url) or [VINnews](url)), NEVER raw lowercase TLDs like [israelhayom.com](url).\n"
-        "3. STAT & NUMBER ATTRIBUTION: Use '(via [Site Name](url))' ONLY for specific numbers, stock prices, or stats (e.g., '$136.97 (+2.22% via [Yahoo Finance](url))'). For general text or quotes, use standard inline links [Israel Hayom](url) without adding 'via'.\n"
-        f"4. BLOCK ATTRIBUTION FOR LISTS: For bullet lists or data tables from a single source, place the citation in the section header (e.g. '**Overview** {sample_cit}:').\n"
+        "3. STAT ATTRIBUTION: Use '(via [Site Name](url))' ONLY when citing specific numerical figures or stock quotes. For general text, use standard links [Israel Hayom](url) without adding 'via'.\n"
+        f"4. SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Flight operations resumed on Friday. {sample_cit}').\n"
         f"🕒 Search timestamp: {now_utc}"
     )
 

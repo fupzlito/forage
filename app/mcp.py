@@ -134,11 +134,11 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
             "description": (
                 f"Perform a web search using SearXNG. Current time/date is {now_date}. THE CURRENT YEAR IS 2026. Always generate queries for current year (2026) instead of past years (2025). "
                 f"Default engines used automatically: [{default_engines_str}]. All available engines: [{available_engines_str}]. "
-                "📌 CITATION REQUIREMENTS (STRICT): "
-                "1) MANDATORY INLINE CITATIONS: You MUST place inline citations directly inside your text for every claim or quote. NEVER dump citations only at the end of your message. "
+                "📌 CITATION GUIDANCE: "
+                "1) CITATION PLACEMENT: You may place citations inline near referenced facts, group multiple sources together, or use a 'Sources' footnote list at the end of your response when citing broad summaries or many sources. "
                 "2) CAPITALIZED BRAND NAMES: Always use proper capitalized site names in link text (e.g. [Israel Hayom](url) or [VINnews](url)), NEVER raw lowercase TLDs like [israelhayom.com](url). "
-                "3) NATURAL LINK PLACEMENT: Format links as [Israel Hayom](url) or ([Israel Hayom](url)). Do NOT force the word 'via' into every sentence. "
-                "4) BLOCK ATTRIBUTION FOR LISTS: For bullet lists or data tables from a single source, place citation in section header (e.g. '**Overview** [Israel Hayom](url):')."
+                "3) STAT ATTRIBUTION: Use '(via [Site Name](url))' ONLY when citing specific numerical figures or stock quotes. For general text, use standard links [Israel Hayom](url) without adding 'via'. "
+                "4) SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Flight operations resumed on Friday. [Israel Hayom](url)')."
             ),
             "inputSchema": search_schema,
             "parameters": search_schema,  # OpenAI compatibility
@@ -147,11 +147,11 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
             "name": extract_name,
             "description": (
                 f"Fetch and extract clean markdown content from web URLs. Current time/date is {now_date}. THE CURRENT YEAR IS 2026. "
-                "📌 CITATION REQUIREMENTS (STRICT): "
-                "1) MANDATORY INLINE CITATIONS: You MUST place inline citations directly inside your text for every claim or quote. NEVER dump citations only at the end of your message. "
+                "📌 CITATION GUIDANCE: "
+                "1) CITATION PLACEMENT: You may place citations inline near referenced facts, group multiple sources together, or use a 'Sources' footnote list at the end of your response when citing broad summaries or many sources. "
                 "2) CAPITALIZED BRAND NAMES: Always use proper capitalized site names in link text (e.g. [Israel Hayom](url) or [VINnews](url)), NEVER raw lowercase TLDs. "
-                "3) NATURAL LINK PLACEMENT: Format links as [Israel Hayom](url) or ([Israel Hayom](url)). Do NOT force the word 'via' into every sentence. "
-                "4) BLOCK ATTRIBUTION FOR LISTS: For bullet lists or data tables from a single source, place citation in section header."
+                "3) STAT ATTRIBUTION: Use '(via [Site Name](url))' ONLY when citing specific numerical figures or stock quotes. For general text, use standard links [Israel Hayom](url) without adding 'via'. "
+                "4) SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Operations resumed on Friday. [Israel Hayom](url)')."
             ),
             "inputSchema": extract_schema,
             "parameters": extract_schema,  # OpenAI compatibility

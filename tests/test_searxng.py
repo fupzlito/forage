@@ -59,7 +59,7 @@ class TestSearXNG(unittest.TestCase):
         self.assertTrue(res["success"])
         self.assertEqual(len(res["results"]), 1)
         self.assertEqual(res["results"][0]["title"], "Example Title")
-        self.assertIn("[1] [Example Title - example.com](https://example.com)", res["content"])
+        self.assertIn("Search retrieved 1 result(s)", res["content"])
 
     @patch("httpx.get")
     def test_search_searxng_unresponsive_engines(self, mock_get):

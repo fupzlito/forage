@@ -826,11 +826,11 @@ async def extract_url(
     citation_markdown = format_citation(title, domain, original_url, position=1, style=cit_style)
 
     citation_footer = (
-        f"\n\n📌 CITATION REQUIREMENTS (STRICT):\n"
-        "1. MANDATORY INLINE CITATIONS: You MUST place inline citations directly inside your text for every claim or quote. NEVER dump citations only at the end of your message.\n"
+        f"\n\n📌 CITATION GUIDANCE:\n"
+        "1. CITATION PLACEMENT: You may place citations inline near referenced facts, group multiple sources together, or use a 'Sources' footnote list at the end of your response when citing broad summaries or many sources.\n"
         f"2. CAPITALIZED BRAND NAMES: Always use proper capitalized site names in link text (e.g. {citation_markdown}), NEVER raw lowercase TLDs.\n"
-        f"3. NATURAL LINK PLACEMENT: Format links as {citation_markdown} or ({citation_markdown}). Do NOT force the word 'via' into every sentence.\n"
-        f"4. BLOCK ATTRIBUTION FOR LISTS: For bullet lists or data tables from a single source, place the citation in the section header (e.g. '**Overview** {citation_markdown}:')."
+        f"3. STAT ATTRIBUTION: Use '(via {citation_markdown})' ONLY when citing specific numerical figures or stock quotes. For general text, use standard links {citation_markdown} without adding 'via'.\n"
+        f"4. SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Operations resumed on Friday. {citation_markdown}')."
     )
     if citation_footer not in content:
         content = content.strip() + f"\n\n{citation_footer}"
