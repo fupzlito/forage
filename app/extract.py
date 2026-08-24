@@ -827,7 +827,7 @@ async def extract_url(
 
     citation_footer = (
         f"\n\n📌 CITATION GUIDANCE:\n"
-        f"1. CAPITALIZED BRAND NAMES: Always use proper capitalized site names in link text (e.g. {citation_markdown}), NEVER raw lowercase TLDs.\n"
+        f"1. CITATION FORMATS: You can link capitalized site names (e.g. {citation_markdown}) OR anchor links to descriptive nouns like [repo](url), [channel](url), [docs](url), or [paper](url) (e.g. 'per its own [repo](url)').\n"
         f"2. SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Operations resumed on Friday. {citation_markdown}').\n"
         "3. UNCITED SOURCES FOOTER: If an extracted source was used to inform your response but was NOT cited inline, list it under a 'Sources' heading at the very bottom of your message.\n"
         "4. NO DUPLICATION: Do NOT list a source in the bottom 'Sources' list if it was already cited inline in your text."

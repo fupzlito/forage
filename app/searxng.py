@@ -126,8 +126,6 @@ def format_citation(
         return f"[`{site_name}`]({url})"
     elif style == "site_name_bold":
         return f"[**{site_name}**]({url})"
-    elif style == "site_name_bold_code":
-        return f"[**`{site_name}`**]({url})"
     elif style == "site_name_italic":
         return f"[*{site_name}*]({url})"
     elif style == "superscript":
@@ -320,9 +318,9 @@ def search_searxng(
     instructions = (
         f"📅 Date: {now_utc}. THE CURRENT YEAR IS 2026.\n"
         "📌 CITATION RULES:\n"
-        f"1. Use capitalized site name links: {sample_cit}.\n"
-        f"2. Place sentence periods before links (e.g. 'Shares fell 4%. {sample_cit}'). Do NOT repeat the same citation on every single sentence.\n"
-        "3. UNCITED SOURCES FOOTER: If a search source was used to inform your response but was NOT cited inline, list it under a 'Sources' heading at the very bottom of your message.\n"
+        f"1. CITATION FORMATS: You can link capitalized site names (e.g. {sample_cit}) OR anchor links to descriptive nouns like [repo](url), [channel](url), [docs](url), or [paper](url) (e.g. 'per its own [repo](url)').\n"
+        f"2. SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Shares fell 4%. {sample_cit}'). Do NOT repeat the same citation on every single sentence.\n"
+        "3. UNCITED SOURCES FOOTER: If a search source was used to inform your response but was NOT cited inline in your text, list it under a 'Sources' heading at the very bottom of your message.\n"
         "4. NO DUPLICATION: Do NOT list a source in the bottom 'Sources' list if it was already cited inline in your text."
     )
 
