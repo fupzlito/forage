@@ -202,7 +202,8 @@ All behavior is driven by `config.yaml` (bind-mounted read-only into the contain
 ```yaml
 server:   { host, port, workers, log_level }
 cache:    { enabled, max_entries, search: {enabled, ttl}, extract: {enabled, ttl} }
-search:   { searxng_url, default_lang, engines, timeout }
+tools:    { search_name, extract_name }
+search:   { searxng_url, default_lang, engines, available_engines, timeout, default_limit, max_limit, citation_style }
 extract:  { timeout, max_content_chars, only_main_content, user_agent,
             browser_user_agent, respect_robots, force_render, wait_for,
             min_content_chars, raw_content_markdown, domain_overrides }
@@ -210,6 +211,7 @@ browser:  { engine, min_idle, max_instances, idle_timeout, headless, launch_time
             stealth, network_idle_timeout, scroll_steps, challenge_timeout,
             solve_cloudflare, fallback_solver }
 auth:     { enabled }
+prompts:  { prompts_path, citation_guidelines, search_tool_description, extract_tool_description, search_params, extract_params }
 ```
 
 | Environment variable | Where | Purpose |

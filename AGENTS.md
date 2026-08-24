@@ -23,14 +23,16 @@ Single Python service (FastAPI + uvicorn), one container. Modules in `app/`:
 |---|---|
 | `main.py` | FastAPI app, endpoints, pool lifespan, auth dependency |
 | `config.py` | YAML loader: defaults -> deep merge -> validation; typed dataclasses |
+| `prompts.py` | Safe template rendering for dynamic tool descriptions and citation guidelines |
+| `mcp.py` | MCP protocol endpoints (`/mcp`, `/mcp/sse`), OpenAI compatibility, tool schemas |
 | `cache.py` | Thread-safe TTL LRU cache (search and extract), `clear()` for purge |
-| `searxng.py` | SearXNG client (`/search?format=json`) -> Hermes envelope |
+| `searxng.py` | SearXNG client (`/search?format=json`) -> clean single-snippet results |
 | `extract.py` | Hybrid extraction heuristic (static -> browser), SPA/challenge detection |
 | `browser.py` | In-process Chromium pool (playwright/patchright) OR single Scrapling session; semaphore, cleanup, page_action |
 | `documents.py` | PDF/docx/xlsx/pptx/rtf extraction from raw bytes (never through the browser) |
 | `auth.py` | Bearer API keys (env `FORAGE_API_KEYS`), constant-time comparison |
 
-API: `GET /health`, `POST /search`, `POST /extract`, `POST /admin/cache/purge`.
+API: `GET /health`, `POST /search`, `POST /extract`, `GET /v1/tools`, `POST /v1/chat/completions`, `POST /mcp`, `POST /admin/cache/purge`.
 
 ## Core design decisions (do not reverse without a strong reason)
 
