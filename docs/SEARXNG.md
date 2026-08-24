@@ -92,8 +92,17 @@ curl -s -X POST http://localhost:3672/search -H 'Content-Type: application/json'
 
 Expect `"success": true` with results.
 
-## Tuning
+## Tuning & Anti-CAPTCHA Strategy
 
-- **Engine filtering**: set `search.engines` in Forage's config to limit which engines SearXNG uses (`[google, bing]`).
-- **Language**: `search.default_lang: pt-BR` is passed through to SearXNG.
-- **Anti-bot protection**: Forage's search cache (TTL 300s by default) means identical queries don't hit the engines repeatedly.
+- **Reduce Ban Suspension Time**: By default, SearXNG suspends an engine for **1 hour (3600s)** if Google or DuckDuckGo returns HTTP 429 or CAPTCHA. You can reduce this to **5 minutes (300s)** in your SearXNG `settings.yml` under `search`:
+  ```yaml
+  search:
+    ban_detector:
+      default:
+        http_code: 429
+        suspend_time: 300   # 5 mins instead of 60 mins
+  ```
+- **Fallback Engine Rotation**: Public engines like Google, Startpage, and DuckDuckGo get heavily rate-limited by anti-bot systems. Add resilient engines like `yahoo`, `bing`, and `qwant news` to `search.engines` in your `config.yaml` so search always succeeds even when Google is CAPTCHA'd.
+- **Engine filtering**: set `search.engines` in Forage's config to control which engines SearXNG uses.
+- **Language**: `search.default_lang: en-US` is passed through to SearXNG.
+- **Anti-bot protection**: Forage's search cache (TTL 300s by default) prevents identical queries from hitting SearXNG repeatedly.
