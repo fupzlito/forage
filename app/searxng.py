@@ -295,18 +295,6 @@ def search_searxng(
             "citation": cit_link,
         })
 
-    sample_cit = format_citation("Israel Hayom", "israelhayom.com", "https://www.israelhayom.com/...", 1, getattr(config.search, "citation_style", "site_name"))
-    formatted_results = (
-        f"Search retrieved {len(unified_results)} result(s) for '{query}'.\n\n"
-        f"📅 CURRENT YEAR NOTICE: The current date is {now_utc}. THE CURRENT YEAR IS 2026. Always generate queries for current year (2026) instead of past years (2025).\n"
-        "📌 CITATION GUIDANCE:\n"
-        "1. CITATION PLACEMENT: You may place citations inline near referenced facts, group multiple sources together (e.g. [Israel Hayom](url1), [VINnews](url2)), or use a 'Sources' footnote list at the end of your response when citing broad summaries or many sources.\n"
-        "2. CAPITALIZED BRAND NAMES: Always use proper capitalized site names in link text (e.g. [Israel Hayom](url) or [VINnews](url)), NEVER raw lowercase TLDs like [israelhayom.com](url).\n"
-        "3. STAT ATTRIBUTION: Use '(via [Site Name](url))' ONLY when citing specific numerical figures or stock quotes. For general text, use standard links [Israel Hayom](url) without adding 'via'.\n"
-        f"4. SENTENCE PERIOD PLACEMENT: Place sentence periods directly at the end of the sentence before citation links (e.g. 'Flight operations resumed on Friday. {sample_cit}').\n"
-        f"🕒 Search timestamp: {now_utc}"
-    )
-
     # Formulate explicit model guidance warning if empty or unresponsive
     warnings: List[str] = []
     if engine_warning:
@@ -330,7 +318,6 @@ def search_searxng(
         "success": True,
         "timestamp": now_utc,
         "results": unified_results,
-        "content": formatted_results,
         "warning": combined_warning,
         "successful_engines": successful_engines,
         "unresponsive_engines": unresponsive_engines,
