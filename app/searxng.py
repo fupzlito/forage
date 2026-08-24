@@ -130,10 +130,6 @@ def format_citation(
         return f"[**{site_name}**]({url})"
     elif style == "site_name_italic":
         return f"[*{site_name}*]({url})"
-    elif style == "site_name_brackets":
-        return f"[[{site_name}]({url})]"
-    elif style == "academic":
-        return f"[[{position}]({url})]"
     elif style == "bracket_domain":
         return f"[{domain}]({url})" if domain else f"[{site_name}]({url})"
     elif style == "bracket_title":
@@ -277,10 +273,10 @@ def search_searxng(
         fav = get_favicon_url(dom)
 
         if len(c) > max_snippet_len:
-            c = c[:max_snippet_len].rsplit(" ", 1)[0] + "... [TRUNCATED]"
+            c = c[:max_snippet_len].rsplit(" ", 1)[0] + "..."
 
         if total_snippet_chars + len(c) > max_total_len and idx > 0:
-            c = c[: max(0, max_total_len - total_snippet_chars)].rsplit(" ", 1)[0] + "... [TRUNCATED]"
+            c = c[: max(0, max_total_len - total_snippet_chars)].rsplit(" ", 1)[0] + "..."
 
         cit_style = getattr(config.search, "citation_style", "site_name")
         cit_link = format_citation(t, dom, u, position=idx + 1, style=cit_style)
