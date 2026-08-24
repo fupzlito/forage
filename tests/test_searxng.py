@@ -59,6 +59,33 @@ class TestSearXNG(unittest.TestCase):
         self.assertTrue(res["success"])
         self.assertEqual(len(res["results"]), 1)
         self.assertEqual(res["results"][0]["title"], "Example Title")
+        self.assertNotIn("favicon", res["results"][0])
+
+    @patch("httpx.get")
+    def test_search_searxng_default_limit_and_favicon(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status.return_value = None
+        raw_items = [
+            {"title": f"Title {i}", "url": f"https://example{i}.com", "content": f"Snippet {i}", "score": 10 - i}
+            for i in range(15)
+        ]
+        mock_resp.json.return_value = {
+            "results": raw_items,
+            "unresponsive_engines": [],
+        }
+        mock_get.return_value = mock_resp
+
+        # 1. Test default_limit (default 10) when limit=None
+        res = search_searxng(self.config, query="test query", limit=None)
+        self.assertEqual(len(res["results"]), 10)
+        self.assertNotIn("favicon", res["results"][0])
+
+        # 2. Test when include_favicon is enabled on search config
+        cfg_with_fav = ForageConfig.from_dict({"search": {"include_favicon": True, "default_limit": 3}}, source_path="test")
+        res_fav = search_searxng(cfg_with_fav, query="test query", limit=None)
+        self.assertEqual(len(res_fav["results"]), 3)
+        self.assertIn("favicon", res_fav["results"][0])
+        self.assertTrue(res_fav["results"][0]["favicon"].startswith("https://www.google.com/s2/favicons"))
 
     @patch("httpx.get")
     def test_search_searxng_unresponsive_engines(self, mock_get):

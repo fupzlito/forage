@@ -79,11 +79,11 @@ class SearchRequest(BaseModel):
         max_length=500,
         description="The search query string (keywords or question). Be specific and concise.",
     )
-    limit: int = Field(
-        default=5,
+    limit: Optional[int] = Field(
+        default=None,
         ge=1,
         le=50,
-        description="Number of search results to return (1 to 50, default 5).",
+        description=f"Number of search results to return (1 to 50, default {config.search.default_limit}).",
     )
     language: Optional[str] = Field(
         default=None,
@@ -143,7 +143,8 @@ class ExtractRequest(BaseModel):
 
 def _search_cache_key(req: SearchRequest) -> str:
     engines = ",".join(sorted(req.engines)) if req.engines else ""
-    return f"search:{req.query}|{req.limit}|{req.language or ''}|{engines}"
+    eff_limit = req.limit if req.limit is not None else config.search.default_limit
+    return f"search:{req.query}|{eff_limit}|{req.language or ''}|{engines}"
 
 
 def _extract_cache_key(urls: List[str], force_render: bool, wait_for: Optional[str], fmt: str, engine: Optional[str]) -> str:
@@ -258,10 +259,11 @@ async def search(
         if cached is not None:
             return JSONResponse(content=cached, headers={"X-Forage-Cache": "hit"})
 
+    eff_limit = req.limit if req.limit is not None else config.search.default_limit
     result = search_searxng(
         config,
         query=req.query,
-        limit=req.limit,
+        limit=eff_limit,
         language=req.language,
         engines=req.engines,
     )

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.main import app, config
 
 
 class TestMCPAndOpenAIEndpoints(unittest.TestCase):
@@ -64,6 +64,9 @@ class TestMCPAndOpenAIEndpoints(unittest.TestCase):
         self.assertFalse(data["result"]["isError"])
         text = data["result"]["content"][0]["text"]
         self.assertIn("Search Title", text)
+        mock_search.assert_called_once()
+        _, kwargs = mock_search.call_args
+        self.assertEqual(kwargs.get("limit"), config.search.default_limit)
 
     def test_v1_tools_list(self):
         response = self.client.get("/v1/tools")

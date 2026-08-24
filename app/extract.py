@@ -175,8 +175,7 @@ def _find_override(url: str, overrides: Tuple[Any, ...]) -> Optional[Any]:
 
     Specificity: pattern length (a ``reddit.com/r/`` pattern beats
     ``reddit.com``), then declaration order. Patterns are matched on the
-    original URL BEFORE any rewrite is applied.
-    """
+    original URL BEFORE any rewrite is applied."""
     best = None
     best_len = -1
     for override in overrides:
@@ -274,6 +273,16 @@ def _extract_title(html: str) -> str:
     return ""
 
 
+def _title_from_url(url: str) -> str:
+    """Derive a human-readable title fallback from a URL path."""
+    parsed = urlparse(url)
+    slug = parsed.path.rstrip("/").split("/")[-1]
+    if slug:
+        slug = re.sub(r"[-_]+", " ", slug).strip().capitalize()
+        return slug
+    return parsed.netloc or "Reddit"
+
+
 async def _check_robots(client: httpx.AsyncClient, config: ForageConfig, url: str) -> Optional[str]:
     """Return an error string when robots.txt disallows the URL, else None."""
     if not config.extract.respect_robots:
@@ -318,8 +327,7 @@ async def _extract_document(
 
     Returns the Hermes envelope entry when the URL yields a parseable
     document; None when it is not a document or parsing fails, so the
-    caller falls through to the normal hybrid flow.
-    """
+    caller falls through to the normal hybrid flow."""
     headers = {
         "User-Agent": config.extract.user_agent,
         "Accept": "*/*",
@@ -372,8 +380,7 @@ async def fetch_static(
     negotiation (e.g. via .htaccess / Vary: Accept) answers with
     ``text/markdown``; the caller then uses the body directly as markdown
     without running trafilatura. Servers without negotiation ignore the
-    Accept and return ``text/html``, so the normal hybrid flow continues.
-    """
+    Accept and return ``text/html``, so the normal hybrid flow continues."""
     accept = (
         "text/markdown,text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
         if config.extract.prefer_markdown
@@ -482,8 +489,7 @@ def _to_output(
     - readability engine: the article HTML (already main-content filtered by
       Readability.js in the browser) is converted to markdown with markdownify.
     - default engine: trafilatura markdown (only_main_content) or plain text
-      (full_text override).
-    """
+      (full_text override)."""
     if fmt == "html":
         return html, html[:max_chars]
     if readability:
@@ -498,8 +504,7 @@ def _scroll_steps_for(config: ForageConfig, scroll: bool) -> int:
 
     The domain override ``scroll: true`` forces at least one round even when
     the global ``browser.scroll_steps`` is 0 (the default), so lazy content
-    (Reddit/YouTube comments) gets a chance to mount.
-    """
+    (Reddit/YouTube comments) gets a chance to mount."""
     if not scroll:
         return 0
     return max(config.browser.scroll_steps, 1)
@@ -599,8 +604,7 @@ async def extract_url(
     whole-page text path, set a default wait_for selector, or enable
     scrolling. Request-level parameters are absolute: when the caller passes
     ``force_render`` or ``wait_for`` explicitly, they override the domain
-    override.
-    """
+    override."""
     method = "static"
 
     original_url = url
@@ -840,11 +844,11 @@ async def extract_url(
     from .searxng import extract_domain, get_favicon_url, format_citation
 
     domain = extract_domain(original_url)
-    favicon = get_favicon_url(domain)
+    include_fav = config.extract.include_favicon if getattr(config.extract, "include_favicon", None) is not None else getattr(config.tools, "include_favicon", False)
+    favicon = get_favicon_url(domain) if include_fav else None
     extracted_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     cit_style = getattr(config.extract, "citation_style", "site_name")
     citation_markdown = format_citation(title, domain, original_url, position=position, style=cit_style)
-
 
     result: Dict[str, Any] = {
         "position": position,
@@ -855,9 +859,10 @@ async def extract_url(
         "citation": citation_markdown,
         "method": method,
         "id": position,
-        "favicon": favicon,
         "extracted_at": extracted_at,
     }
+    if include_fav and favicon:
+        result["favicon"] = favicon
     if raw_content and raw_content != content:
         result["raw_content"] = raw_content
     if url != original_url:

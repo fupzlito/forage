@@ -189,7 +189,7 @@ def normalize_and_validate_engines(
 def search_searxng(
     config: ForageConfig,
     query: str,
-    limit: int,
+    limit: Optional[int] = None,
     language: Optional[str] = None,
     engines: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
@@ -244,9 +244,9 @@ def search_searxng(
 
     raw_results = data.get("results", [])
     raw_unresponsive = data.get("unresponsive_engines", [])
-    unresponsive_engines = [
-        {"engine": item[0], "reason": item[1]} if isinstance(item, (list, tuple)) and len(item) >= 2 else {"engine": str(item), "reason": "unknown"}
-        for item in raw_unresponsive
+    unresponsive_engines = [\
+        {"engine": item[0], "reason": item[1]} if isinstance(item, (list, tuple)) and len(item) >= 2 else {"engine": str(item), "reason": "unknown"}\
+        for item in raw_unresponsive\
     ]
 
     # Identify engines that successfully returned data vs unresponsive
@@ -255,7 +255,12 @@ def search_searxng(
     successful_engines = sorted(list(engines_with_data or ({e for e in validated_engines if e not in unresponsive_set})))
 
     now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    effective_limit = min(limit or getattr(config.search, "default_limit", 10), getattr(config.search, "max_limit", 50))
+    default_lim = getattr(config.search, "default_limit", 10)
+    max_lim = getattr(config.search, "max_limit", 50)
+    requested_limit = limit if limit is not None else default_lim
+    effective_limit = max(1, min(requested_limit, max_lim))
+
+    include_fav = config.search.include_favicon if getattr(config.search, "include_favicon", None) is not None else getattr(config.tools, "include_favicon", False)
 
     unified_results = []
     total_snippet_chars = 0
@@ -274,7 +279,7 @@ def search_searxng(
         t = r.get("title", "")
         c = r.get("content", "") or ""
         dom = extract_domain(u)
-        fav = get_favicon_url(dom)
+        fav = get_favicon_url(dom) if include_fav else None
 
         if len(c) > max_snippet_len:
             c = c[:max_snippet_len].rsplit(" ", 1)[0] + "... [TRUNCATED]"
@@ -285,7 +290,7 @@ def search_searxng(
         cit_style = getattr(config.search, "citation_style", "site_name")
         cit_link = format_citation(t, dom, u, position=idx + 1, style=cit_style)
 
-        unified_results.append({
+        item: Dict[str, Any] = {
             "position": idx + 1,
             "domain": dom,
             "url": u,
@@ -293,8 +298,11 @@ def search_searxng(
             "snippet": c,
             "citation": cit_link,
             "id": idx + 1,
-            "favicon": fav,
-        })
+        }
+        if include_fav and fav:
+            item["favicon"] = fav
+
+        unified_results.append(item)
 
     # Formulate explicit model guidance warning if empty or unresponsive
     warnings: List[str] = []

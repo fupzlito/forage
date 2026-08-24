@@ -52,6 +52,7 @@ DEFAULTS: Dict[str, Any] = {
         "max_snippet_chars": 350,
         "max_total_snippet_chars": 3000,
         "citation_style": "site_name",
+        "include_favicon": None,
     },
     "extract": {
         "timeout": 30,
@@ -68,6 +69,7 @@ DEFAULTS: Dict[str, Any] = {
         "prefer_markdown": True,   # negotiate Accept: text/markdown; use native markdown when the server serves it
         "domain_overrides": {},
         "citation_style": "site_name",
+        "include_favicon": None,
     },
     "browser": {
         "engine": "playwright",
@@ -186,6 +188,7 @@ class SearchConfig:
     max_snippet_chars: int = 350
     max_total_snippet_chars: int = 3000
     citation_style: str = "site_name"
+    include_favicon: Optional[bool] = None
 
 
 @dataclass(frozen=True)
@@ -227,6 +230,7 @@ class ExtractConfig:
     prefer_markdown: bool = True
     domain_overrides: tuple = ()
     citation_style: str = "site_name"
+    include_favicon: Optional[bool] = None
 
 
 @dataclass(frozen=True)
@@ -348,64 +352,26 @@ class ForageConfig:
             raise ValueError("browser.min_idle não pode exceder browser.max_instances")
         for override in self.extract.domain_overrides:
             if not override.pattern:
-                raise ValueError("extract.domain_overrides: padrão de domínio não pode ser vazio")
-            if override.url_rewrite and "/" not in override.url_rewrite:
-                raise ValueError(
-                    f"extract.domain_overrides[{override.pattern}]: url_rewrite deve ser "
-                    "'host[/path-prefix]' (ex.: old.reddit.com/r/): {override.url_rewrite!r}"
-                )
-            if override.timeout is not None and not (1 <= override.timeout <= 120):
-                raise ValueError(
-                    f"extract.domain_overrides[{override.pattern}]: timeout deve estar entre 1 e 120s"
-                )
-            if override.network_idle_timeout is not None and not (0 <= override.network_idle_timeout <= 60):
-                raise ValueError(
-                    f"extract.domain_overrides[{override.pattern}]: network_idle_timeout deve estar entre 0 e 60s"
-                )
-            if override.challenge_timeout is not None and not (0 <= override.challenge_timeout <= 120):
-                raise ValueError(
-                    f"extract.domain_overrides[{override.pattern}]: challenge_timeout deve estar entre 0 e 120s"
-                )
-            if override.engine is not None and override.engine not in ("trafilatura", "readability"):
-                raise ValueError(
-                    f"extract.domain_overrides[{override.pattern}]: engine deve ser trafilatura ou readability"
-                )
+                raise ValueError("domain_overrides entry must contain a pattern")
 
 
-def _load_yaml(path: str) -> Dict[str, Any]:
-    """Load YAML file, returning {} when the file does not exist."""
-    if not os.path.exists(path):
-        logger.info("Config file not found (%s), using defaults", path)
-        return {}
-    try:
-        with open(path, "r", encoding="utf-8") as fh:
-            data = yaml.safe_load(fh) or {}
-    except yaml.YAMLError as exc:
-        raise ValueError(f"Falha ao parsear config YAML ({path}): {exc}") from exc
-    if not isinstance(data, dict):
-        raise ValueError(f"Config YAML ({path}) deve ser um mapa no nível raiz")
-    return data
+def load_config(config_path: Optional[str] = None) -> ForageConfig:
+    """Load configuration from built-in defaults + YAML file + env vars."""
+    raw_path = config_path or os.environ.get("FORAGE_CONFIG", DEFAULT_CONFIG_PATH)
+    path = os.path.abspath(raw_path)
 
+    data: Dict[str, Any] = DEFAULTS
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                loaded = yaml.safe_load(f) or {}
+                data = deep_merge(DEFAULTS, loaded)
+            logger.info("Loaded config from %s", path)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not read config from %s: %s (using defaults)", path, exc)
+    else:
+        logger.info("Config file %s not found; using defaults", path)
 
-def load_config(path: Optional[str] = None) -> ForageConfig:
-    """Load configuration from defaults + optional YAML file.
-
-    Args:
-        path: Override FORAGE_CONFIG env var and the built-in default.
-    """
-    config_path = path or os.environ.get("FORAGE_CONFIG") or DEFAULT_CONFIG_PATH
-    file_data = _load_yaml(config_path)
-    merged = deep_merge(DEFAULTS, file_data)
-
-    prompts_path = merged.get("prompts", {}).get("prompts_path") or os.environ.get("FORAGE_PROMPTS_CONFIG")
-    if prompts_path:
-        prompts_data = _load_yaml(prompts_path)
-        if prompts_data:
-            # If the external YAML has a top-level "prompts" key, unnest it
-            if "prompts" in prompts_data and isinstance(prompts_data["prompts"], dict):
-                prompts_data = prompts_data["prompts"]
-            merged["prompts"] = deep_merge(merged.get("prompts", {}), prompts_data)
-
-    config = ForageConfig.from_dict(merged, source_path=config_path)
-    config.validate()
-    return config
+    cfg = ForageConfig.from_dict(data, source_path=path)
+    cfg.validate()
+    return cfg

@@ -38,6 +38,7 @@ Bypass per request with the `Cache-Control: no-cache` header; the response heade
 |---|---|---|
 | `search_name` | `web_search` | Custom tool call name presented in OpenAPI schemas and MCP tools list for web search (e.g. `web_search`, `search_web`). |
 | `extract_name` | `web_extract` | Custom tool call name presented in OpenAPI schemas and MCP tools list for web extraction (e.g. `web_extract`, `fetch_page`). |
+| `include_favicon` | `false` | Global toggle: if true, adds favicon URLs to search/extract results and formatted text blocks for models. Can also be overridden specifically under `search` or `extract`. |
 
 ## `search`
 
@@ -48,11 +49,12 @@ Bypass per request with the `Cache-Control: no-cache` header; the response heade
 | `engines` | `[google, qwant, brave, bing, duckduckgo, startpage, reddit]` | Default engine filter sent to SearXNG. |
 | `available_engines` | `[google, qwant, qwant news, brave, bing, startpage, duckduckgo, reddit, wikipedia, youtube, github, searxng, yahoo, wikidata]` | List of enabled search engines on your SearXNG instance. Used for validation, model guidance, and engine alias mapping. |
 | `timeout` | `15` | Timeout in seconds per search request. |
-| `default_limit` | `10` | Default number of search results returned. |
+| `default_limit` | `10` | Default number of search results returned when limit is omitted in requests. |
 | `max_limit` | `50` | Maximum allowed search limit per query. |
 | `max_snippet_chars` | `350` | Max character cap per search result snippet. |
 | `max_total_snippet_chars` | `3000` | Total character cap across all snippets per response. |
 | `citation_style` | `site_name` | Citation link style format: `site_name` (`[Site Name](url)`), `site_name_code` (``[`Site Name`](url)``), `site_name_bold` (`[**Site Name**](url)`), `site_name_italic` (`[*Site Name*](url)`), `superscript` (`<sup>[Site Name](url)</sup>`), `bracket_numeric` (`[1](url)`), `bracket_domain` (`[domain.com](url)`), `bracket_title` (`[Source: Title](url)`). |
+| `include_favicon` | `null` | Optional override for `tools.include_favicon` specifically for search responses. |
 
 ## `extract`
 
@@ -70,6 +72,7 @@ Bypass per request with the `Cache-Control: no-cache` header; the response heade
 | `min_content_chars` | `200` | If static extraction yields less text than this, Forage falls back to the browser. |
 | `raw_content_markdown` | `true` | `true`: `raw_content` mirrors the clean markdown (Firecrawl-style contract; what Hermes' `web_extract_tool` reads first). `false`: `raw_content` keeps the raw HTML. |
 | `prefer_markdown` | `true` | Negotiate `Accept: text/markdown` on the static fetch. When the server implements markdown negotiation (e.g. via `.htaccess` / `Vary: Accept`) and serves `text/markdown`, Forage uses the body directly as markdown (`method: "markdown"`), skipping trafilatura conversion. Servers without negotiation ignore the Accept and return HTML, so the normal hybrid flow continues. |
+| `include_favicon` | `null` | Optional override for `tools.include_favicon` specifically for extract responses. |
 | `domain_overrides` | `{}` | Per-pattern extraction overrides. The YAML key is a pattern (www-insensitive, case-insensitive): `x.com` matches the host or any subdomain; `.x.com` is the same with an explicit leading dot; `amazon.*` is a wildcard on a host label (fnmatch) that matches the host and any subdomain suffix; `reddit.com/r/` requires an exact host plus a path prefix. Supported keys per override: `force_render` (bool), `full_text` (bool), `engine` (str: `trafilatura` or `readability`), `wait_for` (str), `url_rewrite` (str, format `host[/path]`), `scroll` (bool), `timeout` (int 1-120), `network_idle_timeout` (int 0-60), `challenge_timeout` (int 0-120), `headers` (map of custom request headers), `cookies` (map of custom session cookies). Request-level `force_render`/`wait_for`/`timeout`/`engine` are absolute and override the domain override. |
 
 Example: serve Reddit threads/profiles from the classic UI (comments are server-side there) and keep the Amazon buybox (price arrives via JS; trafilatura drops it as non-main):
@@ -111,49 +114,34 @@ otherwise                                                 → static result
 
 | Key | Default | Description |
 |---|---|---|
-| `engine` | `playwright` | Browser engine: `playwright` (default), `patchright` (anti-detection fork of Playwright, same API) or `scrapling` (fingerprint impersonation + Cloudflare Turnstile bypass). Switching engine only needs a config change and `docker compose restart`. |
-| `min_idle` | `1` | Browsers kept warm at boot (standby). `0` = lazy (launch on demand). |
-| `max_instances` | `5` | Pool ceiling; also the browser concurrency bound for parallel URL extraction. |
-| `idle_timeout` | `60` | Seconds an idle instance stays alive before it is closed. |
-| `headless` | `true` | Run Chromium headless. |
-| `launch_timeout` | `30` | Seconds to launch a new instance. |
-| `stealth` | `true` | Hide automation signals (anti-bot). Adds `--disable-blink-features=AutomationControlled`, an init script masking `navigator.webdriver`/`chrome`/`languages`/`plugins`, and a real Chrome UA. |
-| `network_idle_timeout` | `5` | Seconds cap for the `networkidle` wait during render. Pages with streaming/websockets (e.g. X) never go idle, so this cap bounds the render time; lower it for faster worst-case extraction, raise it if pages need more time to hydrate via XHR. |
-| `scroll_steps` | `0` | Scroll-to-bottom passes in browser mode before extracting. Triggers lazy-loaded content (YouTube/Reddit comments mount only when scrolled into view). **Off by default**: it adds ~6s on browser pages that don't grow; enable per-instance only when lazy comments are needed. |
-| `challenge_timeout` | `15` | Max seconds to wait for a Cloudflare/Turnstile challenge to auto-resolve after load. Only used by the `scrapling` engine (polling inside `page_action`). |
-| `solve_cloudflare` | `false` | `scrapling` engine only. `false` (default) uses Forage's own title-poll in `page_action`, which resolves non-interactive challenges with no fixed cost. `true` uses Scrapling's built-in solver, which handles interactive challenges but waits ~5s for networkidle on every page before detecting. |
-| `fallback_solver` | `true` | On any anti-bot failure (challenge detected, any engine), retry the page with the scrapling built-in solver as a last resort. The ~5s/page solver cost is paid only when a challenge is actually detected, turning would-be failures into successes. |
+| `engine` | `playwright` | Browser backend engine: `playwright` (default in example), `patchright`, `scrapling` (production default; stealthiest), or `obscura` (external Rust/V8 headless browser via CDP). |
+| `cdp_url` | `""` | CDP endpoint URL when `engine: obscura` (e.g. `http://127.0.0.1:9223` or `ws://127.0.0.1:9223`). Ignored for other engines. |
+| `min_idle` | `1` | Warm browser instances kept idle in pool. On `scrapling`, pool size is fixed at 1. |
+| `max_instances` | `5` | Upper limit of concurrent browser instances. |
+| `idle_timeout` | `60` | Idle seconds before closing an unused browser instance. |
+| `headless` | `true` | Run headless. |
+| `launch_timeout` | `30` | Seconds allowed for browser launch before failing. |
+| `stealth` | `true` | Apply anti-detection patches (`navigator.webdriver` masking, realistic Chrome UA, platform flags). |
+| `network_idle_timeout` | `5` | Max seconds to wait for network activity to settle. Set lower for fast SPAs, higher for heavy dashboards. Override per-domain via `network_idle_timeout`. |
+| `scroll_steps` | `0` | Number of smooth scroll passes down the page before extracting. Essential for sites that lazy-load content or comments via IntersectionObserver (e.g. Reddit, YouTube). `0` disables scrolling (fastest). Override per-domain via `scroll: true`. |
+| `challenge_timeout` | `15` | Max seconds to wait for an anti-bot challenge (Cloudflare, DDoS-GUARD) to resolve before extracting. Active only under `engine: scrapling`. Override per-domain via `challenge_timeout`. |
+| `solve_cloudflare` | `false` | Scrapling engine only: use Scrapling's built-in Cloudflare solver on EVERY page. Adds ~5s per page of networkidle wait time. Keep `false` (default) to let the lightweight title-polling loop in `page_action` handle challenges with zero overhead on clean pages; set `true` only if targeting sites with interactive turnstile checkboxes. |
+| `fallback_solver` | `true` | Scrapling engine only: when `looks_like_challenge()` detects a challenge after normal extraction, automatically retry that single URL with Scrapling's built-in challenge solver. Gives automatic bypass without paying the ~5s solver overhead on clean pages. |
 
 ## `auth`
 
 | Key | Default | Description |
 |---|---|---|
-| `enabled` | `false` | Require `Authorization: Bearer <key>` on `/search`, `/extract` and `/admin/*`. `/health` stays open (healthcheck). |
+| `enabled` | `false` | Require Bearer authentication on protected endpoints. |
 
-Keys come from the `FORAGE_API_KEYS` env var (comma-separated) and are compared in constant time.
+Keys are configured in the `FORAGE_API_KEYS` env var (comma-separated). `/health` is always public.
 
-## `prompts`
-
-Customize citation rules, tool descriptions, and OpenAPI/MCP parameter descriptions. Supports dynamic template placeholders: `{now_date}` (e.g. `2026-08-24 03:57 UTC`), `{year}` (`2026`), `{default_engines}`, `{available_engines}`, `{default_limit}`, `{citation_guidelines}`.
-
-| Key | Default | Description |
-|---|---|---|
-| `prompts_path` | `null` | Optional absolute path to an external prompts YAML file (e.g. `/etc/forage/prompts.yaml`). |
-| `citation_guidelines` | *(citation rules block)* | Reusable citation rules template. Automatically interpolated into tool descriptions via `{citation_guidelines}`. |
-| `search_tool_description` | *(search template)* | Tool description presented in OpenAPI and MCP schemas for web search. |
-| `extract_tool_description` | *(extract template)* | Tool description presented in OpenAPI and MCP schemas for web extraction. |
-| `search_params` | `{query, limit, ...}` | Dictionary of argument descriptions for web search parameters. |
-| `extract_params` | `{urls, force_render, ...}` | Dictionary of argument descriptions for web extract parameters. |
+---
 
 ## Environment variables
 
-| Variable | Where | Purpose |
-|---|---|---|
-| `FORAGE_API_KEYS` | service `.env` | Comma-separated Bearer API keys (used when `auth.enabled: true`). |
-| `FORAGE_CONFIG` | service `.env` | Config file path inside the container (default `/etc/forage/config.yaml`). |
-| `FORAGE_PROMPTS_CONFIG` | service `.env` | Optional standalone prompts config path (default `/etc/forage/prompts.yaml`). |
-| `TZ` | service `.env` | Container timezone. |
-| `FORAGE_URL` | Hermes `.env` | Base URL the Hermes plugin calls (e.g. `http://localhost:3672`). |
-| `FORAGE_API_KEY` | Hermes `.env` | Key the plugin sends when auth is enabled. |
-| `FORAGE_BYPASS_CACHE` | Hermes `.env` | `true` makes the plugin always send `Cache-Control: no-cache`. |
-
+| Variable | Description |
+|---|---|
+| `FORAGE_CONFIG` | Path to `config.yaml` inside the container (default `/etc/forage/config.yaml`). |
+| `FORAGE_API_KEYS` | Comma-separated list of valid Bearer tokens (when `auth.enabled: true`). |
+| `SEARXNG_URL` | Override for `search.searxng_url`. |

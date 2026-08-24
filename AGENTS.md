@@ -20,7 +20,7 @@ this repo (code, docs, commits) is written in English.
 Single Python service (FastAPI + uvicorn), one container. Modules in `app/`:
 
 | Module | Responsibility |
-|---|---|
+|---|---|\
 | `main.py` | FastAPI app, endpoints, pool lifespan, auth dependency |
 | `config.py` | YAML loader: defaults -> deep merge -> validation; typed dataclasses |
 | `prompts.py` | Safe template rendering for dynamic tool descriptions and citation guidelines |
@@ -58,15 +58,7 @@ API: `GET /health`, `POST /search`, `POST /extract`, `GET /v1/tools`, `POST /v1/
 - **Markdown output via trafilatura** (`output_format="markdown"`): preserves
   headings, bold, lists, code blocks. Tested against html2text/markdownify/
   readability-lxml: trafilatura markdown is the best cost/benefit.
-- **Extract engine is pluggable via config** (`extract.engine`, default
-  `trafilatura`; per-domain via the `engine` override key; request-level
-  `engine` param is absolute). The `readability` engine runs Mozilla
-  Readability.js inside the page (`page.evaluate`, no Node runtime) and
-  converts the article with markdownify. It exists because trafilatura's
-  main-content heuristic drops non-article blocks (Amazon buybox), and
-  `full_text` only recovers them as plain text. `.amazon.*` uses it by
-  default.
-- **Stealth built in, no extra dependency**: `browser.stealth: true` (default)
+- **Stealth Chromium pool**: built-in stealth flag on the browser launcher
   sets `--disable-blink-features=AutomationControlled` + an init script that
   masks `navigator.webdriver`/`chrome`/`languages`/`plugins`, plus a real
   desktop Chrome UA. Do not add playwright-stealth/curl_cffi unless a real case
@@ -82,9 +74,17 @@ API: `GET /health`, `POST /search`, `POST /extract`, `GET /v1/tools`, `POST /v1/
   browser processes start; hot reload would be fragile. 1-2s downtime is fine.
 - **`raw_content_markdown: true` (default)**: `raw_content` mirrors the clean
   markdown so consumers that read `raw_content` first (Hermes' web extract
-  tool) get clean text. `false` returns raw HTML in `raw_content`.
+  tool) get clean text. `false` returns raw HTML in `raw_content`.\
 - **Auth optional (Bearer)**: `auth.enabled: false` default (local use + bind
   127.0.0.1). Keys via env, `hmac.compare_digest`. `/health` always open.
+- **`default_limit` resolution**: Pydantic models (`SearchRequest`) and MCP tool
+  handlers default `limit` to `None` so omitted limits consistently fall back to
+  `config.search.default_limit` at runtime (capped by `config.search.max_limit`).
+  Do not hardcode integer defaults in endpoint models that shadow YAML config.
+- **Favicon inclusion hierarchy**: `include_favicon: false` (default) omits
+  favicon URLs from search/extract responses and MCP text blocks. Configured
+  globally under `tools.include_favicon` or overridden per-section under
+  `search.include_favicon` and `extract.include_favicon`.
 
 ## API contract (critical, tested against the Hermes consumer)
 
@@ -145,7 +145,7 @@ override.
   false-positives on "shopping-app" in prose.
 - **Cloudflare managed challenge can answer 200 on static fetch**: after the
   static fetch, if `looks_like_challenge` -> force browser instead of
-  delivering an error.
+  delivering an error.\
 - **`network_idle=True` on the Scrapling session hangs streaming pages**
   (x.com never idles). Keep `network_idle=False` on the session and replicate
   network-idle-with-cap inside the `page_action`.
