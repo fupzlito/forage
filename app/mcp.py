@@ -292,10 +292,12 @@ async def process_mcp_rpc(
             "id": msg_id,
             "result": {
                 "protocolVersion": "2024-11-05",
-                "capabilities": {"tools": {}},
+                "capabilities": {
+                    "tools": {"listChanged": False},
+                },
                 "serverInfo": {
                     "name": "forage",
-                    "version": "0.8.1",
+                    "version": "0.9.0",
                 },
             },
         }
@@ -489,3 +491,98 @@ async def post_v1_tools_call(request: Request) -> JSONResponse:
 
     result = await execute_tool_call(name, arguments, config, browser_pool)
     return JSONResponse(content={"success": "error" not in result, "result": result})
+
+
+@mcp_router.get("/v1/models")
+@mcp_router.get("/models")
+async def get_v1_models(request: Request) -> JSONResponse:
+    """OpenAI API compatible models listing endpoint."""
+    config, _ = _get_config_and_pool(request)
+    search_name = config.tools.search_name
+    extract_name = config.tools.extract_name
+    return JSONResponse(
+        content={
+            "object": "list",
+            "data": [
+                {
+                    "id": search_name,
+                    "object": "model",
+                    "created": 1700000000,
+                    "owned_by": "forage",
+                    "permission": [],
+                    "root": search_name,
+                    "parent": None,
+                },
+                {
+                    "id": extract_name,
+                    "object": "model",
+                    "created": 1700000000,
+                    "owned_by": "forage",
+                    "permission": [],
+                    "root": extract_name,
+                    "parent": None,
+                },
+            ],
+        }
+    )
+
+
+@mcp_router.post("/v1/chat/completions")
+async def post_v1_chat_completions(request: Request) -> JSONResponse:
+    """OpenAI API compatible chat completion endpoint for tool invocation."""
+    config, browser_pool = _get_config_and_pool(request)
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    messages = body.get("messages", [])
+    model_requested = body.get("model", config.tools.search_name)
+
+    query = ""
+    for msg in reversed(messages):
+        content = msg.get("content", "")
+        if isinstance(content, str) and content.strip():
+            query = content.strip()
+            break
+
+    search_name = config.tools.search_name
+    extract_name = config.tools.extract_name
+
+    import re
+    urls = re.findall(r'https?://[^\s>"]+', query)
+
+    if model_requested == extract_name or (urls and model_requested != search_name):
+        tool_name = extract_name
+        args = {"urls": urls if urls else [query]}
+    else:
+        tool_name = search_name
+        args = {"query": query or "test"}
+
+    result = await execute_tool_call(tool_name, args, config, browser_pool)
+    formatted_text = result.get("formatted_text", json.dumps(result, indent=2))
+
+    return JSONResponse(
+        content={
+            "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
+            "object": "chat.completion",
+            "created": 1700000000,
+            "model": model_requested,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": formatted_text,
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 100,
+                "total_tokens": 200,
+            },
+        }
+    )

@@ -173,6 +173,18 @@ def custom_openapi():
 app.openapi = custom_openapi
 
 
+@app.get("/")
+@app.post("/")
+async def root() -> dict:
+    """Root status probe for tool server and proxy compatibility."""
+    return {
+        "status": "ok",
+        "service": "forage",
+        "version": __version__,
+        "tools": [config.tools.search_name, config.tools.extract_name],
+    }
+
+
 @app.get("/health")
 async def health() -> dict:
     """Liveness probe: cheap, no I/O."""
