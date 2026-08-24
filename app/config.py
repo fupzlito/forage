@@ -36,6 +36,7 @@ DEFAULTS: Dict[str, Any] = {
     "tools": {
         "search_name": "web_search",
         "extract_name": "web_extract",
+        "include_favicon": False,
     },
     "search": {
         "searxng_url": "http://searxng:8080",
@@ -167,6 +168,7 @@ class CacheConfig:
 class ToolsConfig:
     search_name: str = "web_search"
     extract_name: str = "web_extract"
+    include_favicon: bool = False
 
 
 @dataclass(frozen=True)

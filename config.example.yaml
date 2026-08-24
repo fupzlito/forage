@@ -32,6 +32,7 @@ cache:
 tools:
   search_name: web_search  # tool call name presented to LLMs (e.g. web_search, search_web)
   extract_name: web_extract # tool call name presented to LLMs (e.g. web_extract, fetch_page)
+  include_favicon: false   # if true, adds "FAVICON: <url>" to the formatted text for models
 
 # --- Search (SearXNG) ----------------------------------------
 # Point this at your SearXNG instance. See docs/SEARXNG.md for setup.

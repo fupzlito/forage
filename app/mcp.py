@@ -243,6 +243,8 @@ async def execute_tool_call(
                 f"SNIPPET: {r['snippet']}\n"
                 f"CITE AS: {r['citation']}"
             )
+            if config.tools.include_favicon and r.get('favicon'):
+                block += f"\nFAVICON: {r['favicon']}"
             formatted_lines.append(block)
 
         output_text = "\n\n".join(formatted_lines)
@@ -345,13 +347,16 @@ async def execute_tool_call(
                 c = r.get("content", "")
                 m = r.get("method", "unknown")
                 cit = r.get("citation", f"[{dom}]({u})")
-                formatted_blocks.append(
+                block = (
                     f"[{idx+1}] {dom} | {m}\n"
                     f"URL: {u}\n"
                     f"TITLE: {t}\n"
-                    f"CITE AS: {cit}\n\n"
-                    f"{c}"
+                    f"CITE AS: {cit}"
                 )
+                if config.tools.include_favicon and r.get('favicon'):
+                    block += f"\nFAVICON: {r['favicon']}"
+                block += f"\n\n{c}"
+                formatted_blocks.append(block)
 
         return {
             "results": list(extracted),
