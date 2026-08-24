@@ -274,8 +274,8 @@ def search_searxng(
         for r in unified_results
     ]
     formatted_results = "\n\n".join(formatted_lines)
-    sample_cit = format_citation("Yahoo Finance", "finance.yahoo.com", "https://finance.yahoo.com/quote/SPCX/", 1, getattr(config.search, "citation_style", "superscript"))
-    formatted_results += f"\n\n📌 MANDATORY CITATION REQUIREMENT: You MUST place inline citations directly inline at the EXACT sentence or bullet point where each fact is referenced (e.g., 'SPCX closed at $136.97{sample_cit}.'). Do NOT dump citations in a footer list at the bottom of your message.\n🕒 Search timestamp: {now_utc}"
+    sample_cit = format_citation("Yahoo Finance", "finance.yahoo.com", "https://finance.yahoo.com/quote/SPCX/", 1, getattr(config.search, "citation_style", "site_name"))
+    formatted_results += f"\n\n📅 CURRENT YEAR NOTICE: The current date is {now_utc}. THE CURRENT YEAR IS 2026. Always generate queries for current year (2026) instead of past years (2025).\n📌 CITATION PLACEMENT & FORMATTING GUIDANCE:\n1. For inline stats or quotes: Integrate parenthetically without extra spaces, e.g. 'SPCX closed at $136.97 (+2.22% via {sample_cit}).'\n2. For lists, tables, or paragraphs: Place citation in the header, e.g. '**Key stats** *(via {sample_cit})*:'.\n3. Do NOT add extra spaces before periods or colons. Do NOT use raw HTML tags like <sup>. 🕒 Search timestamp: {now_utc}"
 
     openwebui_sources = [
         {

@@ -132,9 +132,12 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
         {
             "name": search_name,
             "description": (
-                f"Perform a web search using SearXNG. Current time/date is {now_date}. Consider this when generating search queries, picking sources, or reasoning. "
+                f"Perform a web search using SearXNG. Current time/date is {now_date}. THE CURRENT YEAR IS 2026. Always generate queries for current year (2026) instead of past years (2025). "
                 f"Default engines used automatically: [{default_engines_str}]. All available engines: [{available_engines_str}]. "
-                "CRITICAL MANDATE: You MUST place inline superscript citations like <sup>[Yahoo Finance](https://...)</sup> or <sup>[Times of Israel](https://...)</sup> directly inline at the EXACT sentence or bullet point where each fact is referenced (e.g. 'SPCX closed at $136.97<sup>[Yahoo Finance](https://...)</sup>.'). Do NOT dump citations in a footer list at the bottom of your message."
+                "📌 CITATION PLACEMENT & FORMATTING GUIDANCE: "
+                "1) For inline stats/quotes: Integrate parenthetically without extra spaces, e.g. 'SPCX closed at $136.97 (+2.22% via [Yahoo Finance](https://...)).' "
+                "2) For lists/tables/paragraphs: Place citation in section header, e.g. '**Key stats** *(via [Yahoo Finance](https://...))*:'. "
+                "3) Do NOT add extra spaces before periods/colons. Do NOT use raw HTML tags like <sup>."
             ),
             "inputSchema": search_schema,
             "parameters": search_schema,  # OpenAI compatibility
@@ -142,8 +145,11 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
         {
             "name": extract_name,
             "description": (
-                f"Fetch and extract clean markdown content from web URLs. Current time/date is {now_date}. "
-                "CRITICAL MANDATE: You MUST place inline superscript citations like <sup>[Yahoo Finance](https://...)</sup> directly inline at the EXACT sentence or bullet point where facts/quotes are referenced. Do NOT dump all citations at the bottom of your message."
+                f"Fetch and extract clean markdown content from web URLs. Current time/date is {now_date}. THE CURRENT YEAR IS 2026. "
+                "📌 CITATION PLACEMENT & FORMATTING GUIDANCE: "
+                "1) For inline stats/quotes: Integrate parenthetically without extra spaces, e.g. '(via [Yahoo Finance](https://...)).' "
+                "2) For lists/tables/paragraphs: Place citation in section header, e.g. '**Overview** *(via [Yahoo Finance](https://...))*:'. "
+                "3) Do NOT add extra spaces before periods/colons. Do NOT use raw HTML tags like <sup>."
             ),
             "inputSchema": extract_schema,
             "parameters": extract_schema,  # OpenAI compatibility

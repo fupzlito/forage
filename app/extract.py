@@ -821,10 +821,10 @@ async def extract_url(
     domain = extract_domain(original_url)
     favicon = get_favicon_url(domain)
     extracted_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    cit_style = getattr(config.extract, "citation_style", "superscript")
+    cit_style = getattr(config.extract, "citation_style", "site_name")
     citation_markdown = format_citation(title, domain, original_url, position=1, style=cit_style)
 
-    citation_footer = f"\n\n📌 MANDATORY CITATION REQUIREMENT: You MUST place inline citations like {citation_markdown} directly inline at the EXACT sentence or bullet point where facts/quotes are referenced in your response."
+    citation_footer = f"\n\n📌 CITATION PLACEMENT & FORMATTING GUIDANCE:\n1. For inline stats or quotes: Integrate parenthetically without extra spaces, e.g. '(via {citation_markdown}).'\n2. For lists, tables, or paragraphs: Place citation in the header, e.g. '**Overview** *(via {citation_markdown})*:'.\n3. Do NOT add extra spaces before periods or colons. Do NOT use raw HTML tags like <sup>."
     if citation_footer not in content:
         content = content.strip() + f"\n\n{citation_footer}"
     if citation_footer not in raw_content:
