@@ -623,44 +623,7 @@ async def _try_reddit_extract(config: ForageConfig, url: str, timeout: int) -> O
     except Exception as exc:  # noqa: BLE001
         logger.debug("Reddit Tier 1 (.json) failed for %s: %s", url, exc)
 
-    # --- Tier 2: old.reddit.com static HTML ---
-    old_url = f"https://old.reddit.com{path}"
-    if parsed.query:
-        old_url += f"?{parsed.query}"
-
-    try:
-        async with httpx.AsyncClient(timeout=min(timeout, 10), headers=headers, follow_redirects=True) as client:
-            oresp = await client.get(old_url)
-            if oresp.status_code == 200 and oresp.text:
-                html = oresp.text
-                title = _extract_title(html)
-                content, raw_content = _to_output(
-                    html,
-                    "markdown",
-                    readability=False,
-                    main=False,
-                    max_chars=config.extract.max_content_chars,
-                    raw_md=config.extract.raw_content_markdown,
-                )
-                if (
-                    content
-                    and not looks_like_challenge(html, title)
-                    and "welcome to reddit" not in title.lower()
-                    and "log in to use old reddit" not in content.lower()
-                    and "verifying your browser" not in title.lower()
-                    and "anubis" not in html.lower()
-                    and len(content) > 100
-                ):
-                    return {
-                        "title": title or _title_from_url(url),
-                        "content": content,
-                        "raw_content": raw_content,
-                        "method": "reddit+old",
-                    }
-    except Exception as exc:  # noqa: BLE001
-        logger.debug("Reddit Tier 2 (old.reddit) failed for %s: %s", url, exc)
-
-    # --- Tier 3: Redlib Mirror (safereddit) ---
+    # --- Tier 2: Redlib Mirror (safereddit) ---
     mirror_url = f"https://safereddit.com{path}"
     if parsed.query:
         mirror_url += f"?{parsed.query}"
@@ -695,9 +658,9 @@ async def _try_reddit_extract(config: ForageConfig, url: str, timeout: int) -> O
                         "method": "reddit+mirror",
                     }
     except Exception as exc:  # noqa: BLE001
-        logger.debug("Reddit Tier 3 (mirror) failed for %s: %s", url, exc)
+        logger.debug("Reddit Tier 2 (mirror) failed for %s: %s", url, exc)
 
-    # --- Tier 4: None (caller falls back to browser render) ---
+    # --- Tier 3: None (caller falls back to browser render) ---
     return None
 
 
@@ -776,7 +739,7 @@ async def extract_url(
             doc_result["url"] = original_url
             return doc_result
 
-    # Reddit 3-tier fast path: Tier 1 (.json) -> Tier 2 (Redlib mirror) -> Tier 3 (browser fallback).
+    # Reddit fast path: Tier 1 (.json) -> Tier 2 (Redlib mirror) -> Tier 3 (browser fallback).
     # Always attempt the lightweight Reddit pipeline before launching a heavy browser session.
     reddit_result = await _try_reddit_extract(config, url, effective_timeout)
     if reddit_result is not None:
