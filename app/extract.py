@@ -516,25 +516,40 @@ def _scroll_steps_for(config: ForageConfig, scroll: bool) -> int:
     return max(config.browser.scroll_steps, 1)
 
 
+def normalize_reddit_url(url: str) -> str:
+    """Normalize Reddit URLs (old.reddit, sh.reddit, new.reddit, direct .json endpoints)
+    to canonical https://www.reddit.com/... web URLs."""
+    if not url:
+        return url
+    try:
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
+        if host in ("reddit.com", "www.reddit.com", "old.reddit.com", "new.reddit.com", "sh.reddit.com", "safereddit.com"):
+            path = parsed.path or "/"
+            if path.endswith(".json"):
+                path = path[:-5]
+            canonical = f"https://www.reddit.com{path}"
+            if parsed.query:
+                canonical += f"?{parsed.query}"
+            return canonical
+    except Exception:
+        pass
+    return url
+
+
 async def _try_reddit_extract(config: ForageConfig, url: str, timeout: int) -> Optional[Dict[str, Any]]:
     """3-tier extraction for Reddit: 1) .json API, 2) Redlib mirror, 3) None (fallback to browser)."""
     parsed = urlparse(url)
     host = (parsed.hostname or "").lower()
-    if host not in ("reddit.com", "www.reddit.com", "old.reddit.com", "new.reddit.com", "sh.reddit.com", "safereddit.com"):
+    if host not in ("reddit.com", "www.reddit.com"):
         return None
     path = parsed.path or ""
-    # Support subreddit listings (/r/...), comments threads, user pages (/user/), or direct .json URLs
-    if not (path.startswith("/r/") or path.startswith("/user/") or path.startswith("/u/") or "/comments/" in path or path.endswith(".json")):
+    # Support subreddit listings (/r/...), comments threads, user pages (/user/)
+    if not (path.startswith("/r/") or path.startswith("/user/") or path.startswith("/u/") or "/comments/" in path):
         return None
 
     # --- Tier 1: Official Reddit .json endpoint ---
-    if path.endswith(".json"):
-        clean_path = path
-        mirror_path = path[:-5]
-    else:
-        clean_path = path.rstrip("/") + ".json"
-        mirror_path = path
-
+    clean_path = path.rstrip("/") + ".json"
     json_url = f"https://www.reddit.com{clean_path}"
     if parsed.query:
         json_url += f"?{parsed.query}"
@@ -563,7 +578,7 @@ async def _try_reddit_extract(config: ForageConfig, url: str, timeout: int) -> O
         logger.debug("Reddit Tier 1 (.json) failed for %s: %s", url, exc)
 
     # --- Tier 2: Redlib Mirror (safereddit) ---
-    mirror_url = f"https://safereddit.com{mirror_path}"
+    mirror_url = f"https://safereddit.com{path}"
     if parsed.query:
         mirror_url += f"?{parsed.query}"
 
@@ -627,6 +642,7 @@ async def extract_url(
     method = "static"
 
     original_url = url
+    url = normalize_reddit_url(url)
 
     # Resolve the domain override on the ORIGINAL URL (before any rewrite).
     override = _find_override(url, config.extract.domain_overrides)
@@ -745,20 +761,10 @@ async def extract_url(
             result["rewritten_url"] = url
         return result
 
-    render_url = url
-    parsed_u = urlparse(url)
-    if parsed_u.hostname and parsed_u.hostname.lower() in ("reddit.com", "www.reddit.com", "old.reddit.com", "sh.reddit.com", "new.reddit.com", "safereddit.com"):
-        r_path = parsed_u.path or "/"
-        if r_path.endswith(".json"):
-            r_path = r_path[:-5]
-        render_url = f"https://www.reddit.com{r_path}"
-        if parsed_u.query:
-            render_url += f"?{parsed_u.query}"
-
     if want_browser:
         try:
             html = await pool.render(
-                render_url,
+                url,
                 wait_for=effective_wait_for,
                 timeout=effective_timeout,
                 scroll_steps=_scroll_steps_for(config, effective_scroll),
@@ -792,7 +798,7 @@ async def extract_url(
             logger.info("%s -> %s, falling back to browser", url, render_reason)
             try:
                 html = await pool.render(
-                    render_url,
+                    url,
                     wait_for=effective_wait_for,
                     timeout=effective_timeout,
                     scroll_steps=_scroll_steps_for(config, effective_scroll),
