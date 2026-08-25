@@ -634,7 +634,9 @@ async def _try_reddit_extract(
 
     # --- Tier 1: Official Reddit .json endpoint ---
     if not _is_reddit_json_on_cooldown():
-        clean_path = path.rstrip("/") + ".json"
+        clean_path = path.rstrip("/")
+        if not clean_path.endswith(".json"):
+            clean_path += ".json"
         if "/comments/" in clean_path:
             json_url = f"https://www.reddit.com{clean_path}?raw_json=1&limit=100&depth=10"
         elif "search" in clean_path:
@@ -691,7 +693,8 @@ async def _try_reddit_extract(
             logger.debug("Reddit Tier 1 (.json) failed for %s: %s", url, exc)
 
     # --- Tier 2: Redlib Mirror (safereddit) ---
-    mirror_url = f"https://safereddit.com{path}"
+    clean_html_path = path.replace("/.json", "/").replace(".json", "")
+    mirror_url = f"https://safereddit.com{clean_html_path}"
     if parsed.query:
         mirror_url += f"?{parsed.query}"
 
@@ -846,6 +849,9 @@ async def extract_url(
         reddit_result["url"] = original_url
         reddit_result["citation"] = f"[Source: {reddit_result['title']}]({original_url})"
         return reddit_result
+
+    if is_reddit and ".json" in url:
+        url = url.replace("/.json", "/").replace(".json", "")
 
     # The extract engine (trafilatura vs readability) applies ONLY to browser
     # renders. It must NOT force the browser: pages that extract fine with
