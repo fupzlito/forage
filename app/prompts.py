@@ -20,12 +20,13 @@ DEFAULT_SEARCH_TOOL_DESCRIPTION = (
     "Search the web via SearXNG to find relevant links and sources. Today is {now_date} (year {year}). "
     "Do not add dates or years to queries unless time-specific or directly relevant. "
     "Prioritize relevant sources based on snippet and domain before fetching full pages. "
-    "To search Reddit or subreddits, use {extract_name} directly on Reddit search URLs (e.g. 'https://www.reddit.com/r/all/search/?q=...'). "
+    "To specifically search Reddit or subreddits, ONLY use the {extract_name} tool directly on Reddit search URLs (e.g. 'https://www.reddit.com/r/all/search/?q=...'). "
     "{citation_guidelines}"
 )
 
 DEFAULT_EXTRACT_TOOL_DESCRIPTION = (
-    "Fetch and extract clean markdown content from web URLs. Supports rich forum threads (Reddit), articles, documentation, e-commerce, and direct Reddit search URLs (e.g. 'https://www.reddit.com/r/all/search/?q=QUERY'). "
+    "Fetch and extract clean markdown content from web URLs. Supports rich forum threads, articles, documentation, e-commerce. "
+    "Has a special Reddit pipeline and direct search URLs (e.g. 'https://www.reddit.com/r/all/search/?q=QUERY'). "
     "{max_chars_requirement}: set max_chars per URL to budget context. Today is {now_date} (year {year}). "
     "{citation_guidelines}"
 )

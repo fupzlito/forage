@@ -87,7 +87,7 @@ class TestPrompts(unittest.TestCase):
         search_tool = next(t for t in tools if t["name"] == "custom_search")
         extract_tool = next(t for t in tools if t["name"] == "custom_scrape")
 
-        self.assertIn("use custom_scrape directly", search_tool["description"])
+        self.assertIn("use the custom_scrape tool directly", search_tool["description"])
         self.assertEqual(extract_tool["name"], "custom_scrape")
 
         # Test environment variable overrides for tool names
@@ -98,7 +98,7 @@ class TestPrompts(unittest.TestCase):
 
             tools_env = get_tool_definitions(cfg_env)
             search_env_tool = next(t for t in tools_env if t["name"] == "env_search")
-            self.assertIn("use env_fetch directly", search_env_tool["description"])
+            self.assertIn("use the env_fetch tool directly", search_env_tool["description"])
 
 
 if __name__ == "__main__":
