@@ -43,6 +43,30 @@ class TestMCPAndOpenAIEndpoints(unittest.TestCase):
         self.assertIn("web_search", tool_names)
         self.assertIn("web_extract", tool_names)
 
+        # Ensure POST /mcp/sse also works seamlessly
+        response_sse_post = self.client.post("/mcp/sse", json=payload)
+        self.assertEqual(response_sse_post.status_code, 200)
+        self.assertEqual(response_sse_post.json()["id"], 2)
+
+    def test_mcp_sse_get_stream(self):
+        import asyncio
+        from app.mcp import mcp_sse
+        from unittest.mock import MagicMock
+
+        async def _test():
+            req = MagicMock()
+            req.headers = {"accept": "text/event-stream"}
+            resp = await mcp_sse(req)
+            self.assertEqual(resp.media_type, "text/event-stream")
+            # Pull first event from generator
+            gen = resp.body_iterator
+            first_event = await gen.__anext__()
+            self.assertIn("event: endpoint", first_event)
+            self.assertIn("/mcp/messages?session_id=", first_event)
+            await gen.aclose()
+
+        asyncio.run(_test())
+
     @patch("app.mcp.search_searxng")
     def test_mcp_tools_call_search(self, mock_search):
         mock_search.return_value = {

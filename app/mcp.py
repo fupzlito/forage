@@ -517,16 +517,27 @@ async def process_mcp_rpc(
 # --- API Routes ---
 
 @mcp_router.post("/mcp")
+@mcp_router.post("/mcp/sse")
 async def mcp_post(
     request: Request,
+    session_id: Optional[str] = None,
 ) -> JSONResponse:
     """Standard HTTP POST JSON-RPC endpoint for MCP clients."""
     config, browser_pool = _get_config_and_pool(request)
+
+    sid = session_id or request.query_params.get("session_id")
 
     try:
         body = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    # If this POST was tied to an active SSE session, route response through the queue
+    if sid and sid in _sse_sessions:
+        resp = await process_mcp_rpc(body, config, browser_pool)
+        if resp:
+            await _sse_sessions[sid].put(resp)
+        return JSONResponse(content={"status": "accepted"})
 
     if isinstance(body, list):
         # Batch RPC requests
@@ -543,9 +554,11 @@ async def mcp_post(
         return JSONResponse(content=resp)
 
 
+@mcp_router.get("/mcp")
 @mcp_router.get("/mcp/sse")
-async def mcp_sse(request: Request) -> StreamingResponse:
-    """SSE endpoint for OpenWebUI MCP connection."""
+async def mcp_sse(request: Request) -> Any:
+    """SSE endpoint for OpenWebUI MCP connection (or direct JSON-RPC discovery on GET)."""
+    accept = request.headers.get("accept", "")
     session_id = str(uuid.uuid4())
     queue: asyncio.Queue = asyncio.Queue()
     _sse_sessions[session_id] = queue
@@ -582,8 +595,6 @@ async def mcp_messages(
     config, browser_pool = _get_config_and_pool(request)
 
     sid = session_id or request.query_params.get("session_id")
-    if not sid or sid not in _sse_sessions:
-        raise HTTPException(status_code=404, detail="Invalid or expired SSE session")
 
     try:
         body = await request.json()
@@ -591,10 +602,15 @@ async def mcp_messages(
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
     resp = await process_mcp_rpc(body, config, browser_pool)
-    if resp:
-        await _sse_sessions[sid].put(resp)
+    if sid and sid in _sse_sessions:
+        if resp:
+            await _sse_sessions[sid].put(resp)
+        return JSONResponse(content={"status": "accepted"})
 
-    return JSONResponse(content={"status": "accepted"})
+    # Fallback to direct RPC response if session expired or omitted
+    if resp is None:
+        return JSONResponse(status_code=202, content={"status": "accepted"})
+    return JSONResponse(content=resp)
 
 
 @mcp_router.get("/v1/tools")
