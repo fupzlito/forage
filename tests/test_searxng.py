@@ -270,21 +270,22 @@ class TestSearXNG(unittest.TestCase):
         mock_resp.status_code = 200
         mock_resp.json.return_value = {
             "engines": [
-                {"name": "google", "categories": ["general"]},
-                {"name": "bing", "categories": ["general"]},
-                {"name": "bing images", "categories": ["images"]},
-                {"name": "adobe stock audio", "categories": ["music", "audio"]},
-                {"name": "btdigg", "categories": ["files"]},
-                {"name": "wikipedia", "categories": ["general"]},
-                {"name": "github", "categories": ["it"]},
-                {"name": "disabled_engine", "categories": ["general"], "disabled": True},
+                {"name": "360search", "categories": ["general"], "enabled": False},
+                {"name": "google", "categories": ["general"], "enabled": True},
+                {"name": "bing", "categories": ["general"], "enabled": True},
+                {"name": "bing images", "categories": ["images"], "enabled": True},
+                {"name": "adobe stock audio", "categories": ["music", "audio"], "enabled": True},
+                {"name": "btdigg", "categories": ["files"], "enabled": True},
+                {"name": "wikipedia", "categories": ["general"], "enabled": False},
+                {"name": "github", "categories": ["it"], "enabled": True},
+                {"name": "duckduckgo", "categories": ["general"], "enabled": True},
             ]
         }
         mock_get.return_value = mock_resp
 
         avail, gen = fetch_searxng_engines_sync("http://mock-searxng:8080")
-        self.assertEqual(avail, ("google", "bing", "wikipedia", "github"))
-        self.assertEqual(gen, ("google", "bing", "wikipedia"))
+        self.assertEqual(avail, ("google", "bing", "github", "duckduckgo"))
+        self.assertEqual(gen, ("google", "bing", "duckduckgo"))
 
     @patch("httpx.get")
     def test_get_live_available_engines_fallback(self, mock_get):

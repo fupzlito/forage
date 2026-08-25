@@ -139,9 +139,12 @@ DEFAULT_AVAILABLE_ENGINES = (
     "google", "qwant", "qwant news", "brave", "bing", "startpage", "duckduckgo", "reddit",
     "wikipedia", "youtube", "github", "searxng", "yahoo", "wikidata"
 )
-TEXT_SEARCH_CATEGORIES = {"general", "news", "it", "science", "social media", "social_media"}
-NON_TEXT_CATEGORIES = {"images", "videos", "music", "audio", "files", "map", "packages", "apps"}
-NON_TEXT_SUFFIXES = (".images", ".videos", ".audio", ".files", " images", " videos", " audio", " music")
+TEXT_SEARCH_CATEGORIES = {
+    "general", "news", "it", "science", "scientific publications",
+    "social media", "social_media", "q&a", "web", "software wikis", "repos", "blogs", "books", "dictionaries"
+}
+NON_TEXT_CATEGORIES = {"images", "videos", "music", "audio", "files", "map", "radio", "weather", "icons", "currency"}
+NON_TEXT_SUFFIXES = (".images", ".videos", ".audio", ".files", " images", " videos", " audio", " music", " weather")
 
 _cached_available_engines: Optional[Tuple[str, ...]] = None
 _cached_general_engines: Optional[Tuple[str, ...]] = None
@@ -167,7 +170,8 @@ def fetch_searxng_engines_sync(searxng_url: str, timeout: float = 2.0) -> Tuple[
             for e in raw_engines:
                 if isinstance(e, dict):
                     name = e.get("name")
-                    if name and not e.get("disabled", False):
+                    is_enabled = e.get("enabled") if "enabled" in e else not e.get("disabled", False)
+                    if name and is_enabled:
                         categories = [c.lower().strip() for c in e.get("categories", [])]
                         is_text_cat = any(cat in TEXT_SEARCH_CATEGORIES for cat in categories) or not categories
                         is_media_cat = any(cat in NON_TEXT_CATEGORIES for cat in categories)
