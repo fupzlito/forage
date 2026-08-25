@@ -579,9 +579,10 @@ def normalize_reddit_url(url: str) -> str:
 
 _reddit_req_lock = asyncio.Lock()
 _reddit_last_req_time = 0.0
+_reddit_json_cooldown_until = 0.0
 
 
-async def _throttle_reddit_request(min_interval: float = 0.35) -> None:
+async def _throttle_reddit_request(min_interval: float = 0.75) -> None:
     """Stagger concurrent Reddit HTTP requests to prevent burst rate-limiting."""
     global _reddit_last_req_time
     async with _reddit_req_lock:
@@ -590,6 +591,18 @@ async def _throttle_reddit_request(min_interval: float = 0.35) -> None:
         if elapsed < min_interval:
             await asyncio.sleep(min_interval - elapsed)
         _reddit_last_req_time = time.monotonic()
+
+
+def _is_reddit_json_on_cooldown() -> bool:
+    """Check if Reddit .json API is currently in a rate-limit cooldown window."""
+    return time.monotonic() < _reddit_json_cooldown_until
+
+
+def _set_reddit_json_cooldown(cooldown_seconds: float = 30.0) -> None:
+    """Trigger a cooldown window after receiving a 403 or 429 from Reddit .json."""
+    global _reddit_json_cooldown_until
+    _reddit_json_cooldown_until = max(_reddit_json_cooldown_until, time.monotonic() + cooldown_seconds)
+    logger.info("Reddit .json API rate-limited (403/429); entering %.1fs cooldown", cooldown_seconds)
 
 
 async def _try_reddit_extract(
@@ -619,54 +632,57 @@ async def _try_reddit_extract(
         return None
 
     # --- Tier 1: Official Reddit .json endpoint ---
-    clean_path = path.rstrip("/") + ".json"
-    if "/comments/" in clean_path:
-        json_url = f"https://www.reddit.com{clean_path}?raw_json=1&limit=100&depth=10"
-    elif parsed.query:
-        json_url = f"https://www.reddit.com{clean_path}?{parsed.query}&raw_json=1"
-    else:
-        json_url = f"https://www.reddit.com{clean_path}?raw_json=1"
+    if not _is_reddit_json_on_cooldown():
+        clean_path = path.rstrip("/") + ".json"
+        if "/comments/" in clean_path:
+            json_url = f"https://www.reddit.com{clean_path}?raw_json=1&limit=100&depth=10"
+        elif parsed.query:
+            json_url = f"https://www.reddit.com{clean_path}?{parsed.query}&raw_json=1"
+        else:
+            json_url = f"https://www.reddit.com{clean_path}?raw_json=1"
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-        "Accept": "application/json",
-        "Accept-Language": "en-US,en;q=0.9",
-    }
-    if extra_headers:
-        headers.update(extra_headers)
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+            "Accept": "application/json",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+        if extra_headers:
+            headers.update(extra_headers)
 
-    try:
-        await _throttle_reddit_request()
-        async with httpx.AsyncClient(timeout=min(timeout, 10), headers=headers, cookies=cookies, follow_redirects=True) as client:
-            resp = await client.get(json_url)
-            if resp.status_code == 404:
-                return {
-                    "title": "Reddit - Not Found",
-                    "content": "The requested Reddit post, subreddit, or user does not exist (404 Not Found).",
-                    "raw_content": "The requested Reddit post, subreddit, or user does not exist (404 Not Found).",
-                    "method": "reddit+not_found",
-                }
-            if resp.status_code == 200 and resp.text:
-                try:
-                    data = resp.json()
-                    if isinstance(data, dict) and data.get("error") in (404, "404", "Not Found"):
-                        return {
-                            "title": "Reddit - Not Found",
-                            "content": data.get("message") or "The requested Reddit community or post was not found.",
-                            "raw_content": data.get("message") or "The requested Reddit community or post was not found.",
-                            "method": "reddit+not_found",
-                        }
-                    markdown_content, title = parse_reddit_json(data)
+        try:
+            await _throttle_reddit_request()
+            async with httpx.AsyncClient(timeout=min(timeout, 10), headers=headers, cookies=cookies, follow_redirects=True) as client:
+                resp = await client.get(json_url)
+                if resp.status_code in (403, 429):
+                    _set_reddit_json_cooldown(30.0)
+                elif resp.status_code == 404:
                     return {
-                        "title": title,
-                        "content": markdown_content,
-                        "raw_content": markdown_content,
-                        "method": "reddit+json",
+                        "title": "Reddit - Not Found",
+                        "content": "The requested Reddit post, subreddit, or user does not exist (404 Not Found).",
+                        "raw_content": "The requested Reddit post, subreddit, or user does not exist (404 Not Found).",
+                        "method": "reddit+not_found",
                     }
-                except Exception as parse_err:  # noqa: BLE001
-                    logger.debug("Reddit JSON parse failed: %s", parse_err)
-    except Exception as exc:  # noqa: BLE001
-        logger.debug("Reddit Tier 1 (.json) failed for %s: %s", url, exc)
+                elif resp.status_code == 200 and resp.text:
+                    try:
+                        data = resp.json()
+                        if isinstance(data, dict) and data.get("error") in (404, "404", "Not Found"):
+                            return {
+                                "title": "Reddit - Not Found",
+                                "content": data.get("message") or "The requested Reddit community or post was not found.",
+                                "raw_content": data.get("message") or "The requested Reddit community or post was not found.",
+                                "method": "reddit+not_found",
+                            }
+                        markdown_content, title = parse_reddit_json(data)
+                        return {
+                            "title": title,
+                            "content": markdown_content,
+                            "raw_content": markdown_content,
+                            "method": "reddit+json",
+                        }
+                    except Exception as parse_err:  # noqa: BLE001
+                        logger.debug("Reddit JSON parse failed: %s", parse_err)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Reddit Tier 1 (.json) failed for %s: %s", url, exc)
 
     # --- Tier 2: Redlib Mirror (safereddit) ---
     mirror_url = f"https://safereddit.com{path}"
