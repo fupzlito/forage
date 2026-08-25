@@ -503,6 +503,9 @@ def _clean_reddit_markdown(text: str) -> str:
     for b in boilerplate:
         text = re.sub(b, '', text, flags=re.IGNORECASE)
 
+    # Strip lone floating numbers on their own lines (leftover upvote buttons)
+    text = re.sub(r'(?<=\n)\s*\d+(?:\.\d+)?(?:k|K)?\s*(?=\n|\Z)', '', text)
+
     lines = text.splitlines()
     header = lines[0] if lines and lines[0].startswith("#") else ""
     rest = "\n".join(lines[1:]) if header else text
