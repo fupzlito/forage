@@ -577,8 +577,17 @@ async def _try_reddit_extract(config: ForageConfig, url: str, timeout: int) -> O
     if host not in ("reddit.com", "www.reddit.com"):
         return None
     path = parsed.path or ""
-    # Support subreddit listings (/r/...), comments threads, user pages (/user/)
-    if not (path.startswith("/r/") or path.startswith("/user/") or path.startswith("/u/") or "/comments/" in path):
+    # Support subreddit listings (/r/...), comments threads, user pages (/user/), searches (/search)
+    if not (
+        path.startswith("/r/")
+        or path.startswith("/user/")
+        or path.startswith("/u/")
+        or path.startswith("/search")
+        or path.startswith("/top")
+        or path.startswith("/hot")
+        or path.startswith("/new")
+        or "/comments/" in path
+    ):
         return None
 
     # --- Tier 1: Official Reddit .json endpoint ---

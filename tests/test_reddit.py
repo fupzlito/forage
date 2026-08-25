@@ -121,6 +121,47 @@ class TestRedditJSON(unittest.TestCase):
         self.assertIn("### [Falcon 9 Record Turnaround](https://www.reddit.com/r/SpaceX/comments/def/falcon9/)", markdown)
         self.assertIn("u/rocket_nerd", markdown)
 
+    def test_parse_reddit_search_multi_subreddit_listing(self):
+        multi_sub_listing = {
+            "kind": "Listing",
+            "data": {
+                "children": [
+                    {
+                        "kind": "t3",
+                        "data": {
+                            "title": "Post in Stocks",
+                            "subreddit_name_prefixed": "r/stocks",
+                            "author": "trader1",
+                            "score": 500,
+                            "num_comments": 40,
+                            "created_utc": 1723048291.0,
+                            "permalink": "/r/stocks/comments/111/stocks_post/",
+                        },
+                    },
+                    {
+                        "kind": "t3",
+                        "data": {
+                            "title": "Post in WSB",
+                            "subreddit_name_prefixed": "r/wallstreetbets",
+                            "author": "trader2",
+                            "score": 1200,
+                            "num_comments": 150,
+                            "created_utc": 1723050000.0,
+                            "permalink": "/r/wallstreetbets/comments/222/wsb_post/",
+                        },
+                    },
+                ]
+            },
+        }
+
+        markdown, title = parse_reddit_json(multi_sub_listing)
+        self.assertEqual(title, "Reddit Search / Listing Results")
+        self.assertIn("# Reddit Search / Listing Results", markdown)
+        self.assertIn("### [Post in Stocks](https://www.reddit.com/r/stocks/comments/111/stocks_post/)", markdown)
+        self.assertIn("**Subreddit**: r/stocks", markdown)
+        self.assertIn("### [Post in WSB](https://www.reddit.com/r/wallstreetbets/comments/222/wsb_post/)", markdown)
+        self.assertIn("**Subreddit**: r/wallstreetbets", markdown)
+
 
 if __name__ == "__main__":
     unittest.main()

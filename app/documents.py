@@ -255,17 +255,17 @@ def format_reddit_comments(children: list, indent: int = 0) -> list[str]:
 
 def parse_reddit_json(raw_json: Any) -> Tuple[str, str]:
     """Parse Reddit JSON response into (markdown_content, title)."""
-    # 1. Subreddit or user post listing (e.g. /r/SpaceX/.json or /r/SpaceX/)
+    # 1. Subreddit or user post listing (e.g. /r/SpaceX/.json or /search.json or /r/stocks/search.json)
     if isinstance(raw_json, dict) and raw_json.get("kind") == "Listing":
         children = raw_json.get("data", {}).get("children", [])
         posts = []
-        sub_name = ""
+        subreddits = set()
         for item in children:
             if not isinstance(item, dict) or item.get("kind") != "t3":
                 continue
             p = item.get("data", {})
-            if not sub_name:
-                sub_name = p.get("subreddit_name_prefixed", p.get("subreddit", ""))
+            post_sub = p.get("subreddit_name_prefixed") or (f"r/{p.get('subreddit')}" if p.get("subreddit") else "Reddit")
+            subreddits.add(post_sub)
             p_title = p.get("title", "")
             p_author = p.get("author", "[deleted]")
             p_score = p.get("score", 0)
@@ -275,7 +275,7 @@ def parse_reddit_json(raw_json: Any) -> Tuple[str, str]:
             p_url = f"https://www.reddit.com{permalink}" if permalink else p.get("url", "")
             p_selftext = p.get("selftext", "")
 
-            meta_parts = [f"**Subreddit**: {sub_name or 'Reddit'}", f"**Author**: u/{p_author}"]
+            meta_parts = [f"**Subreddit**: {post_sub}", f"**Author**: u/{p_author}"]
             if p_created:
                 meta_parts.append(f"**Posted**: {p_created}")
             meta_parts.extend([f"**Score**: {p_score}", f"**Comments**: {p_comments}"])
@@ -286,7 +286,12 @@ def parse_reddit_json(raw_json: Any) -> Tuple[str, str]:
                 entry += f"\n\n{preview}"
             posts.append(entry)
 
-        title = f"{sub_name} - Reddit Posts" if sub_name else "Reddit Posts"
+        if len(subreddits) == 1:
+            title = f"{next(iter(subreddits))} - Reddit Posts"
+        elif len(subreddits) > 1:
+            title = "Reddit Search / Listing Results"
+        else:
+            title = "Reddit Posts"
         content = f"# {title}\n\n" + ("\n\n---\n\n".join(posts) if posts else "No posts found.")
         return content, title
 
