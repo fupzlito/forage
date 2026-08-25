@@ -195,6 +195,22 @@ def extract_document_bytes(
     return text, title, kind
 
 
+from datetime import datetime, timezone
+from typing import Any, Optional, Tuple
+from urllib.parse import urlparse
+
+
+def _format_timestamp(ts: Any) -> str:
+    """Format Unix epoch timestamp to a clean date/time string."""
+    if not ts:
+        return ""
+    try:
+        dt = datetime.fromtimestamp(float(ts), timezone.utc)
+        return dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+    except Exception:
+        return ""
+
+
 def format_reddit_comments(children: list, indent: int = 0) -> list[str]:
     lines = []
     prefix = "  " * indent + "> " if indent > 0 else "### "
@@ -205,10 +221,16 @@ def format_reddit_comments(children: list, indent: int = 0) -> list[str]:
         author = cdata.get("author", "[deleted]")
         body = cdata.get("body", "")
         score = cdata.get("score", 0)
+        created_str = _format_timestamp(cdata.get("created_utc"))
         if not body or body == "[deleted]" or body == "[removed]":
             continue
 
-        lines.append(f"{prefix}**u/{author}** (Score: {score})\n{prefix}{body}\n")
+        meta_parts = [f"Score: {score}"]
+        if created_str:
+            meta_parts.append(created_str)
+        meta = " | ".join(meta_parts)
+
+        lines.append(f"{prefix}**u/{author}** ({meta})\n{prefix}{body}\n")
 
         replies = cdata.get("replies")
         if isinstance(replies, dict) and "data" in replies:
@@ -234,11 +256,17 @@ def parse_reddit_json(raw_json: Any) -> Tuple[str, str]:
             p_author = p.get("author", "[deleted]")
             p_score = p.get("score", 0)
             p_comments = p.get("num_comments", 0)
+            p_created = _format_timestamp(p.get("created_utc"))
             permalink = p.get("permalink", "")
             p_url = f"https://www.reddit.com{permalink}" if permalink else p.get("url", "")
             p_selftext = p.get("selftext", "")
 
-            entry = f"### [{p_title}]({p_url})\n**Subreddit**: {sub_name or 'Reddit'} | **Author**: u/{p_author} | **Score**: {p_score} | **Comments**: {p_comments}"
+            meta_parts = [f"**Subreddit**: {sub_name or 'Reddit'}", f"**Author**: u/{p_author}"]
+            if p_created:
+                meta_parts.append(f"**Posted**: {p_created}")
+            meta_parts.extend([f"**Score**: {p_score}", f"**Comments**: {p_comments}"])
+
+            entry = f"### [{p_title}]({p_url})\n" + " | ".join(meta_parts)
             if p_selftext:
                 preview = p_selftext[:300].strip() + ("..." if len(p_selftext) > 300 else "")
                 entry += f"\n\n{preview}"
@@ -258,10 +286,16 @@ def parse_reddit_json(raw_json: Any) -> Tuple[str, str]:
     author = post_data.get("author", "[deleted]")
     score = post_data.get("score", 0)
     num_comments = post_data.get("num_comments", 0)
+    created_str = _format_timestamp(post_data.get("created_utc"))
     selftext = post_data.get("selftext", "")
     url = post_data.get("url", "")
 
-    header = f"# {title}\n\n**Subreddit**: {subreddit} | **Author**: u/{author} | **Score**: {score} | **Comments**: {num_comments}\n"
+    header_parts = [f"**Subreddit**: {subreddit}", f"**Author**: u/{author}"]
+    if created_str:
+        header_parts.append(f"**Posted**: {created_str}")
+    header_parts.extend([f"**Score**: {score}", f"**Comments**: {num_comments}"])
+
+    header = f"# {title}\n\n" + " | ".join(header_parts) + "\n"
     if url and not url.startswith("https://www.reddit.com") and not url.startswith("https://reddit.com"):
         header += f"\n**Link**: [{url}]({url})\n"
 

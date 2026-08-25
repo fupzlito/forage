@@ -21,6 +21,7 @@ class TestRedditJSON(unittest.TestCase):
                                 "author": "test_author",
                                 "score": 99,
                                 "num_comments": 2,
+                                "created_utc": 1723048291.0,
                                 "selftext": "This is a test post body content.",
                                 "url": "https://www.reddit.com/r/testsub/comments/123/test/",
                             },
@@ -38,6 +39,7 @@ class TestRedditJSON(unittest.TestCase):
                                 "author": "commenter_one",
                                 "body": "Great post!",
                                 "score": 15,
+                                "created_utc": 1723049500.0,
                                 "replies": {
                                     "kind": "Listing",
                                     "data": {
@@ -48,6 +50,7 @@ class TestRedditJSON(unittest.TestCase):
                                                     "author": "reply_user",
                                                     "body": "I agree completely.",
                                                     "score": 5,
+                                                    "created_utc": 1723050000.0,
                                                 },
                                             }
                                         ]
@@ -65,8 +68,11 @@ class TestRedditJSON(unittest.TestCase):
         self.assertIn("# Test Reddit Post", markdown)
         self.assertIn("r/testsub", markdown)
         self.assertIn("u/test_author", markdown)
+        self.assertIn("**Posted**: 2024-08-07", markdown)
         self.assertIn("This is a test post body content.", markdown)
         self.assertIn("u/commenter_one", markdown)
+        self.assertIn("Score: 15", markdown)
+        self.assertIn("2024-08-07", markdown)
         self.assertIn("Great post!", markdown)
         self.assertIn("u/reply_user", markdown)
 
@@ -83,6 +89,7 @@ class TestRedditJSON(unittest.TestCase):
                             "author": "elon_fan",
                             "score": 1500,
                             "num_comments": 350,
+                            "created_utc": 1723048291.0,
                             "selftext": "Flight 5 summary and booster catch discussion.",
                             "permalink": "/r/SpaceX/comments/abc/starship/",
                         },
@@ -95,6 +102,7 @@ class TestRedditJSON(unittest.TestCase):
                             "author": "rocket_nerd",
                             "score": 820,
                             "num_comments": 45,
+                            "created_utc": 1723050000.0,
                             "selftext": "New turnaround record achieved.",
                             "permalink": "/r/SpaceX/comments/def/falcon9/",
                         },
@@ -108,6 +116,7 @@ class TestRedditJSON(unittest.TestCase):
         self.assertIn("# r/SpaceX - Reddit Posts", markdown)
         self.assertIn("### [SpaceX Starship Launch Update](https://www.reddit.com/r/SpaceX/comments/abc/starship/)", markdown)
         self.assertIn("u/elon_fan", markdown)
+        self.assertIn("**Posted**: 2024-08-07", markdown)
         self.assertIn("**Score**: 1500", markdown)
         self.assertIn("### [Falcon 9 Record Turnaround](https://www.reddit.com/r/SpaceX/comments/def/falcon9/)", markdown)
         self.assertIn("u/rocket_nerd", markdown)

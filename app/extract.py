@@ -455,7 +455,7 @@ def _extract_text(html: str, only_main_content: bool, max_chars: int) -> str:
 
 
 def _strip_reddit_ads_from_html(html: str) -> str:
-    """Strip Reddit ad web-components (<shreddit-ad-post>, .promotedlink, alb.reddit.com) from HTML prior to extraction."""
+    """Strip Reddit ad web-components and preserve timestamp elements prior to extraction."""
     if not html:
         return html
     # Remove <shreddit-ad-post>...</shreddit-ad-post>
@@ -466,6 +466,20 @@ def _strip_reddit_ads_from_html(html: str) -> str:
     html = re.sub(r'<div[^>]*class="[^"]*promotedlink[^"]*"[^>]*>.*?</div>', "", html, flags=re.DOTALL | re.IGNORECASE)
     # Remove tracking ad links (<a href="...alb.reddit.com...">...</a>)
     html = re.sub(r'<a[^>]*href="[^"]*alb\.reddit\.com[^"]*"[^>]*>.*?</a>', "", html, flags=re.DOTALL | re.IGNORECASE)
+
+    # Convert <faceplate-time-ago ts="..."> or <time datetime="..."> into visible timestamp text
+    def _render_ts(match: re.Match) -> str:
+        ts_val = match.group(1)
+        try:
+            val = float(ts_val)
+            if val > 1e11:  # ms
+                val /= 1000.0
+            dt = datetime.fromtimestamp(val, timezone.utc)
+            return f" [{dt.strftime('%Y-%m-%d %H:%M UTC')}] "
+        except Exception:
+            return match.group(0)
+
+    html = re.sub(r'<faceplate-time-ago[^>]*ts="(\d+)"[^>]*>.*?</faceplate-time-ago>', _render_ts, html, flags=re.DOTALL | re.IGNORECASE)
     return html
 
 
