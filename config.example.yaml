@@ -268,5 +268,5 @@ auth:
 #     wait_for: "Optional CSS selector or delay in seconds to wait for before extracting (browser mode only)."
 #     engine: "Extraction engine: 'trafilatura' (default) or 'readability' (Mozilla Readability.js, better for e-commerce and forums)."
 #     timeout: "Maximum extraction timeout per URL in seconds (1 to 120)."
-#     max_chars: "Optional maximum characters to return per URL. Truncates long pages to save context."
+#     max_chars: "{max_chars_requirement} maximum characters to return per URL (500 to {max_content_chars}). Truncates long pages to save context."
 #     formats: "Desired output format: ['markdown'] (default) or ['html']."
