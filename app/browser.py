@@ -391,10 +391,16 @@ class BrowserPool:
             if steps > 0:
                 await self._scroll_to_bottom(page, steps)
             if readability and "reddit.com" in url.lower():
-                try:
-                    await page.wait_for_selector("shreddit-comment, shreddit-comment-tree, #comment-tree, div[slot='comments'], shreddit-async-loader", timeout=5000)
-                except Exception:  # noqa: BLE001
-                    pass
+                if "/comments/" in url.lower():
+                    try:
+                        await page.wait_for_selector("shreddit-comment, shreddit-comment-tree, #comment-tree, div[slot='comments'], shreddit-async-loader", timeout=5000)
+                    except Exception:  # noqa: BLE001
+                        pass
+                else:
+                    try:
+                        await page.wait_for_selector("shreddit-post, shreddit-feed, article, [data-testid='post-container']", timeout=3000)
+                    except Exception:  # noqa: BLE001
+                        pass
             if readability:
                 article = _parse_readability(await page.evaluate(_readability_eval()))
                 if article:
@@ -464,10 +470,16 @@ class BrowserPool:
             if scroll_steps > 0:
                 await self._scroll_to_bottom(page, scroll_steps)
             if readability and "reddit.com" in url.lower():
-                try:
-                    await page.wait_for_selector("shreddit-comment, shreddit-comment-tree, #comment-tree, div[slot='comments'], shreddit-async-loader", timeout=5000)
-                except Exception:  # noqa: BLE001
-                    pass
+                if "/comments/" in url.lower():
+                    try:
+                        await page.wait_for_selector("shreddit-comment, shreddit-comment-tree, #comment-tree, div[slot='comments'], shreddit-async-loader", timeout=5000)
+                    except Exception:  # noqa: BLE001
+                        pass
+                else:
+                    try:
+                        await page.wait_for_selector("shreddit-post, shreddit-feed, article, [data-testid='post-container']", timeout=3000)
+                    except Exception:  # noqa: BLE001
+                        pass
             if readability:
                 article = _parse_readability(await page.evaluate(_readability_eval()))
                 if article:
@@ -573,10 +585,16 @@ class BrowserPool:
             if scroll_steps > 0:
                 await self._scroll_to_bottom(page, scroll_steps)
             if readability and "reddit.com" in url.lower():
-                try:
-                    await page.wait_for_selector("shreddit-comment, shreddit-comment-tree, #comment-tree, div[slot='comments'], shreddit-async-loader", timeout=5000)
-                except Exception:  # noqa: BLE001
-                    pass
+                if "/comments/" in url.lower():
+                    try:
+                        await page.wait_for_selector("shreddit-comment, shreddit-comment-tree, #comment-tree, div[slot='comments'], shreddit-async-loader", timeout=5000)
+                    except Exception:  # noqa: BLE001
+                        pass
+                else:
+                    try:
+                        await page.wait_for_selector("shreddit-post, shreddit-feed, article, [data-testid='post-container']", timeout=3000)
+                    except Exception:  # noqa: BLE001
+                        pass
             if readability:
                 try:
                     result["article"] = _parse_readability(
