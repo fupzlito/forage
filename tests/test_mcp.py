@@ -132,6 +132,40 @@ class TestMCPAndOpenAIEndpoints(unittest.TestCase):
             text = data["result"]["content"][0]["text"]
             self.assertIn("[TRUNCATED at 1,000 of 5,000 chars]", text)
 
+    @patch("app.mcp.extract_url", new_callable=AsyncMock)
+    def test_v1_chat_completions_streaming(self, mock_extract):
+        mock_extract.return_value = {
+            "position": 1,
+            "domain": "example.com",
+            "url": "https://example.com",
+            "title": "Example",
+            "content": "Example page content here.",
+            "citation": "[Example](https://example.com)",
+            "method": "static",
+        }
+
+        # 1. Non-streaming request
+        payload = {
+            "model": "web_extract",
+            "messages": [{"role": "user", "content": "https://example.com"}],
+            "stream": False,
+        }
+        resp = self.client.post("/v1/chat/completions", json=payload)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["object"], "chat.completion")
+        self.assertIn("Example page content here.", data["choices"][0]["message"]["content"])
+
+        # 2. Streaming request
+        payload["stream"] = True
+        resp = self.client.post("/v1/chat/completions", json=payload)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("text/event-stream", resp.headers["content-type"])
+        body = resp.text
+        self.assertIn("chat.completion.chunk", body)
+        self.assertIn("Example page content here.", body)
+        self.assertIn("data: [DONE]", body)
+
 
 if __name__ == "__main__":
     unittest.main()

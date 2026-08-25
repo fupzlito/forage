@@ -681,9 +681,137 @@ async def get_v1_models(request: Request) -> JSONResponse:
     )
 
 
+async def _stream_openai_chat_completions(
+    tool_name: str,
+    args: Dict[str, Any],
+    model_requested: str,
+    config: ForageConfig,
+    browser_pool: BrowserPool,
+):
+    """Generator for streaming OpenAI chat.completion.chunk SSE responses."""
+    import time
+    msg_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
+    created = int(time.time())
+
+    def _chunk(content: Optional[str] = None, role: Optional[str] = None, finish_reason: Optional[str] = None) -> str:
+        delta = {}
+        if role:
+            delta["role"] = role
+        if content:
+            delta["content"] = content
+        payload = {
+            "id": msg_id,
+            "object": "chat.completion.chunk",
+            "created": created,
+            "model": model_requested,
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": delta,
+                    "finish_reason": finish_reason,
+                }
+            ],
+        }
+        return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+    # Initial role chunk
+    yield _chunk(role="assistant")
+
+    extract_name = config.tools.extract_name
+
+    if tool_name == extract_name or tool_name == "web_extract":
+        raw_urls = args.get("urls", [])
+        if isinstance(raw_urls, str):
+            urls = [u.strip() for u in raw_urls.split(",") if u.strip()]
+        else:
+            urls = list(raw_urls)
+
+        if not urls:
+            yield _chunk(content="Error: Missing required parameter 'urls'")
+            yield _chunk(finish_reason="stop")
+            yield "data: [DONE]\n\n"
+            return
+
+        force_render = bool(args.get("force_render", False))
+        wait_for = args.get("wait_for")
+        only_main_content = bool(args.get("only_main_content", True))
+        timeout = int(args.get("timeout", 30))
+        engine = args.get("engine")
+        max_chars = args.get("max_chars")
+        formats = args.get("formats")
+        fmt = "html" if (formats and ("html" in formats or "raw_html" in formats)) else "markdown"
+
+        if max_chars is not None:
+            try:
+                max_chars = max(500, min(int(max_chars), config.extract.max_content_chars))
+            except (ValueError, TypeError):
+                max_chars = None
+
+        from datetime import datetime as _dt
+        _now = _dt.now().astimezone().strftime("%Y-%m-%d %H:%M %Z")
+        yield _chunk(content=f"EXTRACTING {len(urls)} URLs | {_now}\n\n---\n\n")
+
+        include_fav = config.extract.include_favicon if getattr(config.extract, "include_favicon", None) is not None else getattr(config.tools, "include_favicon", False)
+
+        async def _one_stream(u: str, pos: int) -> Dict[str, Any]:
+            try:
+                result = await extract_url(
+                    config,
+                    browser_pool,
+                    u,
+                    position=pos,
+                    force_render=force_render,
+                    wait_for=wait_for,
+                    output_format=fmt,
+                    only_main_content=only_main_content,
+                    timeout=timeout,
+                    engine=engine,
+                )
+                if max_chars and "content" in result:
+                    full_len = len(result["content"])
+                    if full_len > max_chars:
+                        result["content"] = result["content"][:max_chars] + f"\n\n[TRUNCATED at {max_chars:,} of {full_len:,} chars]"
+                return result
+            except Exception as exc:  # noqa: BLE001
+                return {"url": u, "error": str(exc)}
+
+        tasks = [asyncio.create_task(_one_stream(u, idx + 1)) for idx, u in enumerate(urls)]
+        for idx_c, coro in enumerate(asyncio.as_completed(tasks)):
+            r = await coro
+            if "error" in r:
+                block = f"[{idx_c+1}] {r['url']}\nERROR: {r['error']}\n\n---\n\n"
+            else:
+                t = r.get("title", "")
+                dom = r.get("domain", "")
+                u = r.get("url", "")
+                c = r.get("content", "")
+                m = r.get("method", "unknown")
+                cit = r.get("citation", f"[{dom}]({u})")
+                block = (
+                    f"[{idx_c+1}] {dom} | {m}\n"
+                    f"URL: {u}\n"
+                    f"TITLE: {t}\n"
+                    f"CITE AS: {cit}"
+                )
+                if include_fav and r.get('favicon'):
+                    block += f"\nFAVICON: {r['favicon']}"
+                block += f"\n\n{c}\n\n---\n\n"
+            yield _chunk(content=block)
+
+    else:
+        # Search execution
+        res = await execute_tool_call(tool_name, args, config, browser_pool)
+        formatted_text = res.get("formatted_text", json.dumps(res, indent=2))
+        yield _chunk(content=formatted_text)
+
+    # Final stop chunk
+    yield _chunk(finish_reason="stop")
+    yield "data: [DONE]\n\n"
+
+
 @mcp_router.post("/v1/chat/completions")
-async def post_v1_chat_completions(request: Request) -> JSONResponse:
-    """OpenAI API compatible chat completion endpoint for tool invocation."""
+async def post_v1_chat_completions(request: Request) -> Any:
+    """OpenAI API compatible chat completion endpoint for tool invocation with streaming support."""
     config, browser_pool = _get_config_and_pool(request)
 
     try:
@@ -693,6 +821,9 @@ async def post_v1_chat_completions(request: Request) -> JSONResponse:
 
     messages = body.get("messages", [])
     model_requested = body.get("model", config.tools.search_name)
+    is_stream = bool(body.get("stream", False)) or bool(
+        request.headers.get("accept", "") and "text/event-stream" in request.headers.get("accept", "").lower()
+    )
 
     query = ""
     for msg in reversed(messages):
@@ -710,9 +841,24 @@ async def post_v1_chat_completions(request: Request) -> JSONResponse:
     if model_requested == extract_name or (urls and model_requested != search_name):
         tool_name = extract_name
         args: Dict[str, Any] = {"urls": urls if urls else [query]}
+        if body.get("max_chars"):
+            args["max_chars"] = body.get("max_chars")
     else:
         tool_name = search_name
         args = {"query": query or "test"}
+        if body.get("limit"):
+            args["limit"] = body.get("limit")
+        if body.get("language"):
+            args["language"] = body.get("language")
+        if body.get("engines"):
+            args["engines"] = body.get("engines")
+
+    if is_stream:
+        return StreamingResponse(
+            _stream_openai_chat_completions(tool_name, args, model_requested, config, browser_pool),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+        )
 
     result = await execute_tool_call(tool_name, args, config, browser_pool)
     formatted_text = result.get("formatted_text", json.dumps(result, indent=2))
