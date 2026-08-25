@@ -173,7 +173,6 @@ extract:
       force_render: true
       full_text: true
       engine: readability
-      scroll: true
       timeout: 45
     fandom.com:
       force_render: true        # 3.3MB HTML (16-24s in the benchmark)
