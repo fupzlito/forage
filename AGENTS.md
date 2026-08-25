@@ -20,7 +20,7 @@ this repo (code, docs, commits) is written in English.
 Single Python service (FastAPI + uvicorn), one container. Modules in `app/`:
 
 | Module | Responsibility |
-|---|---|\
+|---|---|
 | `main.py` | FastAPI app, endpoints, pool lifespan, auth dependency |
 | `config.py` | YAML loader: defaults -> deep merge -> validation; typed dataclasses |
 | `prompts.py` | Safe template rendering for dynamic tool descriptions and citation guidelines |
@@ -32,7 +32,7 @@ Single Python service (FastAPI + uvicorn), one container. Modules in `app/`:
 | `documents.py` | PDF/docx/xlsx/pptx/rtf extraction from raw bytes (never through the browser) |
 | `auth.py` | Bearer API keys (env `FORAGE_API_KEYS`), constant-time comparison |
 
-API: `GET /health`, `POST /search`, `POST /extract`, `GET /v1/tools`, `POST /v1/chat/completions`, `POST /mcp`, `POST /admin/cache/purge`.
+API: `GET /health`, `POST /search`, `POST /extract`, `GET /v1/tools`, `POST /v1/tools/call`, `POST /v1/chat/completions`, `GET /v1/models`, `POST /mcp`, `GET /mcp/sse`, `POST /admin/cache/purge`.
 
 ## Core design decisions (do not reverse without a strong reason)
 
@@ -74,7 +74,7 @@ API: `GET /health`, `POST /search`, `POST /extract`, `GET /v1/tools`, `POST /v1/
   browser processes start; hot reload would be fragile. 1-2s downtime is fine.
 - **`raw_content_markdown: true` (default)**: `raw_content` mirrors the clean
   markdown so consumers that read `raw_content` first (Hermes' web extract
-  tool) get clean text. `false` returns raw HTML in `raw_content`.\
+  tool) get clean text. `false` returns raw HTML in `raw_content`.
 - **Auth optional (Bearer)**: `auth.enabled: false` default (local use + bind
   127.0.0.1). Keys via env, `hmac.compare_digest`. `/health` always open.
 - **`default_limit` resolution**: Pydantic models (`SearchRequest`) and MCP tool
@@ -145,7 +145,7 @@ override.
   false-positives on "shopping-app" in prose.
 - **Cloudflare managed challenge can answer 200 on static fetch**: after the
   static fetch, if `looks_like_challenge` -> force browser instead of
-  delivering an error.\
+  delivering an error.
 - **`network_idle=True` on the Scrapling session hangs streaming pages**
   (x.com never idles). Keep `network_idle=False` on the session and replicate
   network-idle-with-cap inside the `page_action`.

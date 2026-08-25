@@ -324,54 +324,103 @@ class ForageConfig:
     def validate(self) -> None:
         """Raise ValueError on invalid configuration values."""
         if not (0 < self.server.port < 65536):
-            raise ValueError(f"server.port inválida: {self.server.port}")
+            raise ValueError(f"server.port invalid: {self.server.port}")
         if self.server.workers < 1:
-            raise ValueError(f"server.workers deve ser >= 1: {self.server.workers}")
+            raise ValueError(f"server.workers must be >= 1: {self.server.workers}")
         if self.cache.max_entries < 1:
-            raise ValueError(f"cache.max_entries deve ser >= 1: {self.cache.max_entries}")
+            raise ValueError(f"cache.max_entries must be >= 1: {self.cache.max_entries}")
         for name, op in (("search", self.cache.search), ("extract", self.cache.extract)):
             if op.ttl < 0:
-                raise ValueError(f"cache.{name}.ttl deve ser >= 0: {op.ttl}")
+                raise ValueError(f"cache.{name}.ttl must be >= 0: {op.ttl}")
         if self.browser.max_instances < 0 or self.browser.min_idle < 0:
-            raise ValueError("browser pool sizes devem ser >= 0")
+            raise ValueError("browser pool sizes must be >= 0")
         if self.browser.scroll_steps < 0:
-            raise ValueError("browser.scroll_steps deve ser >= 0")
+            raise ValueError("browser.scroll_steps must be >= 0")
         if self.browser.challenge_timeout < 0:
-            raise ValueError("browser.challenge_timeout deve ser >= 0")
+            raise ValueError("browser.challenge_timeout must be >= 0")
         if self.browser.solve_cloudflare and self.browser.engine != "scrapling":
-            raise ValueError("browser.solve_cloudflare só se aplica ao engine scrapling")
+            raise ValueError("browser.solve_cloudflare only applies to engine=scrapling")
         if self.browser.engine not in ("playwright", "patchright", "scrapling", "obscura"):
-            raise ValueError(f"browser.engine inválido: {self.browser.engine} (use playwright, patchright, scrapling ou obscura)")
+            raise ValueError(
+                f"browser.engine invalid: {self.browser.engine!r} "
+                "(use playwright, patchright, scrapling, or obscura)"
+            )
         if self.browser.engine == "obscura" and not self.browser.cdp_url:
-            raise ValueError("browser.engine=obscura exige browser.cdp_url (ex.: http://127.0.0.1:9223)")
+            raise ValueError("browser.engine=obscura requires browser.cdp_url (e.g. http://127.0.0.1:9223)")
         if self.extract.engine not in ("trafilatura", "readability"):
             raise ValueError(
-                f"extract.engine inválido: {self.extract.engine} (use trafilatura ou readability)"
+                f"extract.engine invalid: {self.extract.engine!r} "
+                "(use trafilatura or readability)"
             )
         if self.browser.min_idle > self.browser.max_instances and self.browser.max_instances > 0:
-            raise ValueError("browser.min_idle não pode exceder browser.max_instances")
+            raise ValueError("browser.min_idle cannot exceed browser.max_instances")
         for override in self.extract.domain_overrides:
             if not override.pattern:
-                raise ValueError("domain_overrides entry must contain a pattern")
+                raise ValueError("domain_overrides entry must have a non-empty pattern")
+            if override.url_rewrite is not None and "/" not in override.url_rewrite:
+                raise ValueError(
+                    f"domain_overrides[{override.pattern}]: url_rewrite must be "
+                    f"'host[/path-prefix]' (e.g. old.reddit.com/r/): {override.url_rewrite!r}"
+                )
+            if override.timeout is not None and not (1 <= override.timeout <= 120):
+                raise ValueError(
+                    f"domain_overrides[{override.pattern}]: timeout must be between 1 and 120s"
+                )
+            if override.network_idle_timeout is not None and not (0 <= override.network_idle_timeout <= 60):
+                raise ValueError(
+                    f"domain_overrides[{override.pattern}]: network_idle_timeout must be between 0 and 60s"
+                )
+            if override.challenge_timeout is not None and not (0 <= override.challenge_timeout <= 120):
+                raise ValueError(
+                    f"domain_overrides[{override.pattern}]: challenge_timeout must be between 0 and 120s"
+                )
+            if override.engine is not None and override.engine not in ("trafilatura", "readability"):
+                raise ValueError(
+                    f"domain_overrides[{override.pattern}]: engine must be trafilatura or readability"
+                )
 
 
-def load_config(config_path: Optional[str] = None) -> ForageConfig:
-    """Load configuration from built-in defaults + YAML file + env vars."""
-    raw_path = config_path or os.environ.get("FORAGE_CONFIG", DEFAULT_CONFIG_PATH)
-    path = os.path.abspath(raw_path)
+def _load_yaml(path: str) -> Dict[str, Any]:
+    """Load a YAML file, returning {} when the file does not exist."""
+    if not os.path.exists(path):
+        logger.info("Config file not found (%s), using defaults", path)
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            data = yaml.safe_load(fh) or {}
+    except yaml.YAMLError as exc:
+        raise ValueError(f"Failed to parse YAML ({path}): {exc}") from exc
+    if not isinstance(data, dict):
+        raise ValueError(f"YAML file ({path}) must be a mapping at the root level")
+    return data
 
-    data: Dict[str, Any] = DEFAULTS
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                loaded = yaml.safe_load(f) or {}
-                data = deep_merge(DEFAULTS, loaded)
-            logger.info("Loaded config from %s", path)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Could not read config from %s: %s (using defaults)", path, exc)
-    else:
-        logger.info("Config file %s not found; using defaults", path)
 
-    cfg = ForageConfig.from_dict(data, source_path=path)
+def load_config(path: Optional[str] = None) -> ForageConfig:
+    """Load configuration from defaults + optional YAML file.
+
+    Resolution order:
+      1. Built-in DEFAULTS (this module)
+      2. Main config YAML (FORAGE_CONFIG env var, default /etc/forage/config.yaml)
+      3. External prompts YAML (prompts.prompts_path in config, or FORAGE_PROMPTS_CONFIG env var)
+
+    The prompts YAML is merged only into the ``prompts`` sub-dict so it cannot
+    affect server/search/browser settings.
+    """
+    config_path = path or os.environ.get("FORAGE_CONFIG") or DEFAULT_CONFIG_PATH
+    file_data = _load_yaml(config_path)
+    merged = deep_merge(DEFAULTS, file_data)
+
+    # External prompts file: prompts_path in config OR FORAGE_PROMPTS_CONFIG env var
+    prompts_path = merged.get("prompts", {}).get("prompts_path") or os.environ.get("FORAGE_PROMPTS_CONFIG")
+    if prompts_path:
+        prompts_data = _load_yaml(prompts_path)
+        if prompts_data:
+            # If the external YAML has a top-level "prompts" key, unnest it
+            if "prompts" in prompts_data and isinstance(prompts_data["prompts"], dict):
+                prompts_data = prompts_data["prompts"]
+            merged["prompts"] = deep_merge(merged.get("prompts", {}), prompts_data)
+
+    cfg = ForageConfig.from_dict(merged, source_path=config_path)
     cfg.validate()
     return cfg
+

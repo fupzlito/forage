@@ -280,7 +280,7 @@ def _title_from_url(url: str) -> str:
     if slug:
         slug = re.sub(r"[-_]+", " ", slug).strip().capitalize()
         return slug
-    return parsed.netloc or "Reddit"
+    return parsed.netloc or url
 
 
 async def _check_robots(client: httpx.AsyncClient, config: ForageConfig, url: str) -> Optional[str]:

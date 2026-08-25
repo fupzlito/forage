@@ -132,16 +132,37 @@ otherwise                                                 → static result
 
 | Key | Default | Description |
 |---|---|---|
-| `enabled` | `false` | Require Bearer authentication on protected endpoints. |
+| `enabled` | `false` | Require `Authorization: Bearer <key>` on `/search`, `/extract` and `/admin/*`. `/health` stays open (healthcheck). |
 
-Keys are configured in the `FORAGE_API_KEYS` env var (comma-separated). `/health` is always public.
+Keys come from the `FORAGE_API_KEYS` env var (comma-separated) and are compared in constant time.
+
+## `prompts`
+
+Customize citation rules, tool descriptions, and OpenAPI/MCP parameter descriptions. Supports dynamic template placeholders: `{now_date}` (e.g. `2026-08-24 03:57 UTC`), `{year}` (`2026`), `{default_engines}`, `{available_engines}`, `{default_limit}`, `{citation_guidelines}`.
+
+| Key | Default | Description |
+|---|---|---|
+| `prompts_path` | `null` | Optional absolute path to an external prompts YAML file (e.g. `/etc/forage/prompts.yaml`). When set, the file is loaded and merged into the prompts sub-config, overriding built-in defaults. Partial files are fine - missing keys fall back to the built-in values. |
+| `citation_guidelines` | *(citation rules block)* | Reusable citation rules template. Automatically interpolated into tool descriptions via `{citation_guidelines}`. |
+| `search_tool_description` | *(search template)* | Tool description presented in OpenAPI and MCP schemas for web search. |
+| `extract_tool_description` | *(extract template)* | Tool description presented in OpenAPI and MCP schemas for web extraction. |
+| `search_params` | `{query, limit, ...}` | Dictionary of argument descriptions for web search parameters. |
+| `extract_params` | `{urls, force_render, ...}` | Dictionary of argument descriptions for web extract parameters. |
+
+### External prompts file
+
+You can keep prompts outside `config.yaml` by pointing `prompts_path` at a standalone YAML file (see `prompts.example.yaml`). The env var `FORAGE_PROMPTS_CONFIG` is an alternative to `prompts_path` (useful for injecting per-environment prompts without touching the main config file).
 
 ---
 
 ## Environment variables
 
-| Variable | Description |
-|---|---|
-| `FORAGE_CONFIG` | Path to `config.yaml` inside the container (default `/etc/forage/config.yaml`). |
-| `FORAGE_API_KEYS` | Comma-separated list of valid Bearer tokens (when `auth.enabled: true`). |
-| `SEARXNG_URL` | Override for `search.searxng_url`. |
+| Variable | Where | Purpose |
+|---|---|---|
+| `FORAGE_API_KEYS` | service `.env` | Comma-separated Bearer API keys (used when `auth.enabled: true`). |
+| `FORAGE_CONFIG` | service `.env` | Config file path inside the container (default `/etc/forage/config.yaml`). |
+| `FORAGE_PROMPTS_CONFIG` | service `.env` | Optional standalone prompts config path. Overrides `prompts.prompts_path`. |
+| `TZ` | service `.env` | Container timezone. |
+| `FORAGE_URL` | Hermes `.env` | Base URL the Hermes plugin calls (e.g. `http://localhost:3672`). |
+| `FORAGE_API_KEY` | Hermes `.env` | Key the plugin sends when auth is enabled. |
+| `FORAGE_BYPASS_CACHE` | Hermes `.env` | `true` makes the plugin always send `Cache-Control: no-cache`. |
