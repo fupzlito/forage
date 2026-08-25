@@ -135,9 +135,59 @@ def format_citation(
         return f"[{domain}]({url})" if domain else f"[{site_name}]({url})"
     elif style == "bracket_title":
         return f"[Source: {site_name}]({url})"
-    else:
-        # Fallback: plain site_name link
-        return f"[{site_name}]({url})"
+_cached_available_engines: Optional[Tuple[str, ...]] = None
+_cached_general_engines: Optional[Tuple[str, ...]] = None
+_last_engine_fetch: float = 0.0
+
+
+def fetch_searxng_engines_sync(searxng_url: str, timeout: float = 2.0) -> Tuple[Tuple[str, ...], Tuple[str, ...]]:
+    """Query SearXNG GET /config synchronously to discover enabled engines and default category engines.
+
+    Returns:
+        (available_engines_tuple, general_category_engines_tuple)
+    """
+    url = f"{searxng_url.rstrip('/')}/config"
+    try:
+        resp = httpx.get(url, timeout=timeout, headers={"Accept": "application/json"})
+        if resp.status_code == 200:
+            data = resp.json()
+            raw_engines = data.get("engines", [])
+            available: List[str] = []
+            general: List[str] = []
+            for e in raw_engines:
+                if isinstance(e, dict):
+                    name = e.get("name")
+                    if name and not e.get("disabled", False):
+                        available.append(name)
+                        categories = e.get("categories", [])
+                        if "general" in categories or not categories:
+                            general.append(name)
+                elif isinstance(e, str) and e:
+                    available.append(e)
+            if available:
+                return tuple(available), tuple(general)
+    except Exception as exc:
+        logger.debug("Failed to fetch SearXNG /config (%s): %s", url, exc)
+    return (), ()
+
+
+def get_live_available_engines(config: ForageConfig) -> Tuple[str, ...]:
+    """Return live available engines from SearXNG GET /config with 5-minute cache fallback."""
+    global _cached_available_engines, _cached_general_engines, _last_engine_fetch
+    import time
+    now = time.monotonic()
+    if _cached_available_engines and (now - _last_engine_fetch < 300):
+        return _cached_available_engines
+
+    avail, gen = fetch_searxng_engines_sync(config.search.searxng_url)
+    if avail:
+        _cached_available_engines = avail
+        _cached_general_engines = gen
+        _last_engine_fetch = now
+        return avail
+
+    # Fallback to configured or built-in default available engines
+    return config.search.available_engines
 
 
 def normalize_and_validate_engines(
@@ -270,10 +320,11 @@ def search_searxng(
 ) -> Dict[str, Any]:
     """Execute a search against SearXNG and return normalized web results with sources & guidance."""
     base = config.search.searxng_url.rstrip("/")
+    live_available = get_live_available_engines(config)
     validated_engines, engine_warning = normalize_and_validate_engines(
         engines,
         config.search.engines,
-        config.search.available_engines,
+        live_available,
     )
 
     params: Dict[str, Any] = {
@@ -300,7 +351,7 @@ def search_searxng(
             "success": False,
             "error": f"SearXNG returned HTTP {exc.response.status_code}. Do not hammer search; wait or try alternative query terms.",
             "retryable": False,
-            "all_engines": ", ".join(config.search.available_engines),
+            "all_engines": ", ".join(live_available),
         }
     except httpx.RequestError as exc:
         logger.warning("SearXNG request error: %s", exc)
@@ -308,7 +359,7 @@ def search_searxng(
             "success": False,
             "error": f"Could not reach SearXNG at {base} (timeout or network error): {exc}. Avoid rapid repeated retries.",
             "retryable": False,
-            "all_engines": ", ".join(config.search.available_engines),
+            "all_engines": ", ".join(live_available),
         }
 
     try:
@@ -395,7 +446,7 @@ def search_searxng(
     returned_engines_str = ", ".join(successful_engines)
     unresponsive_str = "; ".join(f"{u['engine']} - {u['reason']}" for u in unresponsive_engines) if unresponsive_engines else None
     requested_engines_str = ", ".join(validated_engines)
-    all_engines_str = ", ".join(config.search.available_engines)
+    all_engines_str = ", ".join(live_available)
 
     # Formulate deduplicated model guidance warning without listing engines
     warnings: List[str] = []

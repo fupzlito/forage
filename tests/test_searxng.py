@@ -241,6 +241,33 @@ class TestSearXNG(unittest.TestCase):
             finally:
                 os.chmod(tmpdir, stat.S_IRWXU)
 
+    @patch("httpx.get")
+    def test_fetch_searxng_engines_live(self, mock_get):
+        from app.searxng import fetch_searxng_engines_sync, get_live_available_engines
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "engines": [
+                {"name": "google", "categories": ["general"]},
+                {"name": "bing", "categories": ["general"]},
+                {"name": "wikipedia", "categories": ["general"]},
+                {"name": "github", "categories": ["it"]},
+                {"name": "disabled_engine", "categories": ["general"], "disabled": True},
+            ]
+        }
+        mock_get.return_value = mock_resp
+
+        avail, gen = fetch_searxng_engines_sync("http://mock-searxng:8080")
+        self.assertEqual(avail, ("google", "bing", "wikipedia", "github"))
+        self.assertEqual(gen, ("google", "bing", "wikipedia"))
+
+    @patch("httpx.get")
+    def test_get_live_available_engines_fallback(self, mock_get):
+        from app.searxng import get_live_available_engines
+        mock_get.side_effect = Exception("SearXNG unreachable")
+        avail = get_live_available_engines(self.config)
+        self.assertEqual(avail, self.config.search.available_engines)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -24,7 +24,7 @@ from .cache import TTLCache
 from .config import load_config
 from .extract import extract_url
 from .mcp import mcp_router
-from .searxng import search_searxng
+from .searxng import get_live_available_engines, search_searxng
 
 config = load_config()
 
@@ -266,7 +266,7 @@ async def health() -> dict:
             "extract_name": config.tools.extract_name,
         },
         "search": {
-            "available_engines": list(config.search.available_engines),
+            "available_engines": list(get_live_available_engines(config)),
             "default_engines": list(config.search.engines),
         },
         "cache": {

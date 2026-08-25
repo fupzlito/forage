@@ -80,8 +80,10 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
 
     search_name = config.tools.search_name
     extract_name = config.tools.extract_name
+    from .searxng import get_live_available_engines
+    live_available = get_live_available_engines(config)
     default_engines_str = ", ".join(config.search.engines)
-    available_engines_str = ", ".join(config.search.available_engines)
+    available_engines_str = ", ".join(live_available)
     now_dt = datetime.now().astimezone()
     now_date = now_dt.strftime("%Y-%m-%d %H:%M %Z")
     year = str(now_dt.year)
