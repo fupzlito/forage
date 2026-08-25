@@ -205,6 +205,7 @@ def search_searxng(
         "q": query,
         "format": "json",
         "pageno": 1,
+        "categories": "general,social media,it,science,videos,news",
     }
     if language:
         params["language"] = language
