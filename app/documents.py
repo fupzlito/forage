@@ -222,15 +222,29 @@ def format_reddit_comments(children: list, indent: int = 0) -> list[str]:
         body = cdata.get("body", "")
         score = cdata.get("score", 0)
         created_str = _format_timestamp(cdata.get("created_utc"))
+        is_op = cdata.get("is_submitter", False)
+        distinguished = cdata.get("distinguished")
+        flair = cdata.get("author_flair_text")
         if not body or body == "[deleted]" or body == "[removed]":
             continue
+
+        badges = []
+        if is_op:
+            badges.append("[OP]")
+        if distinguished == "moderator":
+            badges.append("[MOD]")
+        elif distinguished == "admin":
+            badges.append("[ADMIN]")
+        if flair:
+            badges.append(f"[Flair: {flair}]")
+        badge_str = (" " + " ".join(badges)) if badges else ""
 
         meta_parts = [f"Score: {score}"]
         if created_str:
             meta_parts.append(created_str)
         meta = " | ".join(meta_parts)
 
-        lines.append(f"{prefix}**u/{author}** ({meta})\n{prefix}{body}\n")
+        lines.append(f"{prefix}**u/{author}**{badge_str} ({meta})\n{prefix}{body}\n")
 
         replies = cdata.get("replies")
         if isinstance(replies, dict) and "data" in replies:

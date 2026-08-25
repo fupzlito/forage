@@ -484,9 +484,25 @@ def _strip_reddit_ads_from_html(html: str) -> str:
 
 
 def _clean_reddit_markdown(text: str) -> str:
-    """Clean up leading empty hr lines and multiple blank lines from Reddit markdown."""
+    """Clean up Reddit markdown: strip avatars, navigation remnants, floating numbers, and excessive blank lines."""
     if not text:
         return text
+    # Strip avatar markdown links [![u/... avatar](...)](...)
+    text = re.sub(r'\[!\[[^\]]*avatar\]\([^)]+\)\]\([^)]+\)', '', text, flags=re.IGNORECASE)
+    # Strip generic avatar image embeds ![*avatar*](...)
+    text = re.sub(r'!\[[^\]]*avatar[^\]]*\]\([^)]+\)', '', text, flags=re.IGNORECASE)
+    # Strip Reddit navigation boilerplate
+    boilerplate = [
+        r"Open navigation\s*",
+        r"Go to Reddit Home\s*",
+        r"\[Sign Up\]\([^\)]+\)Sign up for Reddit\s*",
+        r"\[Log In\]\([^\)]+\)Log in to Reddit\s*",
+        r"Open settings menu\s*",
+        r"View more comments\s*",
+    ]
+    for b in boilerplate:
+        text = re.sub(b, '', text, flags=re.IGNORECASE)
+
     lines = text.splitlines()
     header = lines[0] if lines and lines[0].startswith("#") else ""
     rest = "\n".join(lines[1:]) if header else text

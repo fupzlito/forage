@@ -54,8 +54,39 @@ def _readability_eval() -> str:
     """Return a JS IIFE that parses the current document and returns a JSON
     string with the article title and HTML (or null when Readability finds no
     article)."""
+    dom_prep = (
+        "try {\n"
+        "  if (window.location.hostname.includes('reddit.com')) {\n"
+        "    document.querySelectorAll('div[slot=\"commentAvatar\"], img[alt*=\"avatar\"], reddit-header-large, reddit-sidebar-nav, nav, header').forEach(function(el) { el.remove(); });\n"
+        "    document.querySelectorAll('shreddit-comment').forEach(function(el) {\n"
+        "      var author = el.getAttribute('author') || 'deleted';\n"
+        "      var score = el.getAttribute('score') || '0';\n"
+        "      var ts = el.getAttribute('created-timestamp');\n"
+        "      var depth = parseInt(el.getAttribute('depth') || '0', 10);\n"
+        "      var isOp = el.getAttribute('is-author') === 'true' || el.getAttribute('is_op') === 'true';\n"
+        "      var timeStr = '';\n"
+        "      if (ts) {\n"
+        "        try {\n"
+        "          var d = new Date(ts);\n"
+        "          timeStr = d.toISOString().replace('T', ' ').substring(0, 16) + ' UTC';\n"
+        "        } catch(e) {}\n"
+        "      }\n"
+        "      var meta = ['Score: ' + score];\n"
+        "      if (timeStr) meta.push(timeStr);\n"
+        "      var opStr = isOp ? ' [OP]' : '';\n"
+        "      var hTag = depth === 0 ? 'h3' : 'h4';\n"
+        "      var header = document.createElement(hTag);\n"
+        "      header.innerHTML = '<strong>u/' + author + '</strong>' + opStr + ' (' + meta.join(' | ') + ')';\n"
+        "      el.prepend(header);\n"
+        "    });\n"
+        "    document.querySelectorAll('div[slot=\"creditBar\"], shreddit-comment-action-row').forEach(function(el) { el.remove(); });\n"
+        "  }\n"
+        "} catch(e) {}\n"
+    )
     return (
         "(function() {\n"
+        + dom_prep
+        + "\n"
         + _READABILITY_JS
         + "\nvar _r = new Readability(document).parse();"
         "\nreturn _r ? JSON.stringify({title: _r.title || '', content: _r.content}) : null;\n})()"
