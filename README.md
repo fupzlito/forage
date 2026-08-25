@@ -2,274 +2,217 @@
 
 # 🐔 Forage
 
-**Self-hosted web search & extract service: a lightweight, drop-in replacement for self-hosted Firecrawl.**
+**Self-hosted, ultra-fast web search & extraction engine for LLMs, OpenWebUI, and AI Agents.**
 
-Built specifically for [Hermes Agent](https://hermes-agent.nousresearch.com), but fully usable standalone via its REST API.
+A high-performance, single-container drop-in alternative to heavy multi-container scrapers like Firecrawl. Built for local AI agents, OpenWebUI, and Hermes Agent.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED.svg)](#quick-start)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB.svg)](app/)
+[![MCP](https://img.shields.io/badge/MCP-2024--11--05-green.svg)](#openwebui--mcp-model-context-protocol-integration)
 
 </div>
 
 ---
 
-## Why Forage?
+## 🌟 About This Fork & Credits
 
-Self-hosted Firecrawl works, but it is a heavy stack: the community edition spins up **six containers** (API, Playwright service, Redis, RabbitMQ, Postgres…). Forage replaces it with a **single container** that does both jobs:
+This project is a fork of **[aldemaroc/forage](https://github.com/aldemaroc/forage)** (forked at commit `93920b3`).
 
-- **`web_search`**: via [SearXNG](https://github.com/searxng/searxng) (a separate lightweight container)
-- **`web_extract`**: hybrid static + browser extraction with three switchable browser engines, two switchable extract engines and anti-bot coverage
+Huge props and credit go to the original creator, **Aldemaro Campos**, who vibecoded the original foundation of Forage: an exceptionally reliable hybrid scraping engine, intelligent anti-bot heuristics, and rich browser customization.
 
-It was developed as the extract/search backend for Hermes Agent and ships with a ready-made Hermes plugin (`WebSearchProvider`), but the REST API is generic: any application that can speak HTTP can use it.
+Everything built on top of commit `93920b3` has been vibecoded to transform Forage into a first-class, agentic tool server with native MCP support, SSE streaming, dynamic LLM prompt templating, multi-tier Reddit scraping, and sub-millisecond pre-truncation caching.
 
-## Features
+---
 
-- **Single Docker container**: FastAPI + Chromium (via Playwright, Patchright or Scrapling) + httpx/trafilatura
-- **Hybrid extraction**: static HTTP first (fast, cheap), automatic browser fallback when the page needs JS or is anti-bot protected
-- **Three browser engines** (`browser.engine`): `playwright` (default), `patchright` (anti-detection fork) and `scrapling` (fingerprint impersonation + Cloudflare Turnstile bypass)
-- **Two extract engines** (`extract.engine`, per-domain or per request): `trafilatura` (default, main-content markdown) and `readability` (Mozilla Readability.js in the browser + markdownify, keeps buyboxes/comments that trafilatura drops as non-main). Amazon product pages use `readability` by default
-- **Anti-bot fallback** (`browser.fallback_solver`): if any engine hits a challenge, Forage retries the page with the Scrapling built-in solver as a last resort
-- **Structured markdown output**: extraction is returned as real markdown (headings, bold, lists, code blocks) via trafilatura's markdown format or the Readability.js + markdownify engine
-- **Basic stealth**: hides automation signals from Cloudflare-class protections (configurable, on by default)
-- **In-memory TTL cache** with a master switch and per-operation toggles (search 5 min, extract off by default)
-- **Optional Bearer API-key auth** (constant-time comparison, keys via env)
-- **Config-driven**: `config.yaml` bind-mounted read-only, secrets in env vars, reload via container restart
-- **Hermes integration**: bundled plugin, one-line backend switch (`web.search_backend` / `web.extract_backend`)
-- **GPL v3**
+## 🚀 What's New in this Fork
 
-## Architecture
+- 🔌 **Native Model Context Protocol (MCP) & OpenAI Compatibility**:
+  - MCP over SSE (`GET /mcp/sse`, `POST /mcp/messages`) and standard JSON-RPC (`POST /mcp`).
+  - OpenAI Function-Calling tools endpoint (`GET /v1/tools`, `POST /v1/tools/call`, `POST /v1/chat/completions`, `GET /v1/models`).
+  - Direct OpenAPI schema (`GET /openapi.json`) for seamless OpenWebUI integration.
+- ⚡ **Real-Time SSE Streaming**:
+  - `POST /extract` with `stream: true` or `Accept: text/event-stream` progressively streams extracted URLs as Server-Sent Events as soon as each finishes.
+- 🎯 **Advanced 3-Tier Reddit Extraction Engine**:
+  - **Tier 1 (`reddit+json`)**: High-throughput direct JSON API with Akamai-compliant `Sec-Fetch-*` navigation headers, intra-call rate throttling (0.75s), and rate-limit cooldown. Extracts full threads or multi-post feeds in **<1s** with ~0% CPU/RAM.
+  - **Tier 2 (`reddit+mirror`)**: Redlib / SafeReddit mirror failover with 4.0s fast timeout and instant 404 detection.
+  - **Tier 3 (`browser+readability`)**: Scrapling browser fallback with semantic `<h1>` titles, `<p>Posted by u/...` author tags, dynamic comment depth hierarchy (`h3`-`h6`), multi-post feed card wrappers, and websocket `networkidle` bypass.
+  - **Deep Markdown Cleanup**: Aggressively strips Reddit navigation bars, chat buttons, repost nudges, sort pills, avatar embeds, and UI noise.
+- 🏎️ **Dynamic Pre-Truncation Extract Caching**:
+  - In-memory extract cache stores the **full, untruncated** document.
+  - When an LLM initially fetches a URL with a low `max_chars` (e.g. 2,000) and later requests higher context (e.g. 20,000), Forage serves an **instant sub-millisecond cache hit (`<1ms`)** sliced to the new limit with zero network or browser overhead.
+- 📝 **Dynamic Prompt & Citation System**:
+  - Customizable tool descriptions supporting live template variables: `{now_date}`, `{year}`, `{default_engines}`, `{available_engines}`, `{default_limit}`, `{citation_guidelines}`.
+  - Timezone-aware date injection (`TZ` env var) so models always know current date/time context.
+  - 7 customizable citation formats (`site_name`, `site_name_brackets`, `academic`, `site_name_bold`, `site_name_italic`, `bracket_domain`, `bracket_title`).
+  - Optional standalone `prompts.yaml` file support.
+- 📏 **LLM Character Budgeting (`max_chars` & `require_max_chars`)**:
+  - Allows LLMs to specify character budgets per URL with clear inline `[TRUNCATED at X of Y chars]` markers.
+  - Configurable `require_max_chars` setting to prompt models to budget tokens responsibly.
+- 🛡️ **Per-Domain Auth Overrides (`headers` & `cookies`)**:
+  - Pass custom HTTP headers and session cookies (e.g. `reddit_session`, `token_v2`) per domain override directly into static HTTP and browser sessions.
+- 🔍 **SearXNG Engine Management & Resiliency**:
+  - Separation of default engines (`search.engines`) vs all available engines (`search.available_engines`).
+  - Dynamic engine alias resolution and model-passable `language` parameter.
+  - Automatic SearXNG engine failure tracking and temporary suspension to prevent slow/broken search engines from crashing queries.
+  - Publication date extraction (`published_date`) and snippet date prioritization.
+- 🔒 **Browser Resiliency & Deadlock Safety**:
+  - Strict `asyncio.wait_for` timeout guards on all browser operations, eliminating stuck browser tabs and semaphore deadlocks.
+  - Automatic `networkidle` bypass for streaming websocket domains (`reddit.com`, `x.com`, `twitter.com`).
+- 💓 **Enhanced Healthcheck**:
+  - Live heartbeat probe to SearXNG backend with latency tracking (`GET /health`).
+
+---
+
+## 🏗️ Architecture
 
 ```
-Hermes Agent (web_search / web_extract)
-   │  local HTTP
-   ▼
-Forage plugin (WebSearchProvider)        plugins/web/forage/
-   │  POST /search, POST /extract
-   ▼
-FORAGE (single container, :3672)
-   ├── FastAPI
-   ├── httpx + trafilatura  → static extraction (markdown output)
-   ├── Chromium             → JS rendering via playwright | patchright | scrapling
-   │                          (in-process pool, stealth, anti-bot solver fallback,
-   │                           in-browser Readability.js for the "readability" engine)
-   └── search               → SearXNG (shared docker network)
+OpenWebUI / Hermes / LLM Agents
+   │
+   ├─► MCP (SSE / HTTP)           /mcp/sse, /mcp
+   ├─► OpenAI Tool Calling        /v1/tools, /v1/tools/call
+   └─► REST API                   /search, /extract
+          │
+          ▼
+   FORAGE (Single Container, :3672)
+   ├── FastAPI & Prompts Engine   (Dynamic templates, timezone context, citation formatting)
+   ├── In-Memory LRU Cache        (Dynamic pre-truncation slice cache)
+   ├── Extraction Engine
+   │   ├── Document Parser        (PDF, DOCX, XLSX, PPTX, RTF from raw bytes)
+   │   ├── Reddit 3-Tier Pipeline (Tier 1: .json API → Tier 2: Redlib → Tier 3: Scrapling Browser)
+   │   ├── Static Extractor       (httpx + trafilatura markdown)
+   │   └── Browser Extractor      (Scrapling / Playwright / Mozilla Readability.js)
+   └── SearXNG Client             (Engine suspension, deduplication, snippet caps)
 ```
 
-The container runs its own Chromium as a subprocess. It never touches any external browser or CDP endpoint.
+---
 
-## Requirements
+## ⚙️ Browser Engines
 
+Forage defaults to **`scrapling`** (StealthyFetcher with fingerprint impersonation and Cloudflare Turnstile bypass), which is the fastest, stealthiest, and most memory-efficient engine.
+
+Other engines are supported:
+- **`playwright`**: Vanilla Chromium pool.
+- **`patchright`**: Anti-detection Playwright fork. To use, install `patchright` in the container and set `browser.engine: patchright`.
+- **`obscura`**: External Rust/V8 headless browser via CDP. Set `browser.engine: obscura` and specify `browser.cdp_url: "ws://127.0.0.1:9223"`.
+
+---
+
+## 🚀 Quick Start
+
+### 1. Requirements
 - Docker Engine 24+ with Docker Compose v2
-- A SearXNG instance (see [docs/SEARXNG.md](docs/SEARXNG.md))
-- ~1 GB free disk for the image (Chromium included)
+- A running SearXNG instance on a shared network (see [docs/SEARXNG.md](docs/SEARXNG.md))
 
-## Quick start
-
-1. **Set up SearXNG first**: follow [docs/SEARXNG.md](docs/SEARXNG.md). You need a SearXNG instance running on a shared Docker network named `searxng_default` (the default network name from the SearXNG compose). **Start SearXNG before Forage**: Forage's compose joins that network as external and will not start without it.
-
-2. **Clone and configure**
+### 2. Setup & Launch
 
 ```bash
 git clone https://github.com/aldemaroc/forage.git
 cd forage
-cp .env.example .env         # secrets: FORAGE_API_KEYS, TZ
-cp config.example.yaml config.yaml   # behavior: port, cache, browser, ...
-```
+cp .env.example .env                 # configure FORAGE_API_KEYS, TZ
+cp config.example.yaml config.yaml   # customize search engines, domain overrides, cache
 
-3. **Build and run**
-
-```bash
 docker compose up -d --build
-curl http://localhost:3672/health
-# → {"status":"ok","service":"forage","version":"0.8.1",...}
 ```
 
-4. **Try it**
+Verify service health:
+```bash
+curl http://localhost:3672/health
+```
+
+---
+
+## 📖 API & Tool Calling Examples
+
+### 1. Web Search (`POST /search`)
 
 ```bash
-# Search
-curl -s -X POST http://localhost:3672/search -H 'Content-Type: application/json' \
-  -d '{"query":"proxmox server","limit":3}'
-
-# Extract (static)
-curl -s -X POST http://localhost:3672/extract -H 'Content-Type: application/json' \
-  -d '{"urls":["https://en.wikipedia.org/wiki/Guineafowl"],"formats":["markdown"]}'
-
-# Extract (browser-forced; x.com has a force_render domain override by default)
-curl -s -X POST http://localhost:3672/extract -H 'Content-Type: application/json' \
-  -d '{"urls":["https://x.com/OpenAI"]}'
-
-# Extract a PDF / office document (detected by extension or Content-Type)
-curl -s -X POST http://localhost:3672/extract -H 'Content-Type: application/json' \
-  -d '{"urls":["https://example.com/paper.pdf"],"formats":["markdown"]}'
+curl -s -X POST http://localhost:3672/search \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"local llm vision models","limit":5,"language":"en-US"}'
 ```
 
-## Integrating with Hermes Agent
+### 2. Web Extract (`POST /extract`)
 
-Forage ships with a Hermes plugin. See **[docs/HERMES.md](docs/HERMES.md)** for full instructions (plugin install, env vars, backend switch, auth).
-
-There are two supported setups:
-
-| Setup | `web.search_backend` | `web.extract_backend` |
-|---|---|---|
-| **Everything through Forage** | `forage` | `forage` |
-| **Forage extract + direct SearXNG search** | `searxng` | `forage` |
-
-The second option skips one hop for search (Hermes → SearXNG directly), at the cost of losing Forage's search cache.
-
-## API Reference
-
-### `GET /health`
-
-Liveness probe. Always open (used by the container healthcheck).
-
-### `POST /search`
-
-```json
-{ "query": "proxmox server", "limit": 5, "language": "pt-BR", "engines": ["google", "bing"] }
+```bash
+curl -s -X POST http://localhost:3672/extract \
+  -H 'Content-Type: application/json' \
+  -d '{"urls":["https://en.wikipedia.org/wiki/Artificial_intelligence"],"max_chars":5000}'
 ```
 
-Response (Hermes web-search envelope):
+### 3. Progressive SSE Streaming (`POST /extract`)
 
-```json
-{
-  "success": true,
-  "data": { "web": [ { "title": "...", "url": "...", "description": "...", "position": 1 } ] }
-}
+```bash
+curl -N -X POST http://localhost:3672/extract \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: text/event-stream' \
+  -d '{"urls":["https://en.wikipedia.org/wiki/Python_(programming_language)","https://x.com/OpenAI"],"stream":true}'
 ```
 
-Response header `X-Forage-Cache: hit|miss|bypass|disabled`.
+### 4. OpenWebUI & MCP Integration
 
-### `POST /extract`
+Connect OpenWebUI directly using either:
+- **MCP Server**: `http://forage:3672/mcp/sse`
+- **OpenAPI Tool**: Import `http://forage:3672/openapi.json`
+- **OpenAI Compatible Tool Server**: `http://forage:3672/v1`
 
-```json
-{
-  "urls": ["https://..."],
-  "formats": ["markdown"],      // "markdown" (default) | "html"
-  "force_render": false,
-  "wait_for": null,
-  "only_main_content": true,
-  "timeout": 30
-}
-```
+---
 
-Response (per URL):
+## 🔧 Configuration
 
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "url": "https://...",
-      "title": "...",
-      "content": "clean markdown text...",
-      "raw_content": "clean markdown (or raw HTML; see raw_content_markdown)",
-      "method": "static"        // "static" | "browser" | "browser+solver" | "pdf" | "docx" | ...
-    }
-  ]
-}
-```
+All behavior is configured via `config.yaml`. See **[docs/CONFIG.md](docs/CONFIG.md)** for the full configuration reference.
 
-`method` tells you how the page was fetched: `static` (HTTP), `browser`
-(configured engine), `browser+solver` (engine hit an anti-bot challenge and the
-Scrapling solver retry succeeded), or a document type (`pdf`, `docx`, `xlsx`,
-`pptx`, `rtf`).
-
-If a page is behind an anti-bot challenge (Cloudflare etc.), Forage returns a clear error instead of challenge-page garbage:
-
-```json
-{ "url": "...", "error": "Blocked by anti-bot challenge (Cloudflare or similar)", "method": "browser" }
-```
-
-### `POST /admin/cache/purge`
-
-Clears the in-memory caches (auth-gated). Returns `{ "cleared": N }`.
-
-### OpenWebUI & MCP (Model Context Protocol) Integration
-
-Forage natively supports MCP and OpenAI API tool connections for OpenWebUI and LLM clients:
-
-- **MCP over SSE (`GET /mcp/sse` & `POST /mcp/messages`)**: Connect OpenWebUI directly as an MCP server using `http://forage:3672/mcp/sse`.
-- **MCP over HTTP (`POST /mcp`)**: Direct JSON-RPC MCP 2024-11-05 endpoint.
-- **OpenAI Tools API (`GET /v1/tools` & `POST /v1/tools/call`)**: Standard OpenAI function-calling format endpoint.
-- **OpenAPI Schema (`GET /openapi.json`)**: Import directly into OpenWebUI's OpenAPI tool integration with clean tool names (`web_search`, `web_extract`) and rich parameter descriptions.
-
-## Configuration
-
-All behavior is driven by `config.yaml` (bind-mounted read-only into the container) and env vars for secrets. Every option is documented in **[docs/CONFIG.md](docs/CONFIG.md)**. Here is the shape:
+Example configuration snippet:
 
 ```yaml
-server:   { host, port, workers, log_level }
-cache:    { enabled, max_entries, search: {enabled, ttl}, extract: {enabled, ttl} }
-tools:    { search_name, extract_name }
-search:   { searxng_url, default_lang, engines, available_engines, timeout, default_limit, max_limit, citation_style }
-extract:  { timeout, max_content_chars, only_main_content, user_agent,
-            browser_user_agent, respect_robots, force_render, wait_for,
-            min_content_chars, raw_content_markdown, domain_overrides }
-browser:  { engine, min_idle, max_instances, idle_timeout, headless, launch_timeout,
-            stealth, network_idle_timeout, scroll_steps, challenge_timeout,
-            solve_cloudflare, fallback_solver }
-auth:     { enabled }
-prompts:  { prompts_path, citation_guidelines, search_tool_description, extract_tool_description, search_params, extract_params }
+server:
+  host: 0.0.0.0
+  port: 3672
+
+cache:
+  enabled: true
+  search:
+    enabled: true
+    ttl: 300
+  extract:
+    enabled: true        # stores full text for instant dynamic max_chars cache hits
+    ttl: 120
+
+tools:
+  search_name: web_search
+  extract_name: web_extract
+  include_favicon: false
+
+search:
+  searxng_url: http://searxng:8080
+  engines: [google, qwant, brave, bing, duckduckgo, startpage, reddit]
+  citation_style: site_name
+
+extract:
+  timeout: 30
+  max_content_chars: 100000
+  require_max_chars: false
+  domain_overrides:
+    reddit.com:
+      engine: readability
+      timeout: 30
+      # Optional: pass your logged-in cookies for unrestricted sub-second .json pulls
+      # cookies:
+      #   reddit_session: "..."
+      #   token_v2: "..."
+    ".amazon.*":
+      force_render: true
+      engine: readability
+
+browser:
+  engine: scrapling
+  fallback_solver: true
 ```
 
-| Environment variable | Where | Purpose |
-|---|---|---|
-| `FORAGE_API_KEYS` | service `.env` | Comma-separated Bearer keys (auth.enabled) |
-| `FORAGE_CONFIG` | service `.env` | Config path inside container (default `/etc/forage/config.yaml`) |
-| `TZ` | service `.env` | Container timezone |
-| `FORAGE_URL` | Hermes `.env` | Base URL the plugin calls |
-| `FORAGE_API_KEY` | Hermes `.env` | Key the plugin sends when auth is on |
-| `FORAGE_BYPASS_CACHE` | Hermes `.env` | `true` = plugin always sends `Cache-Control: no-cache` |
+---
 
-## How extraction decides: static vs browser
+## 📄 License & Credits
 
-```
-domain override force_render | request force_render | wait_for → browser
-fetch statically (httpx)
-status 401/403/429                                        → browser
-looks like SPA (#root, __NEXT_DATA__, ...)                 → browser
-trafilatura text < min_content_chars                      → browser
-else                                                      → return static result
-```
-
-Browser results also run through the challenge detector, so blocked pages
-report an error rather than junk content. When a challenge is detected and
-`browser.fallback_solver` is enabled (default), Forage retries the page with
-the Scrapling built-in solver as a last resort; the final `method` is
-`browser+solver` when that retry succeeds.
-
-## Benchmark
-
-50 real sites (top-30 web + 20 agent-relevant: docs, tools, reference) tested
-against all three engines on the same machine, same criteria. See
-[docs/BENCHMARK.md](docs/BENCHMARK.md) for the full table.
-
-| Engine | Accessible Websites | Inaccessible | Mean scrape time |
-|---|---|---|---|
-| playwright | 48 | 2 | 3.3s |
-| patchright | 47 | 3 | 3.2s |
-| scrapling | **48** | **2** | 3.6s |
-
-scrapling is the only engine that passes every Cloudflare-protected site it
-encounters (dailymail). Sites behind intermittent anti-bot (stackoverflow,
-tiktok) vary between runs on every engine. Mean time includes only successful
-scrapes.
-
-## Development
-
-```bash
-# Run tests / smoke checks against a running instance (see docs for details)
-curl -s -X POST http://localhost:3672/search -H 'Content-Type: application/json' -d '{"query":"test","limit":3}'
-```
-
-The app lives in `app/` (FastAPI). Configuration loading, caching, the SearXNG client, the hybrid extractor, the browser pool and auth are each in their own module.
-
-## License
-
-[GPL v3](LICENSE). © 2026 Aldemaro Campos.
-
-## Credits
-
-Developed by **Aldemaro Campos and Chico** 🐔
+- License: [GPL v3](LICENSE)
+- Original creator: **Aldemaro Campos** ([aldemaroc/forage](https://github.com/aldemaroc/forage))
+- Enhancements, MCP protocol, streaming, prompt engine & Reddit pipeline: Vibecoded by the community.
