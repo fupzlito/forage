@@ -74,10 +74,7 @@ def get_favicon_url(domain: str) -> str:
 
 
 KNOWN_DOMAINS = {
-    "israelhayom.com": "Israel Hayom",
-    "timesofisrael.com": "Times of Israel",
     "vinnews.com": "VINnews",
-    "yahoo.com": "Yahoo Finance",
     "finance.yahoo.com": "Yahoo Finance",
     "marketwatch.com": "MarketWatch",
     "bloomberg.com": "Bloomberg",

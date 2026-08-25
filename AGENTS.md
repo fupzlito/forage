@@ -119,7 +119,8 @@ Pattern syntax (www-insensitive, case-insensitive):
 
 Available overrides: `force_render`, `full_text`, `engine` ("trafilatura" |
 "readability"), `wait_for`, `url_rewrite`, `scroll`, `timeout` (1-120s),
-`network_idle_timeout` (0-60s), `challenge_timeout` (0-120s).
+`network_idle_timeout` (0-60s), `challenge_timeout` (0-120s), `headers` (dict),
+`cookies` (dict).
 
 Precedence: the most specific override wins (longest pattern); request-level
 params (`force_render`/`wait_for` in the call) are ABSOLUTE and beat the
@@ -127,6 +128,20 @@ override.
 
 ## Golden rules (learned the hard way)
 
+- **Dynamic `max_chars` caching**: Extract cache stores the full, untruncated
+  document (up to `max_content_chars`). When an LLM re-fetches a cached URL
+  with a larger `max_chars`, Forage serves an instant cache hit (<1ms) sliced to
+  the new limit with zero network or browser overhead.
+- **Reddit 3-tier extraction pipeline**: Reddit URLs bypass standard static fetch
+  and run through: Tier 1 (`.json` API with browser navigation headers and
+  session cookies) -> Tier 2 (Redlib / SafeReddit mirror with 4s timeout) ->
+  Tier 3 (Browser + Readability with semantic `h3`-`h6` comment depth).
+- **Streaming websocket sites never idle**: `reddit.com`, `x.com` and `twitter.com`
+  maintain live websockets and must bypass `page.wait_for_load_state("networkidle")`
+  to avoid unnecessary 5s stall penalties.
+- **Browser fetches must have an asyncio timeout**: Always wrap `session.fetch()`
+  in `asyncio.wait_for(..., timeout=timeout + 5)` so broken tabs or hung promises
+  never lock the pool semaphore indefinitely.
 - **When a page seems to be missing data, do NOT blame the browser/fingerprint
   first.** Test the browser engine directly against the URL and save the full
   HTML before concluding. The pipeline itself can lose data in two places:

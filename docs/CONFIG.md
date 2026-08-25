@@ -27,7 +27,7 @@ In-memory LRU only (lost on restart, by design). The master switch `enabled` tur
 | `max_entries` | `500` | Global LRU cap across both caches. |
 | `search.enabled` | `true` | Cache search results. |
 | `search.ttl` | `300` | Search TTL in seconds (5 min). Keeps repeated queries from hammering SearXNG's engines (anti-bot protection). |
-| `extract.enabled` | `false` | Extract caching off by default: extraction is always fresh (Firecrawl behavior). A short TTL (e.g. `120`) gives fast repeat extraction with bounded staleness. |
+| `extract.enabled` | `false` | Extract caching off by default: extraction is always fresh (Firecrawl behavior). A short TTL (e.g. `120`) gives fast repeat extraction with bounded staleness. Stores full untruncated content in cache: when an LLM re-fetches a URL with higher `max_chars`, Forage returns an instant cache hit (<1ms) sliced to the new character limit. |
 | `extract.ttl` | `3600` | Extract TTL in seconds (1 h). Pre-defined so enabling the toggle is enough. |
 
 Bypass per request with the `Cache-Control: no-cache` header; the response header `X-Forage-Cache` reports `hit|miss|bypass|disabled`.
@@ -77,39 +77,39 @@ Bypass per request with the `Cache-Control: no-cache` header; the response heade
 | `require_max_chars` | `false` | If `true`, marks `max_chars` as a required parameter in the `web_extract` tool schema, prompting LLMs to always supply a character budget per call. |
 | `domain_overrides` | `{}` | Per-pattern extraction overrides. The YAML key is a pattern (www-insensitive, case-insensitive): `x.com` matches the host or any subdomain; `.x.com` is the same with an explicit leading dot; `amazon.*` is a wildcard on a host label (fnmatch) that matches the host and any subdomain suffix; `reddit.com/r/` requires an exact host plus a path prefix. Supported keys per override: `force_render` (bool), `full_text` (bool), `engine` (str: `trafilatura` or `readability`), `wait_for` (str), `url_rewrite` (str, format `host[/path]`), `scroll` (bool), `timeout` (int 1-120), `network_idle_timeout` (int 0-60), `challenge_timeout` (int 0-120), `headers` (map of custom request headers), `cookies` (map of custom session cookies). Request-level `force_render`/`wait_for`/`timeout`/`engine` are absolute and override the domain override. |
 
-Example: serve Reddit threads/profiles from the classic UI (comments are server-side there) and keep the Amazon buybox (price arrives via JS; trafilatura drops it as non-main):
+Example: pass authenticated cookies to Reddit for high-throughput sub-second `.json` pulls, and keep the Amazon buybox via `readability`:
 
 ```yaml
 extract:
   domain_overrides:
     ".amazon.*":              # all Amazon TLDs + subdomains
       force_render: true      # price arrives via JS after load
-      engine: readability     # Readability.js keeps the buybox AND returns
-                              # structured markdown (full_text gives plain text)
-    reddit.com/r/:            # subreddits / threads
-      url_rewrite: "old.reddit.com/r/"
-    reddit.com/u/:            # user profiles (old format)
-      url_rewrite: "old.reddit.com/u/"
-    reddit.com/user/:         # user profiles (new UI uses /user/)
-      url_rewrite: "old.reddit.com/u/"
-    reddit.com:               # after rewrite, keep comments
-      full_text: true
+      engine: readability     # Readability.js keeps the buybox AND returns structured markdown
+    reddit.com:               # 3-tier pipeline with optional session cookies
+      engine: readability
+      timeout: 30
+      cookies:
+        reddit_session: "..."
+        token_v2: "..."
     youtube.com:
       force_render: true
       scroll: true            # comments mount on scroll
 ```
 
-`https://www.reddit.com/r/selfhosted/comments/abc` → fetched as `https://old.reddit.com/r/selfhosted/comments/abc`; the envelope reports `url` as the original and `rewritten_url` as the fetched one.
-
 ### Hybrid decision flow
 
 ```
-domain override force_render | request force_render | wait_for → browser
-fetch statically
-status 401/403/429                                        → browser
-HTML looks like a SPA (#root, __NEXT_DATA__, data-reactroot…) → browser
-trafilatura text < min_content_chars                      → browser
-otherwise                                                 → static result
+1. Documents (pdf/docx/xlsx/pptx/rtf)                      → raw byte extraction (no browser)
+2. Reddit URLs                                            → 3-tier pipeline:
+                                                             Tier 1: .json API (sub-second, structured markdown)
+                                                             Tier 2: Redlib / SafeReddit mirror
+                                                             Tier 3: Browser + Readability (full comment tree)
+3. Domain override force_render | request force_render    → browser
+4. Static fetch (httpx)
+5. Status 401/403/429                                     → browser
+6. HTML looks like a SPA (#root, __NEXT_DATA__, ...)      → browser
+7. Extracted text < min_content_chars                     → browser
+8. Otherwise                                              → deliver static result
 ```
 
 ## `browser`

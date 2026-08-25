@@ -25,7 +25,7 @@ cache:
     ttl: 300               # seconds (5 min); protects SearXNG engines from anti-bot
   extract:
     enabled: true          # short TTL: fast repeat extraction, bounded staleness
-    ttl: 60                # seconds (1 min)
+    ttl: 60                # seconds (1 min); stores full content so re-fetches with higher max_chars hit cache instantly
 
 # --- Tools ---------------------------------------------------
 # Custom tool names for OpenWebUI and MCP integration
@@ -171,11 +171,13 @@ extract:
       engine: readability       # traf: timeout 60s; readability ok (4.4s)
     git-scm.com:
       engine: readability       # traf: timeout 60s; readability ok (1.8s)
-    reddit.com:                 # render via browser and keep full text / comments
-      force_render: true
-      full_text: true
+    reddit.com:                 # 3-tier pipeline: Tier 1 (.json API) -> Tier 2 (Redlib mirror) -> Tier 3 (browser)
       engine: readability
-      timeout: 45
+      timeout: 30
+      # Optional: pass your logged-in cookies for unrestricted .json API pulls
+      # cookies:
+      #   reddit_session: "..."
+      #   token_v2: "..."
     fandom.com:
       force_render: true        # 3.3MB HTML (16-24s in the benchmark)
       network_idle_timeout: 10
