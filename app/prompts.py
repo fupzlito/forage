@@ -20,11 +20,12 @@ DEFAULT_SEARCH_TOOL_DESCRIPTION = (
     "Search the web via SearXNG to find relevant links and sources. Today is {now_date} (year {year}). "
     "Do not add dates or years to queries unless time-specific or directly relevant. "
     "Prioritize relevant sources based on snippet and domain before fetching full pages. "
+    "To search Reddit or subreddits, use web_extract directly on Reddit search URLs (e.g. 'https://www.reddit.com/r/all/search/?q=...'). "
     "{citation_guidelines}"
 )
 
 DEFAULT_EXTRACT_TOOL_DESCRIPTION = (
-    "Fetch and extract clean markdown content from web URLs. Supports rich forum (Reddit), article, documentation, and e-commerce extraction. "
+    "Fetch and extract clean markdown content from web URLs. Supports rich forum threads (Reddit), articles, documentation, e-commerce, and direct Reddit search URLs (e.g. 'https://www.reddit.com/r/all/search/?q=QUERY'). "
     "{max_chars_requirement}: set max_chars per URL to budget context. Today is {now_date} (year {year}). "
     "{citation_guidelines}"
 )
@@ -37,7 +38,7 @@ DEFAULT_SEARCH_PARAMS = {
 }
 
 DEFAULT_EXTRACT_PARAMS = {
-    "urls": "List of HTTP/HTTPS URLs to fetch and extract content from (1 to 20 URLs).",
+    "urls": "List of HTTP/HTTPS URLs to fetch and extract content from (1 to 20 URLs). Supports direct Reddit search and subreddit feed URLs.",
     "force_render": "Force full headless browser rendering (Chromium) for JavaScript SPAs or dynamic sites.",
     "only_main_content": "If true (default), strips headers, footers, ads, and navigation. Set to false for full page text including comments and sidebars.",
     "wait_for": "Optional CSS selector or delay in seconds to wait for before extracting (browser mode only).",
