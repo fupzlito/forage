@@ -297,7 +297,6 @@ def search_searxng(
             "title": t,
             "snippet": c,
             "citation": cit_link,
-            "id": idx + 1,
         }
         if include_fav and fav:
             item["favicon"] = fav

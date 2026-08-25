@@ -858,7 +858,6 @@ async def extract_url(
         "content": content,
         "citation": citation_markdown,
         "method": method,
-        "id": position,
         "extracted_at": extracted_at,
     }
     if include_fav and favicon:
