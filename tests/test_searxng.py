@@ -188,6 +188,30 @@ class TestSearXNG(unittest.TestCase):
         config = ForageConfig.from_dict(raw_dict, source_path="test")
         self.assertEqual(config.search.engines, ("google", "bing"))
 
+    def test_env_variable_overrides(self):
+        """Verify environment variables override default and YAML configuration."""
+        import os
+        env_patches = {
+            "FORAGE_PORT": "4000",
+            "FORAGE_LOG_LEVEL": "debug",
+            "FORAGE_SEARXNG_URL": "http://custom-searxng:8080",
+            "FORAGE_SEARCH_ENGINES": "bing,brave",
+            "FORAGE_BROWSER_ENGINE": "scrapling",
+            "FORAGE_EXTRACT_ENGINE": "readability",
+            "FORAGE_REQUIRE_MAX_CHARS": "true",
+            "FORAGE_AUTH_ENABLED": "true",
+        }
+        with patch.dict(os.environ, env_patches, clear=False):
+            cfg = load_config()
+            self.assertEqual(cfg.server.port, 4000)
+            self.assertEqual(cfg.server.log_level, "debug")
+            self.assertEqual(cfg.search.searxng_url, "http://custom-searxng:8080")
+            self.assertEqual(cfg.search.engines, ("bing", "brave"))
+            self.assertEqual(cfg.browser.engine, "scrapling")
+            self.assertEqual(cfg.extract.engine, "readability")
+            self.assertTrue(cfg.extract.require_max_chars)
+            self.assertTrue(cfg.auth.enabled)
+
 
 if __name__ == "__main__":
     unittest.main()

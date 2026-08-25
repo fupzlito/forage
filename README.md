@@ -205,7 +205,7 @@ tools:
 
 search:
   searxng_url: http://searxng:8080
-  engines: [google, qwant, brave, bing, duckduckgo, startpage, reddit]
+  engines: [google, bing, brave, duckduckgo, qwant]
   citation_style: site_name
 
 extract:
@@ -228,6 +228,25 @@ browser:
   engine: scrapling
   fallback_solver: true
 ```
+
+### 🐳 Docker Environment Variables
+
+All settings can be dynamically overridden via Docker environment variables without modifying `config.yaml`:
+
+| Variable | Description | Default |
+|---|---|---|
+| `FORAGE_SEARXNG_URL` | SearXNG backend service URL | `http://searxng:8080` |
+| `FORAGE_SEARCH_ENGINES` | Comma-separated search engine filter | `google,bing,brave,duckduckgo,qwant` |
+| `FORAGE_BROWSER_ENGINE` | Browser engine (`playwright`, `scrapling`, `patchright`, `obscura`) | `playwright` |
+| `FORAGE_EXTRACT_ENGINE` | Markdown extraction engine (`trafilatura`, `readability`) | `trafilatura` |
+| `FORAGE_REQUIRE_MAX_CHARS` | Require LLMs to specify character budgets (`true`/`false`) | `false` |
+| `FORAGE_AUTH_ENABLED` | Enable Bearer API authentication (`true`/`false`) | `false` |
+| `FORAGE_API_KEYS` | Comma-separated API keys (when auth is enabled) | `""` |
+| `FORAGE_PORT` / `PORT` | Container HTTP listen port | `3672` |
+| `FORAGE_LOG_LEVEL` | Log level (`debug`, `info`, `warning`, `error`) | `info` |
+| `TZ` | Container timezone for dynamic prompt time context | `America/Recife` |
+
+See **[docs/CONFIG.md](docs/CONFIG.md)** for the complete configuration reference.
 
 ---
 

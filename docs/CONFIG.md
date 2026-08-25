@@ -166,12 +166,32 @@ You can keep prompts outside `config.yaml` by pointing `prompts_path` at a stand
 
 ## Environment variables
 
+Environment variables provide the highest precedence in configuration resolution (`built-in defaults → config.yaml → external prompts.yaml → environment variables`). Any setting passed as an environment variable directly overrides the corresponding value in `config.yaml`.
+
+| Variable | Section / Target | Purpose & Example |
+|---|---|---|
+| `FORAGE_API_KEYS` | `auth` | Comma-separated API keys used when auth is enabled (e.g. `key1,key2`). |
+| `FORAGE_AUTH_ENABLED` | `auth.enabled` | Enable or disable API authentication (`true`/`false`). |
+| `FORAGE_CONFIG` | Config Loader | Path to YAML config file (default `/etc/forage/config.yaml`). |
+| `FORAGE_PROMPTS_CONFIG` | `prompts.prompts_path` | Standalone prompts YAML path. Overrides `prompts.prompts_path`. |
+| `FORAGE_SEARXNG_URL` / `SEARXNG_URL` | `search.searxng_url` | Base URL of SearXNG instance (e.g. `http://searxng:8080`). |
+| `FORAGE_SEARCH_ENGINES` | `search.engines` | Comma-separated search engine filter (e.g. `google,bing,brave,qwant`). |
+| `FORAGE_SEARCH_DEFAULT_LANG` | `search.default_lang` | Default search language code (e.g. `en-US`, `pt-BR`). |
+| `FORAGE_BROWSER_ENGINE` | `browser.engine` | Browser engine: `playwright`, `patchright`, `scrapling`, or `obscura`. |
+| `FORAGE_BROWSER_CDP_URL` | `browser.cdp_url` | Obscura CDP endpoint URL when `engine=obscura` (e.g. `http://obscura:9223`). |
+| `FORAGE_BROWSER_HEADLESS` | `browser.headless` | Run browser in headless mode (`true`/`false`). |
+| `FORAGE_EXTRACT_ENGINE` | `extract.engine` | Extraction engine: `trafilatura` or `readability`. |
+| `FORAGE_REQUIRE_MAX_CHARS` | `extract.require_max_chars` | Require LLMs to pass `max_chars` character budgets (`true`/`false`). |
+| `FORAGE_CACHE_ENABLED` | `cache.enabled` | Master in-memory cache toggle (`true`/`false`). |
+| `FORAGE_PORT` / `PORT` | `server.port` | Server HTTP port (default `3672`). |
+| `FORAGE_HOST` | `server.host` | Server bind host (default `0.0.0.0`). |
+| `FORAGE_LOG_LEVEL` | `server.log_level` | Logging verbosity (`debug`, `info`, `warning`, `error`). |
+| `TZ` | System | Container timezone for dynamic prompt date/time injection (e.g. `America/Recife`). |
+
+### Consumer Client Environment Variables (Hermes Plugin)
+
 | Variable | Where | Purpose |
 |---|---|---|
-| `FORAGE_API_KEYS` | service `.env` | Comma-separated Bearer API keys (used when `auth.enabled: true`). |
-| `FORAGE_CONFIG` | service `.env` | Config file path inside the container (default `/etc/forage/config.yaml`). |
-| `FORAGE_PROMPTS_CONFIG` | service `.env` | Optional standalone prompts config path. Overrides `prompts.prompts_path`. |
-| `TZ` | service `.env` | Container timezone. |
 | `FORAGE_URL` | Hermes `.env` | Base URL the Hermes plugin calls (e.g. `http://localhost:3672`). |
 | `FORAGE_API_KEY` | Hermes `.env` | Key the plugin sends when auth is enabled. |
 | `FORAGE_BYPASS_CACHE` | Hermes `.env` | `true` makes the plugin always send `Cache-Control: no-cache`. |

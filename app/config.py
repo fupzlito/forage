@@ -397,20 +397,76 @@ def _load_yaml(path: str) -> Dict[str, Any]:
     return data
 
 
-def load_config(path: Optional[str] = None) -> ForageConfig:
-    """Load configuration from defaults + optional YAML file.
+def _parse_bool(val: str) -> bool:
+    """Parse boolean from string."""
+    return val.strip().lower() in ("true", "1", "yes", "on", "t")
 
-    Resolution order:
+
+def _apply_env_overrides(merged: Dict[str, Any]) -> Dict[str, Any]:
+    """Apply environment variable overrides on top of merged YAML config."""
+    # Server
+    if "FORAGE_PORT" in os.environ or "PORT" in os.environ:
+        raw_port = os.environ.get("FORAGE_PORT") or os.environ.get("PORT")
+        try:
+            merged.setdefault("server", {})["port"] = int(raw_port)
+        except (ValueError, TypeError):
+            pass
+    if "FORAGE_HOST" in os.environ:
+        merged.setdefault("server", {})["host"] = os.environ["FORAGE_HOST"]
+    if "FORAGE_LOG_LEVEL" in os.environ:
+        merged.setdefault("server", {})["log_level"] = os.environ["FORAGE_LOG_LEVEL"].lower()
+
+    # Auth
+    if "FORAGE_AUTH_ENABLED" in os.environ:
+        merged.setdefault("auth", {})["enabled"] = _parse_bool(os.environ["FORAGE_AUTH_ENABLED"])
+
+    # Search
+    searxng_url = os.environ.get("FORAGE_SEARXNG_URL") or os.environ.get("SEARXNG_URL")
+    if searxng_url:
+        merged.setdefault("search", {})["searxng_url"] = searxng_url
+    if "FORAGE_SEARCH_ENGINES" in os.environ:
+        raw_engines = os.environ["FORAGE_SEARCH_ENGINES"]
+        merged.setdefault("search", {})["engines"] = [e.strip() for e in raw_engines.split(",") if e.strip()]
+    if "FORAGE_SEARCH_DEFAULT_LANG" in os.environ:
+        merged.setdefault("search", {})["default_lang"] = os.environ["FORAGE_SEARCH_DEFAULT_LANG"]
+
+    # Browser
+    if "FORAGE_BROWSER_ENGINE" in os.environ:
+        merged.setdefault("browser", {})["engine"] = os.environ["FORAGE_BROWSER_ENGINE"].lower()
+    if "FORAGE_BROWSER_CDP_URL" in os.environ:
+        merged.setdefault("browser", {})["cdp_url"] = os.environ["FORAGE_BROWSER_CDP_URL"]
+    if "FORAGE_BROWSER_HEADLESS" in os.environ:
+        merged.setdefault("browser", {})["headless"] = _parse_bool(os.environ["FORAGE_BROWSER_HEADLESS"])
+
+    # Extract
+    if "FORAGE_EXTRACT_ENGINE" in os.environ:
+        merged.setdefault("extract", {})["engine"] = os.environ["FORAGE_EXTRACT_ENGINE"].lower()
+    if "FORAGE_REQUIRE_MAX_CHARS" in os.environ:
+        merged.setdefault("extract", {})["require_max_chars"] = _parse_bool(os.environ["FORAGE_REQUIRE_MAX_CHARS"])
+
+    # Cache
+    if "FORAGE_CACHE_ENABLED" in os.environ:
+        merged.setdefault("cache", {})["enabled"] = _parse_bool(os.environ["FORAGE_CACHE_ENABLED"])
+
+    return merged
+
+
+def load_config(path: Optional[str] = None) -> ForageConfig:
+    """Load configuration from defaults + optional YAML file + environment overrides.
+
+    Resolution order (lowest to highest precedence):
       1. Built-in DEFAULTS (this module)
       2. Main config YAML (FORAGE_CONFIG env var, default /etc/forage/config.yaml)
       3. External prompts YAML (prompts.prompts_path in config, or FORAGE_PROMPTS_CONFIG env var)
+      4. Environment variable overrides (e.g. FORAGE_SEARXNG_URL, FORAGE_BROWSER_ENGINE, etc.)
 
     The prompts YAML is merged only into the ``prompts`` sub-dict so it cannot
     affect server/search/browser settings.
     """
+    import copy
     config_path = path or os.environ.get("FORAGE_CONFIG") or DEFAULT_CONFIG_PATH
     file_data = _load_yaml(config_path)
-    merged = deep_merge(DEFAULTS, file_data)
+    merged = deep_merge(copy.deepcopy(DEFAULTS), file_data)
 
     # External prompts file: prompts_path in config OR FORAGE_PROMPTS_CONFIG env var
     prompts_path = merged.get("prompts", {}).get("prompts_path") or os.environ.get("FORAGE_PROMPTS_CONFIG")
@@ -421,6 +477,9 @@ def load_config(path: Optional[str] = None) -> ForageConfig:
             if "prompts" in prompts_data and isinstance(prompts_data["prompts"], dict):
                 prompts_data = prompts_data["prompts"]
             merged["prompts"] = deep_merge(merged.get("prompts", {}), prompts_data)
+
+    # Apply environment variable overrides (highest precedence)
+    merged = _apply_env_overrides(merged)
 
     cfg = ForageConfig.from_dict(merged, source_path=config_path)
     cfg.validate()
