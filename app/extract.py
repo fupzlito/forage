@@ -570,7 +570,13 @@ def normalize_reddit_url(url: str) -> str:
     return url
 
 
-async def _try_reddit_extract(config: ForageConfig, url: str, timeout: int) -> Optional[Dict[str, Any]]:
+async def _try_reddit_extract(
+    config: ForageConfig,
+    url: str,
+    timeout: int,
+    extra_headers: Optional[Dict[str, str]] = None,
+    cookies: Optional[Dict[str, str]] = None,
+) -> Optional[Dict[str, Any]]:
     """3-tier extraction for Reddit: 1) .json API, 2) Redlib mirror, 3) None (fallback to browser)."""
     parsed = urlparse(url)
     host = (parsed.hostname or "").lower()
@@ -604,9 +610,11 @@ async def _try_reddit_extract(config: ForageConfig, url: str, timeout: int) -> O
         "Accept": "application/json",
         "Accept-Language": "en-US,en;q=0.9",
     }
+    if extra_headers:
+        headers.update(extra_headers)
 
     try:
-        async with httpx.AsyncClient(timeout=min(timeout, 10), headers=headers, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=min(timeout, 10), headers=headers, cookies=cookies, follow_redirects=True) as client:
             resp = await client.get(json_url)
             if resp.status_code == 200 and resp.text:
                 try:
@@ -629,7 +637,7 @@ async def _try_reddit_extract(config: ForageConfig, url: str, timeout: int) -> O
         mirror_url += f"?{parsed.query}"
 
     try:
-        async with httpx.AsyncClient(timeout=min(timeout, 10), headers=headers, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=min(timeout, 10), headers=headers, cookies=cookies, follow_redirects=True) as client:
             mresp = await client.get(mirror_url)
             if mresp.status_code == 200 and mresp.text:
                 html = mresp.text
@@ -730,6 +738,9 @@ async def extract_url(
         logger.info("%s -> URL rewritten to %s", url, rewritten)
         url = rewritten
 
+    override_headers = override.headers if override else {}
+    override_cookies = override.cookies if override else {}
+
     # Documents (pdf/docx/xlsx/pptx/rtf) are extracted from raw bytes -
     # never through the browser (Chromium renders PDFs poorly). Falls back
     # to the hybrid flow when the URL is not actually a document.
@@ -741,7 +752,13 @@ async def extract_url(
 
     # Reddit fast path: Tier 1 (.json) -> Tier 2 (Redlib mirror) -> Tier 3 (browser fallback).
     # Always attempt the lightweight Reddit pipeline before launching a heavy browser session.
-    reddit_result = await _try_reddit_extract(config, url, effective_timeout)
+    reddit_result = await _try_reddit_extract(
+        config,
+        url,
+        effective_timeout,
+        extra_headers=override_headers,
+        cookies=override_cookies,
+    )
     if reddit_result is not None:
         reddit_result["url"] = original_url
         reddit_result["citation"] = f"[Source: {reddit_result['title']}]({original_url})"
@@ -759,9 +776,6 @@ async def extract_url(
     native_markdown = False
     readability_title: Optional[str] = None
     readability_rendered = False
-
-    override_headers = override.headers if override else {}
-    override_cookies = override.cookies if override else {}
 
     if not want_browser:
         html, status, _, content_type = await fetch_static(
@@ -818,6 +832,8 @@ async def extract_url(
                 network_idle_timeout=effective_idle,
                 challenge_timeout=effective_challenge,
                 readability=effective_readability,
+                extra_headers=override_headers,
+                cookies=override_cookies,
             )
             method = "browser"
             if effective_readability and isinstance(html, dict):
@@ -852,6 +868,8 @@ async def extract_url(
                     network_idle_timeout=effective_idle,
                     challenge_timeout=effective_challenge,
                     readability=effective_readability,
+                    extra_headers=override_headers,
+                    cookies=override_cookies,
                 )
                 method = "browser"
                 if effective_readability and isinstance(html, dict):
@@ -890,6 +908,8 @@ async def extract_url(
                     timeout=effective_timeout,
                     scroll_steps=_scroll_steps_for(config, effective_scroll),
                     network_idle_timeout=effective_idle,
+                    extra_headers=override_headers,
+                    cookies=override_cookies,
                 )
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Solver retry failed for %s: %s", url, exc)

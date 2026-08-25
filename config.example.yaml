@@ -103,6 +103,8 @@ extract:
   #                           lower it; slow hydrating pages, raise it)
   #   challenge_timeout: int (0-120) -> max seconds to wait for an anti-bot
   #                           challenge to auto-resolve (Cloudflare/Turnstile)
+  #   headers: dict[str, str] -> custom HTTP headers passed to static, tiered, and browser requests
+  #   cookies: dict[str, str] -> session cookies (e.g. reddit_session) passed to static, tiered, and browser
   # Request-level params (force_render/wait_for/timeout in the API call) are
   # absolute and override the domain override.
   domain_overrides:

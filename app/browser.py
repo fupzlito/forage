@@ -332,6 +332,8 @@ class BrowserPool:
         network_idle_timeout: Optional[int] = None,
         challenge_timeout: Optional[int] = None,
         readability: bool = False,
+        extra_headers: Optional[Dict[str, str]] = None,
+        cookies: Optional[Dict[str, str]] = None,
     ) -> Union[str, Dict[str, str]]:
         """Render a URL with the configured engine and return the final DOM HTML.
 
@@ -348,13 +350,19 @@ class BrowserPool:
         idle_cap = self.network_idle_timeout if network_idle_timeout is None else network_idle_timeout
         chal_cap = self.challenge_timeout if challenge_timeout is None else challenge_timeout
         if self.engine == "scrapling":
-            return await self._scrapling_render(url, wait_for, timeout, steps, idle_cap, chal_cap, readability)
+            return await self._scrapling_render(url, wait_for, timeout, steps, idle_cap, chal_cap, readability, extra_headers, cookies)
         if self.engine == "obscura":
-            return await self._cdp_render(url, wait_for, timeout, steps, idle_cap, readability)
+            return await self._cdp_render(url, wait_for, timeout, steps, idle_cap, readability, extra_headers, cookies)
         browser = await self.acquire()
         page = None
         try:
-            context = await browser.new_context(user_agent=self.user_agent)
+            context = await browser.new_context(
+                user_agent=self.user_agent,
+                extra_http_headers=extra_headers or {},
+            )
+            if cookies:
+                cookie_list = [{"name": k, "value": v, "url": url} for k, v in cookies.items()]
+                await context.add_cookies(cookie_list)
             page = await context.new_page()
             if self.stealth:
                 await page.add_init_script(STEALTH_INIT_SCRIPT)
@@ -402,6 +410,8 @@ class BrowserPool:
         scroll_steps: int = 0,
         network_idle_timeout: Optional[int] = None,
         readability: bool = False,
+        extra_headers: Optional[Dict[str, str]] = None,
+        cookies: Optional[Dict[str, str]] = None,
     ) -> Union[str, Dict[str, str]]:
         """Render via an external Obscura CDP server (engine=obscura).
 
@@ -421,7 +431,11 @@ class BrowserPool:
             context = await self._cdp_browser.new_context(
                 user_agent=self.user_agent,
                 viewport={"width": 1280, "height": 800},
+                extra_http_headers=extra_headers or {},
             )
+            if cookies:
+                cookie_list = [{"name": k, "value": v, "url": url} for k, v in cookies.items()]
+                await context.add_cookies(cookie_list)
             page = await context.new_page()
             if self.stealth:
                 await page.add_init_script(STEALTH_INIT_SCRIPT)
@@ -503,6 +517,8 @@ class BrowserPool:
         network_idle_timeout: Optional[int] = None,
         challenge_timeout: Optional[int] = None,
         readability: bool = False,
+        extra_headers: Optional[Dict[str, str]] = None,
+        cookies: Optional[Dict[str, str]] = None,
     ) -> Union[str, Dict[str, str]]:
         """Render via Scrapling StealthyFetcher (single shared session).
 
@@ -518,6 +534,17 @@ class BrowserPool:
         result: dict = {}
 
         async def _page_action(page: Any) -> None:
+            if extra_headers:
+                try:
+                    await page.set_extra_http_headers(extra_headers)
+                except Exception:  # noqa: BLE001
+                    pass
+            if cookies:
+                try:
+                    cookie_list = [{"name": k, "value": v, "url": url} for k, v in cookies.items()]
+                    await page.context.add_cookies(cookie_list)
+                except Exception:  # noqa: BLE001
+                    pass
             # Cloudflare Turnstile non-interactive challenges auto-validate a
             # few seconds after load. The StealthyFetcher's solver runs before
             # page_action and can miss a challenge that is still booting, so
@@ -611,6 +638,8 @@ class BrowserPool:
         timeout: int = 30,
         scroll_steps: Optional[int] = None,
         network_idle_timeout: Optional[int] = None,
+        extra_headers: Optional[Dict[str, str]] = None,
+        cookies: Optional[Dict[str, str]] = None,
     ) -> str:
         """Render with the scrapling session that has solve_cloudflare=True.
 
@@ -625,6 +654,17 @@ class BrowserPool:
         idle_cap = self.network_idle_timeout if network_idle_timeout is None else network_idle_timeout
 
         async def _page_action(page: Any) -> None:
+            if extra_headers:
+                try:
+                    await page.set_extra_http_headers(extra_headers)
+                except Exception:  # noqa: BLE001
+                    pass
+            if cookies:
+                try:
+                    cookie_list = [{"name": k, "value": v, "url": url} for k, v in cookies.items()]
+                    await page.context.add_cookies(cookie_list)
+                except Exception:  # noqa: BLE001
+                    pass
             if idle_cap > 0:
                 try:
                     await page.wait_for_load_state(
