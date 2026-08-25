@@ -273,13 +273,14 @@ async def execute_tool_call(
             output_text = f"⚠️ {warning}\n\n" + output_text
 
         return {
-            "results": results,
-            "formatted_text": output_text,
-            "warning": warning,
+            "searched_at": res.get("searched_at"),
+            "requested_engines": res.get("requested_engines"),
             "returned_engines": res.get("returned_engines"),
             "unresponsive_engines": res.get("unresponsive_engines"),
-            "requested_engines": res.get("requested_engines"),
+            "results": results,
+            "warning": warning,
             "all_engines": res.get("all_engines"),
+            "formatted_text": output_text,
         }
 
     elif name == extract_name or name == "web_extract":

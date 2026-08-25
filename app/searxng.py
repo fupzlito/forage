@@ -331,10 +331,10 @@ def search_searxng(
     return {
         "success": True,
         "searched_at": searched_at,
-        "returned_engines": returned_engines_str,
-        "warning": combined_warning,
-        "results": unified_results,
-        "unresponsive_engines": unresponsive_str,
         "requested_engines": requested_engines_str,
+        "returned_engines": returned_engines_str,
+        "unresponsive_engines": unresponsive_str,
+        "results": unified_results,
+        "warning": combined_warning,
         "all_engines": all_engines_str,
     }
