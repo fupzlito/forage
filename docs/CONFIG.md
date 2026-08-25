@@ -182,6 +182,8 @@ Environment variables provide the highest precedence in configuration resolution
 | `FORAGE_BROWSER_CDP_URL` | `browser.cdp_url` | Obscura CDP endpoint URL when `engine=obscura` (e.g. `http://obscura:9223`). |
 | `FORAGE_BROWSER_HEADLESS` | `browser.headless` | Run browser in headless mode (`true`/`false`). |
 | `FORAGE_EXTRACT_ENGINE` | `extract.engine` | Extraction engine: `trafilatura` or `readability`. |
+| `FORAGE_SEARCH_NAME` | `tools.search_name` | Custom tool name exposed to LLMs for web search (default `web_search`). |
+| `FORAGE_EXTRACT_NAME` | `tools.extract_name` | Custom tool name exposed to LLMs for web extraction (default `web_extract`). |
 | `FORAGE_REQUIRE_MAX_CHARS` | `extract.require_max_chars` | Require LLMs to pass `max_chars` character budgets (`true`/`false`). |
 | `FORAGE_CACHE_ENABLED` | `cache.enabled` | Master in-memory cache toggle (`true`/`false`). |
 | `FORAGE_PORT` / `PORT` | `server.port` | Server HTTP port (default `3672`). |

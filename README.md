@@ -318,6 +318,8 @@ All settings can be dynamically overridden via Docker environment variables with
 | `FORAGE_AVAILABLE_ENGINES` | Comma-separated engine catalog (optional; overrides auto-discovery) | *Auto-discovered from SearXNG* |
 | `FORAGE_BROWSER_ENGINE` | Browser engine (`scrapling`, `playwright`, `patchright`, `obscura`) | `scrapling` |
 | `FORAGE_EXTRACT_ENGINE` | Markdown extraction engine (`trafilatura`, `readability`) | `trafilatura` |
+| `FORAGE_SEARCH_NAME` | Custom tool name exposed to LLMs for web search | `web_search` |
+| `FORAGE_EXTRACT_NAME` | Custom tool name exposed to LLMs for web extraction | `web_extract` |
 | `FORAGE_REQUIRE_MAX_CHARS` | Require LLMs to specify character budgets (`true`/`false`) | `false` |
 | `FORAGE_AUTH_ENABLED` | Enable Bearer API authentication (`true`/`false`) | `false` |
 | `FORAGE_API_KEYS` | Comma-separated API keys (when auth is enabled) | `""` |

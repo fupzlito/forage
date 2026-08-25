@@ -20,7 +20,7 @@ DEFAULT_SEARCH_TOOL_DESCRIPTION = (
     "Search the web via SearXNG to find relevant links and sources. Today is {now_date} (year {year}). "
     "Do not add dates or years to queries unless time-specific or directly relevant. "
     "Prioritize relevant sources based on snippet and domain before fetching full pages. "
-    "To search Reddit or subreddits, use web_extract directly on Reddit search URLs (e.g. 'https://www.reddit.com/r/all/search/?q=...'). "
+    "To search Reddit or subreddits, use {extract_name} directly on Reddit search URLs (e.g. 'https://www.reddit.com/r/all/search/?q=...'). "
     "{citation_guidelines}"
 )
 

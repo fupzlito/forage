@@ -92,6 +92,10 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
     context = {
         "now_date": now_date,
         "year": year,
+        "search_name": search_name,
+        "extract_name": extract_name,
+        "search_tool": search_name,
+        "extract_tool": extract_name,
         "default_engines": default_engines_str,
         "available_engines": available_engines_str,
         "default_limit": config.search.default_limit,

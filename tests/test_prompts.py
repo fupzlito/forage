@@ -74,6 +74,32 @@ class TestPrompts(unittest.TestCase):
         self.assertEqual(schema_req["required"], ["urls", "max_chars"])
         self.assertEqual(schema_req["properties"]["max_chars"]["maximum"], 50000)
 
+    def test_dynamic_tool_names_and_env_overrides(self):
+        import os
+        from unittest.mock import patch
+
+        # Test custom tool names in config dict
+        cfg = ForageConfig.from_dict(
+            {"tools": {"search_name": "custom_search", "extract_name": "custom_scrape"}},
+            source_path="test",
+        )
+        tools = get_tool_definitions(cfg)
+        search_tool = next(t for t in tools if t["name"] == "custom_search")
+        extract_tool = next(t for t in tools if t["name"] == "custom_scrape")
+
+        self.assertIn("use custom_scrape directly", search_tool["description"])
+        self.assertEqual(extract_tool["name"], "custom_scrape")
+
+        # Test environment variable overrides for tool names
+        with patch.dict(os.environ, {"FORAGE_SEARCH_NAME": "env_search", "FORAGE_EXTRACT_NAME": "env_fetch"}):
+            cfg_env = load_config()
+            self.assertEqual(cfg_env.tools.search_name, "env_search")
+            self.assertEqual(cfg_env.tools.extract_name, "env_fetch")
+
+            tools_env = get_tool_definitions(cfg_env)
+            search_env_tool = next(t for t in tools_env if t["name"] == "env_search")
+            self.assertIn("use env_fetch directly", search_env_tool["description"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -87,38 +87,11 @@ DEFAULTS: Dict[str, Any] = {
     "auth": {"enabled": False},
     "prompts": {
         "prompts_path": None,
-        "citation_guidelines": (
-            "CITATION RULES: Always cite sources as markdown links. "
-            "Use site names as link text: 'per [CNBC](url)' or 'the [docs](url)'. "
-            "Never put prepositions inside brackets: '[per CNBC](url)' is WRONG. "
-            "Place periods before citation links: 'Shares fell 4%. [CNBC](url)'. "
-            "List any uncited background sources under a 'Sources' heading at the bottom. "
-            "Never duplicate a source that was already cited inline."
-        ),
-        "search_tool_description": (
-            "Search the web via SearXNG. Today is {now_date} (year {year}). "
-            "Always query for the current year. {citation_guidelines}"
-        ),
-        "extract_tool_description": (
-            "Fetch and extract clean markdown from web URLs. Today is {now_date} (year {year}). "
-            "{citation_guidelines}"
-        ),
-        "search_params": {
-            "query": "Search query terms. Keep queries focused on essential keywords rather than long conversational sentences.",
-            "limit": "Number of search results to return (1 to 50, default {default_limit}). Set higher (e.g. 10-15) for broad topics instead of making multiple search calls.",
-            "engines": "Optional list of specific engines to query. Default engines: [{default_engines}]. Available: [{available_engines}]. Do NOT specify engines unless targeting a specific engine.",
-            "language": "Optional language code for search results (e.g. 'en-US', 'pt-BR', 'es', 'de').",
-        },
-        "extract_params": {
-            "urls": "List of HTTP/HTTPS URLs to fetch and extract content from (1 to 20 URLs).",
-            "force_render": "Force full headless browser rendering (Chromium) for JavaScript SPAs or dynamic sites.",
-            "only_main_content": "If true (default), strips headers, footers, ads, and navigation. Set to false for full page text including comments and sidebars.",
-            "wait_for": "Optional CSS selector or delay in seconds to wait for before extracting (browser mode only).",
-            "engine": "Extraction engine: 'trafilatura' (default) or 'readability' (Mozilla Readability.js, better for e-commerce and forums).",
-            "timeout": "Maximum extraction timeout per URL in seconds (1 to 120).",
-            "max_chars": "{max_chars_requirement} maximum characters to return per URL (500 to {max_content_chars}). Truncates long pages to save context.",
-            "formats": "Desired output format: ['markdown'] (default) or ['html'].",
-        },
+        "citation_guidelines": None,
+        "search_tool_description": None,
+        "extract_tool_description": None,
+        "search_params": None,
+        "extract_params": None,
     },
 }
 
@@ -473,6 +446,14 @@ def _apply_env_overrides(merged: Dict[str, Any]) -> Dict[str, Any]:
     # Cache
     if "FORAGE_CACHE_ENABLED" in os.environ:
         merged.setdefault("cache", {})["enabled"] = _parse_bool(os.environ["FORAGE_CACHE_ENABLED"])
+
+    # Tools
+    search_name = os.environ.get("FORAGE_SEARCH_NAME") or os.environ.get("FORAGE_TOOL_SEARCH_NAME") or os.environ.get("FORAGE_SEARCH_TOOL_NAME")
+    if search_name:
+        merged.setdefault("tools", {})["search_name"] = search_name.strip()
+    extract_name = os.environ.get("FORAGE_EXTRACT_NAME") or os.environ.get("FORAGE_TOOL_EXTRACT_NAME") or os.environ.get("FORAGE_EXTRACT_TOOL_NAME")
+    if extract_name:
+        merged.setdefault("tools", {})["extract_name"] = extract_name.strip()
 
     return merged
 
