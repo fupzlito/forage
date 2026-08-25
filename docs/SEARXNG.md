@@ -55,34 +55,53 @@ Only enable the engines you want (defaults in the image already work):
 ```yaml
 engines:
   - name: google
-    engine: google-cse         # Google CSE backend is much more resilient against CAPTCHAs & bans
+    engine: google_cse         # Google CSE backend is much more resilient against CAPTCHAs & bans
     shortcut: g
     categories: [general]
+    disabled: false
+  - name: google cse           # Disable duplicate default CSE entry if overriding 'google'
+    disabled: true
   - name: bing
     engine: bing
     shortcut: b
     categories: [general]
+    disabled: false
   - name: brave
     engine: brave
     shortcut: br
     categories: [general]
+    disabled: false
   - name: duckduckgo
     engine: duckduckgo
     shortcut: ddg
     categories: [general]
+    disabled: false
   - name: qwant
     engine: qwant
     shortcut: q
     categories: [general]
+    disabled: false
+  - name: youtube
+    engine: youtube_api        # Official YouTube Data API v3
+    shortcut: yt
+    api_key: "YOUR_API_KEY"
+    categories: [general]
+    disabled: false
+  - name: youtube noapi        # Disable scraper engine if using API key
+    disabled: true
 ```
 
-> **Why `google-cse`?** Standard Google scraping (`engine: google`) gets aggressively rate-limited and blocked by Google's anti-bot systems. Using the `google-cse` backend in SearXNG queries Google Custom Search endpoints, providing far higher uptime and eliminating ban locks.
+> **Why `google_cse`?** Standard Google scraping (`engine: google`) gets aggressively rate-limited and blocked by Google's anti-bot systems. Using the `google_cse` backend in SearXNG queries Google Custom Search endpoints, providing far higher uptime and eliminating ban locks.
+>
+> **YouTube Search**: In modern SearXNG, use `engine: youtube_api` with your Google Cloud `api_key`. Add `categories: [general]` so Forage auto-discovers it. Disable `youtube noapi` to avoid redundant fallback warnings.
 >
 > **Note on Reddit**: You do not need the SearXNG `reddit` engine enabled—Forage includes a dedicated high-throughput 3-tier Reddit extraction engine (`POST /extract`) with direct JSON API, comment hierarchy, and mirror fallbacks.
 >
-> **Category Note**: SearXNG filters queries by the `general` category by default. If you enable non-standard engines like `reddit`, `github`, or `youtube`, ensure `categories: [general]` is added under their definition in `settings.yml` so Forage can query them directly by name.
+> **Category Auto-Discovery**: Forage auto-discovers all enabled engines in the `general` category. If you want custom engines (e.g. `github`, `youtube`, `wikipedia`) available to LLMs, ensure `categories: [general]` and `disabled: false` are set in `settings.yml`.
 >
-> **Pitfall**: the `wikidata` engine fails on startup in some versions. If the container logs show a wikidata error, disable it (`enabled: false`).
+> **Duplicate Names**: Never define the same engine `name` twice in `settings.yml`. To enable an engine with a custom key, define it once with `disabled: false`.
+>
+> **Pitfall**: the `wikidata` engine fails on startup in some versions. If the container logs show a wikidata error, disable it (`disabled: true`).
 
 ## 3. Network layout: how Forage reaches SearXNG
 

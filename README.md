@@ -110,28 +110,30 @@ Other engines are supported:
 
 ---
 
-### Option A: Pure Docker Compose (Recommended)
+### 🐳 Docker Compose (Plex-style Simple Setup)
 
-No git clone required. Create a `docker-compose.yml` file:
+No git clone or compilation needed. Create a `docker-compose.yml` file:
 
 ```yaml
+---
 services:
   forage:
     image: fupzlito/forage:latest
     container_name: forage
-    restart: always
+    restart: unless-stopped
     ports:
       - "3672:3672"
     environment:
-      - TZ=America/New_York
-      - FORAGE_AUTH_ENABLED=false              # set true if exposing to the internet
+      - PUID=1000                              # optional user id for file ownership
+      - PGID=1000                              # optional group id
+      - TZ=America/New_York                    # sets local time context for LLM prompts
+      - FORAGE_SEARXNG_URL=http://searxng:8080 # SearXNG backend service
+      - FORAGE_AUTH_ENABLED=false              # set true if exposing to the public internet
       - FORAGE_API_KEYS=your_api_key_here      # comma-separated keys when auth is enabled
-      - FORAGE_REQUIRE_MAX_CHARS=false         # require LLMs to budget token limits per URL
-      - FORAGE_SEARXNG_URL=http://searxng:8080 # SearXNG instance URL
+      - FORAGE_REQUIRE_MAX_CHARS=false         # require LLMs to pass character budget per URL
     volumes:
-      # Mount directory (auto-seeds editable config.yaml and prompts.yaml on first run):
+      # Stores config.yaml and prompts.yaml (auto-seeded on first run if directory is empty):
       - ./config:/etc/forage
-      # (If mounted read-only with :ro, missing files log a warning and use built-in defaults)
     networks:
       - searxng_default
     healthcheck:
@@ -152,24 +154,48 @@ Start the container:
 docker compose up -d
 ```
 
----
-
-### Option B: Clone & Build from Source
-
-```bash
-git clone https://github.com/fupzlito/forage.git
-cd forage
-
-# Optional: customize search engines, domain overrides, or prompts
-cp config.example.yaml config.yaml
-
-# Build and start
-docker compose up -d --build
-```
-
 Verify service health:
 ```bash
 curl http://localhost:3672/health
+```
+
+---
+
+### 🛠️ Building from Source & Container Builders
+
+For developers, contributors, or users who want to modify browser dependencies, install custom Playwright/Patchright binaries, or run from local source:
+
+#### 1. Clone the repository
+```bash
+git clone https://github.com/fupzlito/forage.git
+cd forage
+```
+
+#### 2. Optional: Custom configuration
+```bash
+cp config.example.yaml config.yaml
+```
+
+#### 3. Build & Run with Docker Compose
+```bash
+# Build local image and launch
+docker compose up -d --build
+```
+
+#### 4. Or Build Image Directly with Docker CLI
+```bash
+# Build custom image
+docker build -t forage:local .
+
+# Run standalone container
+docker run -d \
+  --name forage \
+  -p 3672:3672 \
+  -e TZ=America/New_York \
+  -e FORAGE_SEARXNG_URL=http://searxng:8080 \
+  -v $(pwd)/config:/etc/forage \
+  --network searxng_default \
+  forage:local
 ```
 
 ---
@@ -253,7 +279,7 @@ tools:
 
 search:
   searxng_url: http://searxng:8080
-  engines: [google, bing, brave, duckduckgo, qwant]
+  default_engines: [google, bing, brave, duckduckgo, qwant]
   citation_style: site_name
 
 extract:

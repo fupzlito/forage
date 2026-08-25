@@ -84,6 +84,15 @@ API: `GET /health`, `POST /search`, `POST /extract`, `GET /v1/tools`, `POST /v1/
   favicon URLs from search/extract responses and MCP text blocks. Configured
   globally under `tools.include_favicon` or overridden per-section under
   `search.include_favicon` and `extract.include_favicon`.
+- **SearXNG Engine Discovery & Auto-Pruning**: `available_engines` is dynamically
+  auto-discovered from SearXNG (`GET /config`) at runtime (5-min TTL cache) by
+  filtering for `enabled: true` engines assigned to `categories: [general]`,
+  stripping sub-scrapers (`.images`, `.audio`) and translation tools.
+  `default_engines` (legacy key: `engines`, env `FORAGE_DEFAULT_ENGINES`) defines
+  the baseline engines queried when omitted in requests. When querying SearXNG,
+  `normalize_and_validate_engines()` automatically prunes inactive engines from
+  the defaults before sending the request. Explicit `available_engines` in
+  `config.yaml` or `FORAGE_AVAILABLE_ENGINES` immediately bypasses auto-discovery.
 
 ## API contract (critical, tested against the Hermes consumer)
 
