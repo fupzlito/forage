@@ -585,6 +585,10 @@ class BrowserPool:
                 except Exception:  # noqa: BLE001
                     result["article"] = None
 
+        merged_headers = dict(extra_headers) if extra_headers else {}
+        if cookies and "Cookie" not in merged_headers and "cookie" not in merged_headers:
+            merged_headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items())
+
         await self._semaphore.acquire()
         try:
             try:
@@ -592,6 +596,7 @@ class BrowserPool:
                     url,
                     timeout=timeout * 1000,
                     wait_selector=wait_for or None,
+                    extra_headers=merged_headers or None,
                     page_action=_page_action,
                 )
             except Exception as exc:  # noqa: BLE001
@@ -603,6 +608,7 @@ class BrowserPool:
                         url,
                         timeout=timeout * 1000,
                         wait_selector=wait_for or None,
+                        extra_headers=merged_headers or None,
                         page_action=_page_action,
                     )
                 else:
@@ -683,12 +689,17 @@ class BrowserPool:
             if steps > 0:
                 await self._scroll_to_bottom(page, steps)
 
+        merged_headers = dict(extra_headers) if extra_headers else {}
+        if cookies and "Cookie" not in merged_headers and "cookie" not in merged_headers:
+            merged_headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items())
+
         await self._semaphore.acquire()
         try:
             resp = await session.fetch(
                 url,
                 timeout=timeout * 1000,
                 wait_selector=wait_for or None,
+                extra_headers=merged_headers or None,
                 page_action=_page_action,
             )
             if resp is None or not resp.body:

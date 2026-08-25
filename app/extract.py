@@ -637,6 +637,11 @@ async def _try_reddit_extract(
         clean_path = path.rstrip("/") + ".json"
         if "/comments/" in clean_path:
             json_url = f"https://www.reddit.com{clean_path}?raw_json=1&limit=100&depth=10"
+        elif "search" in clean_path:
+            q_part = f"{parsed.query}&raw_json=1" if parsed.query else "raw_json=1"
+            if "type=" not in q_part:
+                q_part += "&type=link"
+            json_url = f"https://www.reddit.com{clean_path}?{q_part}"
         elif parsed.query:
             json_url = f"https://www.reddit.com{clean_path}?{parsed.query}&raw_json=1"
         else:
