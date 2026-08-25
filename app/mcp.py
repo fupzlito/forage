@@ -304,8 +304,16 @@ async def execute_tool_call(
                 f"URL: {r['url']}",
                 f"TITLE: {r['title']}",
             ]
+            if r.get("author"):
+                block_parts.append(f"AUTHOR: {r['author']}")
+            if r.get("duration"):
+                block_parts.append(f"DURATION: {r['duration']}")
+            if r.get("views") is not None:
+                block_parts.append(f"VIEWS: {r['views']}")
             if r.get("published_date"):
                 block_parts.append(f"DATE: {r['published_date']}")
+            if r.get("engine"):
+                block_parts.append(f"ENGINE: {r['engine']}")
             block_parts.extend([
                 f"SNIPPET: {r['snippet']}",
                 f"CITE AS: {r['citation']}",

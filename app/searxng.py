@@ -459,6 +459,14 @@ def search_searxng(
         if total_snippet_chars + len(c) > max_total_len and idx > 0:
             c = c[: max(0, max_total_len - total_snippet_chars)].rsplit(" ", 1)[0] + "... [TRUNCATED]"
 
+        engine_name = r.get("engine")
+        author = r.get("author") or r.get("channel") or r.get("creator")
+        channel_id = r.get("channel_id") or r.get("channelId")
+        duration = r.get("duration") or r.get("length")
+        views = r.get("views") or r.get("view_count")
+        iframe_src = r.get("iframe_src")
+        thumbnail = r.get("thumbnail") or r.get("img_src")
+
         cit_style = getattr(config.search, "citation_style", "site_name")
         cit_link = format_citation(t, dom, u, position=idx + 1, style=cit_style)
 
@@ -468,10 +476,24 @@ def search_searxng(
             "url": u,
             "title": t,
         }
+        if engine_name:
+            item["engine"] = str(engine_name)
+        if author:
+            item["author"] = str(author).strip()
+        if channel_id:
+            item["channel_id"] = str(channel_id).strip()
+        if duration:
+            item["duration"] = str(duration).strip()
+        if views is not None:
+            item["views"] = views
         if pub_date:
             item["published_date"] = pub_date
         item["snippet"] = c
         item["citation"] = cit_link
+        if iframe_src:
+            item["iframe_src"] = str(iframe_src).strip()
+        if thumbnail:
+            item["thumbnail"] = str(thumbnail).strip()
         if include_fav and fav:
             item["favicon"] = fav
 

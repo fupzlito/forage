@@ -178,6 +178,60 @@ class TestSearXNG(unittest.TestCase):
         self.assertEqual(res["results"][2]["published_date"], "2 hours ago")
         self.assertEqual(res["results"][2]["snippet"], "SpaceX confirms booster recovery status.")
 
+    @patch("httpx.get")
+    def test_search_searxng_rich_video_and_author_metadata(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status.return_value = None
+        mock_resp.json.return_value = {
+            "results": [
+                {
+                    "title": "Veritasium - The Science of Thinking",
+                    "url": "https://www.youtube.com/watch?v=12345",
+                    "content": "Exploring cognitive biases and human decision making.",
+                    "author": "Veritasium",
+                    "channel_id": "UCvB5TYey1VC4456",
+                    "duration": "14:22",
+                    "views": 1540200,
+                    "engine": "youtube",
+                    "publishedDate": "2026-08-10T12:00:00Z",
+                    "iframe_src": "https://www.youtube.com/embed/12345",
+                    "thumbnail": "https://i.ytimg.com/vi/12345/hqdefault.jpg",
+                    "score": 3.0,
+                },
+                {
+                    "title": "Standard Google Result",
+                    "url": "https://example.com/article",
+                    "content": "Standard web page content without video details.",
+                    "engine": "google",
+                    "score": 2.0,
+                },
+            ],
+            "unresponsive_engines": [],
+        }
+        mock_get.return_value = mock_resp
+
+        res = search_searxng(self.config, query="cognitive bias", limit=5)
+        self.assertTrue(res["success"])
+        self.assertEqual(len(res["results"]), 2)
+
+        # YouTube video result has rich metadata
+        yt_res = res["results"][0]
+        self.assertEqual(yt_res["author"], "Veritasium")
+        self.assertEqual(yt_res["channel_id"], "UCvB5TYey1VC4456")
+        self.assertEqual(yt_res["duration"], "14:22")
+        self.assertEqual(yt_res["views"], 1540200)
+        self.assertEqual(yt_res["engine"], "youtube")
+        self.assertEqual(yt_res["published_date"], "2026-08-10 12:00:00 UTC")
+        self.assertEqual(yt_res["iframe_src"], "https://www.youtube.com/embed/12345")
+        self.assertEqual(yt_res["thumbnail"], "https://i.ytimg.com/vi/12345/hqdefault.jpg")
+
+        # Standard Google result in same search preserves clean structure
+        google_res = res["results"][1]
+        self.assertEqual(google_res["engine"], "google")
+        self.assertNotIn("author", google_res)
+        self.assertNotIn("duration", google_res)
+        self.assertNotIn("views", google_res)
+
     def test_unknown_config_keys_ignored(self):
         raw_dict = {
             "search": {
