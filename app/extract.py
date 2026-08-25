@@ -484,15 +484,19 @@ def _strip_reddit_ads_from_html(html: str) -> str:
 
 
 def _clean_reddit_markdown(text: str) -> str:
-    """Clean up Reddit markdown: strip avatars, navigation remnants, floating numbers, and excessive blank lines."""
+    """Clean up Reddit markdown: strip avatars, community icons, navigation remnants, floating numbers, duplicate links, and excessive blank lines."""
     if not text:
         return text
-    # Strip avatar markdown links [![u/... avatar](...)](...)
+    # Strip community icon embeds and avatars
+    text = re.sub(r'\[!\[[^\]]*\]\([^)]*(?:communityIcon|redditmedia\.com|thumbs\.redditmedia\.com)[^)]*\)\s*', '[', text, flags=re.IGNORECASE)
+    text = re.sub(r'!\[[^\]]*\]\([^)]*(?:communityIcon|emoji\.redditmedia\.com|styles\.redditmedia\.com)[^)]*\)', '', text, flags=re.IGNORECASE)
     text = re.sub(r'\[!\[[^\]]*avatar\]\([^)]+\)\]\([^)]+\)', '', text, flags=re.IGNORECASE)
-    # Strip generic avatar image embeds ![*avatar*](...)
     text = re.sub(r'!\[[^\]]*avatar[^\]]*\]\([^)]+\)', '', text, flags=re.IGNORECASE)
-    # Strip Reddit navigation boilerplate
+
+    # Strip Reddit navigation and web UI boilerplate
     boilerplate = [
+        r"Open sort options\s*",
+        r"Change post view\s*",
         r"Open navigation\s*",
         r"Go to Reddit Home\s*",
         r"\[Sign Up\]\([^\)]+\)Sign up for Reddit\s*",
@@ -505,6 +509,9 @@ def _clean_reddit_markdown(text: str) -> str:
 
     # Strip lone floating numbers on their own lines (leftover upvote buttons)
     text = re.sub(r'(?<=\n)\s*\d+(?:\.\d+)?(?:k|K)?\s*(?=\n|\Z)', '', text)
+
+    # Remove duplicate consecutive links produced by card headers + titles
+    text = re.sub(r'(\[[^\]]+\]\([^)]+\))\s*\n+(?:---\s*\n+)?(?:\s*\[r/[^\]]+\]\([^)]+\)\s*\n+)?\1', r'\1', text)
 
     lines = text.splitlines()
     header = lines[0] if lines and lines[0].startswith("#") else ""
@@ -570,6 +577,21 @@ def normalize_reddit_url(url: str) -> str:
     return url
 
 
+_reddit_req_lock = asyncio.Lock()
+_reddit_last_req_time = 0.0
+
+
+async def _throttle_reddit_request(min_interval: float = 0.35) -> None:
+    """Stagger concurrent Reddit HTTP requests to prevent burst rate-limiting."""
+    global _reddit_last_req_time
+    async with _reddit_req_lock:
+        now = time.monotonic()
+        elapsed = now - _reddit_last_req_time
+        if elapsed < min_interval:
+            await asyncio.sleep(min_interval - elapsed)
+        _reddit_last_req_time = time.monotonic()
+
+
 async def _try_reddit_extract(
     config: ForageConfig,
     url: str,
@@ -614,11 +636,26 @@ async def _try_reddit_extract(
         headers.update(extra_headers)
 
     try:
+        await _throttle_reddit_request()
         async with httpx.AsyncClient(timeout=min(timeout, 10), headers=headers, cookies=cookies, follow_redirects=True) as client:
             resp = await client.get(json_url)
+            if resp.status_code == 404:
+                return {
+                    "title": "Reddit - Not Found",
+                    "content": "The requested Reddit post, subreddit, or user does not exist (404 Not Found).",
+                    "raw_content": "The requested Reddit post, subreddit, or user does not exist (404 Not Found).",
+                    "method": "reddit+not_found",
+                }
             if resp.status_code == 200 and resp.text:
                 try:
                     data = resp.json()
+                    if isinstance(data, dict) and data.get("error") in (404, "404", "Not Found"):
+                        return {
+                            "title": "Reddit - Not Found",
+                            "content": data.get("message") or "The requested Reddit community or post was not found.",
+                            "raw_content": data.get("message") or "The requested Reddit community or post was not found.",
+                            "method": "reddit+not_found",
+                        }
                     markdown_content, title = parse_reddit_json(data)
                     return {
                         "title": title,
@@ -637,11 +674,35 @@ async def _try_reddit_extract(
         mirror_url += f"?{parsed.query}"
 
     try:
+        await _throttle_reddit_request()
         async with httpx.AsyncClient(timeout=min(timeout, 10), headers=headers, cookies=cookies, follow_redirects=True) as client:
             mresp = await client.get(mirror_url)
+            if mresp.status_code == 404:
+                return {
+                    "title": "Reddit - Not Found",
+                    "content": "The requested Reddit post, subreddit, or user was not found.",
+                    "raw_content": "The requested Reddit post, subreddit, or user was not found.",
+                    "method": "reddit+not_found",
+                }
             if mresp.status_code == 200 and mresp.text:
                 html = mresp.text
                 title = _extract_title(html)
+                lower_html = html.lower()
+                not_found_markers = (
+                    "subreddit not found",
+                    "community not found",
+                    "user not found",
+                    "page not found",
+                    "this community does not exist",
+                    "this community doesn't exist",
+                )
+                if any(m in lower_html for m in not_found_markers):
+                    return {
+                        "title": title or "Reddit - Not Found",
+                        "content": "The requested Reddit post, subreddit, or user was not found.",
+                        "raw_content": "The requested Reddit post, subreddit, or user was not found.",
+                        "method": "reddit+not_found",
+                    }
                 content, raw_content = _to_output(
                     html,
                     "markdown",

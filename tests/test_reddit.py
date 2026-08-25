@@ -162,6 +162,24 @@ class TestRedditJSON(unittest.TestCase):
         self.assertIn("### [Post in WSB](https://www.reddit.com/r/wallstreetbets/comments/222/wsb_post/)", markdown)
         self.assertIn("**Subreddit**: r/wallstreetbets", markdown)
 
+    def test_clean_reddit_markdown(self):
+        from app.extract import _clean_reddit_markdown
+        raw = (
+            "# reddit\n\n"
+            "Top\n\n"
+            "Open sort options\n\n"
+            "Change post view\n\n"
+            "[Cake](https://reddit.com/r/Baking/comments/123/cake/)\n\n"
+            "[![](https://styles.redditmedia.com/t5_2qx1h/styles/communityIcon_123.png)\n"
+            "r/Baking](https://www.reddit.com/r/Baking/)\n\n"
+            "[Cake](https://reddit.com/r/Baking/comments/123/cake/)\n"
+        )
+        cleaned = _clean_reddit_markdown(raw)
+        self.assertNotIn("Open sort options", cleaned)
+        self.assertNotIn("Change post view", cleaned)
+        self.assertNotIn("communityIcon_", cleaned)
+        self.assertIn("[Cake](https://reddit.com/r/Baking/comments/123/cake/)", cleaned)
+
 
 if __name__ == "__main__":
     unittest.main()
