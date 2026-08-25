@@ -1,10 +1,10 @@
 # Forage Configuration Reference
 
-All behavior is configured in `config.yaml`, bind-mounted read-only into the container at `/etc/forage/config.yaml`. Secrets **never** go in the YAML: use environment variables (see the table at the end).
+All behavior is configured via `docker-compose.yml` environment variables and/or `config.yaml` (bind-mounted read-only at `/etc/forage/config.yaml` or as a directory `./config:/etc/forage:ro`).
 
-**Reload**: after changing `config.yaml`, run `docker compose restart`. There is no hot reload by design: the config decides which processes (e.g. the browser pool) start, so a restart is the safe way to apply changes. Downtime is 1-2 seconds.
+**Reload**: after changing `config.yaml` or environment variables, run `docker compose restart`. There is no hot reload by design: the config decides which processes (e.g. the browser pool) start, so a restart is the safe way to apply changes. Downtime is 1-2 seconds.
 
-Resolution order: `built-in defaults → config.yaml → environment variables`.
+Resolution order: `built-in defaults → config.yaml → external prompts.yaml → environment variables`.
 
 ---
 

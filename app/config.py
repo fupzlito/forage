@@ -451,6 +451,43 @@ def _apply_env_overrides(merged: Dict[str, Any]) -> Dict[str, Any]:
     return merged
 
 
+def _resolve_config_path(path: Optional[str]) -> str:
+    """Resolve config file path from explicit path, env var, or defaults.
+
+    Supports both file paths and directory mounts (e.g. mounting a folder
+    to /etc/forage containing config.yaml or config.yml).
+    """
+    raw = path or os.environ.get("FORAGE_CONFIG") or DEFAULT_CONFIG_PATH
+    if os.path.isdir(raw):
+        for candidate in ("config.yaml", "config.yml"):
+            full = os.path.join(raw, candidate)
+            if os.path.exists(full):
+                return full
+        return os.path.join(raw, "config.yaml")
+    if not os.path.exists(raw) and raw.endswith(".yaml"):
+        alt = raw[:-5] + ".yml"
+        if os.path.exists(alt):
+            return alt
+    return raw
+
+
+def _resolve_prompts_path(raw_path: Optional[str]) -> Optional[str]:
+    """Resolve prompts file path from explicit path, env var, or directory."""
+    if not raw_path:
+        return None
+    if os.path.isdir(raw_path):
+        for candidate in ("prompts.yaml", "prompts.yml"):
+            full = os.path.join(raw_path, candidate)
+            if os.path.exists(full):
+                return full
+        return os.path.join(raw_path, "prompts.yaml")
+    if not os.path.exists(raw_path) and raw_path.endswith(".yaml"):
+        alt = raw_path[:-5] + ".yml"
+        if os.path.exists(alt):
+            return alt
+    return raw_path
+
+
 def load_config(path: Optional[str] = None) -> ForageConfig:
     """Load configuration from defaults + optional YAML file + environment overrides.
 
@@ -464,12 +501,13 @@ def load_config(path: Optional[str] = None) -> ForageConfig:
     affect server/search/browser settings.
     """
     import copy
-    config_path = path or os.environ.get("FORAGE_CONFIG") or DEFAULT_CONFIG_PATH
+    config_path = _resolve_config_path(path)
     file_data = _load_yaml(config_path)
     merged = deep_merge(copy.deepcopy(DEFAULTS), file_data)
 
     # External prompts file: prompts_path in config OR FORAGE_PROMPTS_CONFIG env var
-    prompts_path = merged.get("prompts", {}).get("prompts_path") or os.environ.get("FORAGE_PROMPTS_CONFIG")
+    raw_prompts_path = merged.get("prompts", {}).get("prompts_path") or os.environ.get("FORAGE_PROMPTS_CONFIG")
+    prompts_path = _resolve_prompts_path(raw_prompts_path)
     if prompts_path:
         prompts_data = _load_yaml(prompts_path)
         if prompts_data:

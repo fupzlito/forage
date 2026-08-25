@@ -104,18 +104,67 @@ Other engines are supported:
 
 ## 🚀 Quick Start
 
-### 1. Requirements
+### Requirements
 - Docker Engine 24+ with Docker Compose v2
 - A running SearXNG instance on a shared network (see [docs/SEARXNG.md](docs/SEARXNG.md))
 
-### 2. Setup & Launch
+---
+
+### Option A: Pure Docker Compose (Recommended)
+
+No git clone required. Create a `docker-compose.yml` file:
+
+```yaml
+services:
+  forage:
+    image: fupzlito/forage:latest
+    container_name: forage
+    restart: always
+    ports:
+      - "3672:3672"
+    environment:
+      - TZ=America/New_York
+      - FORAGE_AUTH_ENABLED=false              # set true if exposing to the internet
+      - FORAGE_API_KEYS=your_api_key_here      # comma-separated keys when auth is enabled
+      - FORAGE_REQUIRE_MAX_CHARS=false         # require LLMs to budget token limits per URL
+      - FORAGE_SEARXNG_URL=http://searxng:8080 # SearXNG instance URL
+    volumes:
+      # Optional: mount directory for custom config.yaml / prompts.yaml:
+      # - ./config:/etc/forage:ro
+      # OR mount individual config file:
+      # - ./config.yaml:/etc/forage/config.yaml:ro
+    networks:
+      - searxng_default
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3672/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  searxng_default:
+    external: true
+```
+
+Start the container:
 
 ```bash
-git clone https://github.com/aldemaroc/forage.git
-cd forage
-cp .env.example .env                 # configure FORAGE_API_KEYS, TZ
-cp config.example.yaml config.yaml   # customize search engines, domain overrides, cache
+docker compose up -d
+```
 
+---
+
+### Option B: Clone & Build from Source
+
+```bash
+git clone https://github.com/fupzlito/forage.git
+cd forage
+
+# Optional: customize search engines, domain overrides, or prompts
+cp config.example.yaml config.yaml
+
+# Build and start
 docker compose up -d --build
 ```
 
