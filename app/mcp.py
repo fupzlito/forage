@@ -636,8 +636,8 @@ async def v1_tools_list(request: Request) -> dict:
 async def v1_tools_call(
     request: Request,
     _auth: None = Depends(lambda: None),
-) -> JSONResponse:
-    """Execute a single OpenAI-compatible function tool call."""
+) -> Any:
+    """Execute a single OpenAI-compatible function tool call with streaming support."""
     config, browser_pool = _get_config_and_pool(request)
 
     try:
@@ -658,6 +658,68 @@ async def v1_tools_call(
 
     if not name:
         raise HTTPException(status_code=400, detail="Missing tool name")
+
+    is_stream = bool(body.get("stream", False)) or bool(
+        request.headers.get("accept", "") and "text/event-stream" in request.headers.get("accept", "").lower()
+    )
+
+    if is_stream:
+        async def _stream_tool_events():
+            extract_name = config.tools.extract_name
+            if name == extract_name or name == "web_extract":
+                raw_urls = arguments.get("urls", [])
+                urls = [u.strip() for u in raw_urls.split(",") if u.strip()] if isinstance(raw_urls, str) else list(raw_urls)
+                max_chars = arguments.get("max_chars")
+                if max_chars is not None:
+                    try:
+                        max_chars = max(500, min(int(max_chars), config.extract.max_content_chars))
+                    except (ValueError, TypeError):
+                        max_chars = None
+                formats = arguments.get("formats")
+                fmt = "html" if (formats and ("html" in formats or "raw_html" in formats)) else "markdown"
+                force_render = bool(arguments.get("force_render", False))
+                wait_for = arguments.get("wait_for")
+                only_main_content = bool(arguments.get("only_main_content", True))
+                timeout = int(arguments.get("timeout", 30))
+                engine = arguments.get("engine")
+
+                async def _one(u: str, pos: int) -> Dict[str, Any]:
+                    try:
+                        res = await extract_url(
+                            config,
+                            browser_pool,
+                            u,
+                            position=pos,
+                            force_render=force_render,
+                            wait_for=wait_for,
+                            output_format=fmt,
+                            only_main_content=only_main_content,
+                            timeout=timeout,
+                            engine=engine,
+                        )
+                        if max_chars and "content" in res:
+                            fl = len(res["content"])
+                            if fl > max_chars:
+                                res["content"] = res["content"][:max_chars] + f"\n\n[TRUNCATED at {max_chars:,} of {fl:,} chars]"
+                        return res
+                    except Exception as exc:  # noqa: BLE001
+                        return {"url": u, "error": str(exc)}
+
+                tasks = [asyncio.create_task(_one(u, idx + 1)) for idx, u in enumerate(urls)]
+                for coro in asyncio.as_completed(tasks):
+                    res = await coro
+                    yield f"data: {json.dumps(res, ensure_ascii=False)}\n\n"
+                yield "data: [DONE]\n\n"
+            else:
+                res = await execute_tool_call(name, arguments, config, browser_pool)
+                yield f"data: {json.dumps(res, ensure_ascii=False)}\n\n"
+                yield "data: [DONE]\n\n"
+
+        return StreamingResponse(
+            _stream_tool_events(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+        )
 
     result = await execute_tool_call(name, arguments, config, browser_pool)
     return JSONResponse(content={"success": "error" not in result, "result": result})

@@ -190,6 +190,28 @@ class TestMCPAndOpenAIEndpoints(unittest.TestCase):
         self.assertIn("Example page content here.", body)
         self.assertIn("data: [DONE]", body)
 
+    @patch("app.mcp.extract_url", new_callable=AsyncMock)
+    def test_v1_tools_call_streaming(self, mock_extract):
+        mock_extract.return_value = {
+            "position": 1,
+            "domain": "example.com",
+            "url": "https://example.com",
+            "title": "Example",
+            "content": "Example page content here.",
+            "citation": "[Example](https://example.com)",
+            "method": "static",
+        }
+        payload = {
+            "name": "web_extract",
+            "arguments": {"urls": ["https://example.com"]},
+            "stream": True,
+        }
+        resp = self.client.post("/v1/tools/call", json=payload)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("text/event-stream", resp.headers["content-type"])
+        self.assertIn("Example page content here.", resp.text)
+        self.assertIn("data: [DONE]", resp.text)
+
 
 if __name__ == "__main__":
     unittest.main()
