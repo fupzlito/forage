@@ -143,7 +143,7 @@ TEXT_SEARCH_CATEGORIES = {
     "general", "news", "it", "science", "scientific publications",
     "social media", "social_media", "q&a", "web", "software wikis", "repos", "blogs", "books", "dictionaries"
 }
-NON_TEXT_CATEGORIES = {"images", "videos", "music", "audio", "files", "map", "radio", "weather", "icons", "currency"}
+NON_TEXT_CATEGORIES = {"images", "videos", "music", "audio", "files", "map", "radio", "weather", "icons", "currency", "translate"}
 NON_TEXT_SUFFIXES = (".images", ".videos", ".audio", ".files", " images", " videos", " audio", " music", " weather")
 
 _cached_available_engines: Optional[Tuple[str, ...]] = None
