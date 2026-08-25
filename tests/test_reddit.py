@@ -165,18 +165,23 @@ class TestRedditJSON(unittest.TestCase):
     def test_clean_reddit_markdown(self):
         from app.extract import _clean_reddit_markdown
         raw = (
-            "# reddit\n\n"
-            "Top\n\n"
+            "# r/Baking\n\n"
+            "Skip to main content LocalLlama Open menu Advertise on Reddit Open chat Create post "
             "Open sort options\n\n"
             "Change post view\n\n"
+            "Card Compact Community highlights 15 votes • 27 comments\n\n"
             "[Cake](https://reddit.com/r/Baking/comments/123/cake/)\n\n"
             "[![](https://styles.redditmedia.com/t5_2qx1h/styles/communityIcon_123.png)\n"
             "r/Baking](https://www.reddit.com/r/Baking/)\n\n"
             "[Cake](https://reddit.com/r/Baking/comments/123/cake/)\n"
         )
         cleaned = _clean_reddit_markdown(raw)
+        self.assertNotIn("Skip to main content", cleaned)
+        self.assertNotIn("Open menu", cleaned)
+        self.assertNotIn("Advertise on Reddit", cleaned)
         self.assertNotIn("Open sort options", cleaned)
         self.assertNotIn("Change post view", cleaned)
+        self.assertNotIn("Community highlights", cleaned)
         self.assertNotIn("communityIcon_", cleaned)
         self.assertIn("[Cake](https://reddit.com/r/Baking/comments/123/cake/)", cleaned)
 

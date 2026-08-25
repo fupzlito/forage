@@ -496,6 +496,19 @@ def _clean_reddit_markdown(text: str) -> str:
 
     # Strip Reddit navigation and web UI boilerplate
     boilerplate = [
+        r"Skip to main content\s*",
+        r"Open menu\s*",
+        r"Advertise on Reddit\s*",
+        r"Open chat\s*",
+        r"Create post\s*",
+        r"Open inbox\s*",
+        r"Expand user menu\s*",
+        r"Open profile menu\s*",
+        r"Get your post the attention it deserves\s*",
+        r"Close Repost Nudge Dialog\s*",
+        r"Repost into other communities and help your post get seen by more people\.?\s*",
+        r"Submit a report\s*",
+        r"Report Submitted\s*",
         r"Open sort options\s*",
         r"Change post view\s*",
         r"Open navigation\s*",
@@ -504,6 +517,9 @@ def _clean_reddit_markdown(text: str) -> str:
         r"\[Log In\]\([^\)]+\)Log in to Reddit\s*",
         r"Open settings menu\s*",
         r"View more comments\s*",
+        r"Card Compact Community highlights\s*",
+        r"Top Best Hot New Top Rising Today Now Today This Week This Month This Year All Time\s*",
+        r"\b\d+\s*votes\s*•\s*\d+\s*comments\b",
     ]
     for b in boilerplate:
         text = re.sub(b, '', text, flags=re.IGNORECASE)

@@ -656,24 +656,30 @@ class BrowserPool:
         await self._semaphore.acquire()
         try:
             try:
-                resp = await self._scrapling_session.fetch(
-                    url,
-                    timeout=timeout * 1000,
-                    wait_selector=wait_for or None,
-                    extra_headers=merged_headers or None,
-                    page_action=_page_action,
-                )
-            except Exception as exc:  # noqa: BLE001
-                if _is_dead_browser(exc):
-                    # The session's browser died (heavy load). Recreate the
-                    # session and retry once instead of failing the request.
-                    await self._restart_scrapling_session()
-                    resp = await self._scrapling_session.fetch(
+                resp = await asyncio.wait_for(
+                    self._scrapling_session.fetch(
                         url,
                         timeout=timeout * 1000,
                         wait_selector=wait_for or None,
                         extra_headers=merged_headers or None,
                         page_action=_page_action,
+                    ),
+                    timeout=timeout + 5.0,
+                )
+            except Exception as exc:  # noqa: BLE001
+                if _is_dead_browser(exc) or isinstance(exc, asyncio.TimeoutError):
+                    # The session's browser died or timed out (heavy load). Recreate the
+                    # session and retry once instead of failing the request.
+                    await self._restart_scrapling_session()
+                    resp = await asyncio.wait_for(
+                        self._scrapling_session.fetch(
+                            url,
+                            timeout=timeout * 1000,
+                            wait_selector=wait_for or None,
+                            extra_headers=merged_headers or None,
+                            page_action=_page_action,
+                        ),
+                        timeout=timeout + 5.0,
                     )
                 else:
                     raise
@@ -759,12 +765,15 @@ class BrowserPool:
 
         await self._semaphore.acquire()
         try:
-            resp = await session.fetch(
-                url,
-                timeout=timeout * 1000,
-                wait_selector=wait_for or None,
-                extra_headers=merged_headers or None,
-                page_action=_page_action,
+            resp = await asyncio.wait_for(
+                session.fetch(
+                    url,
+                    timeout=timeout * 1000,
+                    wait_selector=wait_for or None,
+                    extra_headers=merged_headers or None,
+                    page_action=_page_action,
+                ),
+                timeout=timeout + 5.0,
             )
             if resp is None or not resp.body:
                 raise RuntimeError(f"Empty response for {url}")

@@ -153,8 +153,8 @@ def _search_cache_key(req: SearchRequest) -> str:
     return f"search:{req.query}|{eff_limit}|{req.language or ''}|{engines}"
 
 
-def _extract_cache_key(urls: List[str], force_render: bool, wait_for: Optional[str], fmt: str, engine: Optional[str]) -> str:
-    return f"extract:{','.join(urls)}|{force_render}|{wait_for or ''}|{fmt}|{engine or ''}"
+def _extract_cache_key(urls: List[str], force_render: bool, wait_for: Optional[str], fmt: str, engine: Optional[str], only_main_content: bool = True) -> str:
+    return f"extract:{','.join(urls)}|{force_render}|{wait_for or ''}|{fmt}|{engine or ''}|{only_main_content}"
 
 
 def custom_openapi():
@@ -334,9 +334,20 @@ async def extract(
         elif "raw_html" in req.formats:
             fmt = "html"
 
-    async def _extract_one(url: str, pos: int) -> Dict[str, Any]:
+    def _truncate_result(res: Dict[str, Any], max_chars: Optional[int]) -> Dict[str, Any]:
+        if not max_chars or "content" not in res:
+            return res
+        copied = dict(res)
+        full_len = len(copied["content"])
+        if full_len > max_chars:
+            copied["content"] = copied["content"][:max_chars] + f"\n\n[TRUNCATED at {max_chars:,} of {full_len:,} chars]"
+            if "raw_content" in copied:
+                copied["raw_content"] = copied["raw_content"][:max_chars]
+        return copied
+
+    async def _extract_one_full(url: str, pos: int) -> Dict[str, Any]:
         try:
-            res = await extract_url(
+            return await extract_url(
                 config,
                 browser_pool,
                 url,
@@ -348,41 +359,37 @@ async def extract(
                 timeout=req.timeout,
                 engine=req.engine,
             )
-            if req.max_chars and "content" in res:
-                full_len = len(res["content"])
-                if full_len > req.max_chars:
-                    res["content"] = res["content"][:req.max_chars] + f"\n\n[TRUNCATED at {req.max_chars:,} of {full_len:,} chars]"
-                    if "raw_content" in res:
-                        res["raw_content"] = res["raw_content"][:req.max_chars]
-            return res
         except Exception as exc:  # noqa: BLE001
             logger.exception("Extract failed for %s", url)
             return {"url": url, "error": str(exc)}
 
     if is_stream:
         async def _stream_events():
-            tasks = [asyncio.create_task(_extract_one(u, idx + 1)) for idx, u in enumerate(req.urls)]
+            tasks = [asyncio.create_task(_extract_one_full(u, idx + 1)) for idx, u in enumerate(req.urls)]
             for coro in asyncio.as_completed(tasks):
                 res = await coro
-                yield f"data: {json.dumps(res, ensure_ascii=False)}\n\n"
+                truncated = _truncate_result(res, req.max_chars)
+                yield f"data: {json.dumps(truncated, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
 
         return StreamingResponse(_stream_events(), media_type="text/event-stream")
 
-    key = _extract_cache_key(req.urls, req.force_render, req.wait_for, fmt, req.engine)
+    key = _extract_cache_key(req.urls, req.force_render, req.wait_for, fmt, req.engine, req.only_main_content)
     if cache_enabled:
         cached = extract_cache.get(key)
-        if cached is not None:
-            return JSONResponse(content=cached, headers={"X-Forage-Cache": "hit"})
+        if cached is not None and isinstance(cached, dict):
+            truncated_data = [_truncate_result(r, req.max_chars) for r in cached.get("data", [])]
+            return JSONResponse(content={"success": True, "data": truncated_data}, headers={"X-Forage-Cache": "hit"})
 
-    results = await asyncio.gather(*(_extract_one(u, idx + 1) for idx, u in enumerate(req.urls)))
-    payload = {"success": True, "data": results}
+    full_results = await asyncio.gather(*(_extract_one_full(u, idx + 1) for idx, u in enumerate(req.urls)))
 
     if cache_enabled:
-        all_ok = all("error" not in r for r in results)
+        all_ok = all("error" not in r for r in full_results)
         if all_ok:
-            extract_cache.set(key, payload, ttl=config.cache.extract.ttl)
+            extract_cache.set(key, {"success": True, "data": full_results}, ttl=config.cache.extract.ttl)
 
+    truncated_data = [_truncate_result(r, req.max_chars) for r in full_results]
+    payload = {"success": True, "data": truncated_data}
     header = "miss" if cache_enabled else ("bypass" if bypass else "disabled")
     return JSONResponse(content=payload, headers={"X-Forage-Cache": header})
 
