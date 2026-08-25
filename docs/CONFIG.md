@@ -184,9 +184,9 @@ Environment variables provide the highest precedence in configuration resolution
 | `FORAGE_EXTRACT_ENGINE` | `extract.engine` | Extraction engine: `trafilatura` or `readability`. |
 | `FORAGE_SEARCH_NAME` | `tools.search_name` | Custom tool name exposed to LLMs for web search (default `web_search`). |
 | `FORAGE_EXTRACT_NAME` | `tools.extract_name` | Custom tool name exposed to LLMs for web extraction (default `web_extract`). |
-| `FORAGE_REDDIT_SESSION` | `extract.domain_overrides` | Authenticated `reddit_session` cookie for sub-second Reddit JSON API pulls. |
-| `FORAGE_REDDIT_TOKEN_V2` | `extract.domain_overrides` | Authenticated `token_v2` cookie for Reddit JSON API pulls. |
-| `FORAGE_REDDIT_COOKIES` | `extract.domain_overrides` | Full raw Reddit cookie string (`k=v; k2=v2`) applied to Reddit extraction. |
+| `FORAGE_REDDIT_SESSION` | `extract.domain_overrides` | Authenticated `reddit_session` cookie for Reddit JSON API (enclose in quotes `"..."`). |
+| `FORAGE_REDDIT_TOKEN_V2` | `extract.domain_overrides` | Authenticated `token_v2` cookie for Reddit JSON API (enclose in quotes `"..."`). |
+| `FORAGE_REDDIT_COOKIES` | `extract.domain_overrides` | Full raw Reddit cookie string (`k=v; k2=v2`, enclosed in quotes `"..."`) for Reddit extraction. |
 | `FORAGE_REQUIRE_MAX_CHARS` | `extract.require_max_chars` | Require LLMs to pass `max_chars` character budgets (`true`/`false`). |
 | `FORAGE_CACHE_ENABLED` | `cache.enabled` | Master in-memory cache toggle (`true`/`false`). |
 | `FORAGE_PORT` / `PORT` | `server.port` | Server HTTP port (default `3672`). |

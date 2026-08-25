@@ -203,8 +203,8 @@ class TestRedditJSON(unittest.TestCase):
         from app.config import load_config
 
         with patch.dict(os.environ, {
-            "FORAGE_REDDIT_SESSION": "session_abc_123",
-            "FORAGE_REDDIT_TOKEN_V2": "token_xyz_456",
+            "FORAGE_REDDIT_SESSION": '"session_abc_123"',
+            "FORAGE_REDDIT_TOKEN_V2": "'token_xyz_456'",
         }):
             cfg = load_config()
             overrides = cfg.extract.domain_overrides
@@ -213,9 +213,9 @@ class TestRedditJSON(unittest.TestCase):
             self.assertEqual(reddit_ov.cookies.get("reddit_session"), "session_abc_123")
             self.assertEqual(reddit_ov.cookies.get("token_v2"), "token_xyz_456")
 
-        # Test combined raw cookies string
+        # Test combined raw cookies string with quotes
         with patch.dict(os.environ, {
-            "FORAGE_REDDIT_COOKIES": "reddit_session=sess1; token_v2=tok2; custom_cookie=val3",
+            "FORAGE_REDDIT_COOKIES": '"reddit_session=sess1; token_v2=tok2; custom_cookie=val3"',
         }):
             cfg_raw = load_config()
             overrides_raw = cfg_raw.extract.domain_overrides

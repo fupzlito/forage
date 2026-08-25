@@ -456,6 +456,12 @@ def _apply_env_overrides(merged: Dict[str, Any]) -> Dict[str, Any]:
         merged.setdefault("tools", {})["extract_name"] = extract_name.strip()
 
     # Reddit Cookies & Auth Overrides
+    def _clean_val(v: str) -> str:
+        s = v.strip()
+        if len(s) >= 2 and ((s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'"))):
+            s = s[1:-1].strip()
+        return s
+
     reddit_session = os.environ.get("FORAGE_REDDIT_SESSION") or os.environ.get("REDDIT_SESSION")
     reddit_token = (
         os.environ.get("FORAGE_REDDIT_TOKEN_V2")
@@ -467,16 +473,18 @@ def _apply_env_overrides(merged: Dict[str, Any]) -> Dict[str, Any]:
 
     reddit_cookies: Dict[str, str] = {}
     if reddit_cookies_raw:
-        sep = ";" if ";" in reddit_cookies_raw else ","
-        for pair in reddit_cookies_raw.split(sep):
+        cleaned_raw = _clean_val(reddit_cookies_raw)
+        sep = ";" if ";" in cleaned_raw else ","
+        for pair in cleaned_raw.split(sep):
             if "=" in pair:
                 k, v = pair.split("=", 1)
-                if k.strip():
-                    reddit_cookies[k.strip()] = v.strip()
+                clean_k = _clean_val(k)
+                if clean_k:
+                    reddit_cookies[clean_k] = _clean_val(v)
     if reddit_session:
-        reddit_cookies["reddit_session"] = reddit_session.strip()
+        reddit_cookies["reddit_session"] = _clean_val(reddit_session)
     if reddit_token:
-        reddit_cookies["token_v2"] = reddit_token.strip()
+        reddit_cookies["token_v2"] = _clean_val(reddit_token)
 
     if reddit_cookies:
         extract_dict = merged.setdefault("extract", {})

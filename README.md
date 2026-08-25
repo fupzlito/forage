@@ -129,8 +129,8 @@ services:
       - TZ=America/New_York                    # sets local time context for LLM prompts
       - FORAGE_SEARXNG_URL=http://searxng:8080 # SearXNG backend service
       - FORAGE_DEFAULT_ENGINES=google-cse,brave,bing,duckduckgo,startpage # default engines queried when search engine(s) omitted by LLMs
-#     - FORAGE_REDDIT_SESSION=your_session_cookie_here     # optional: logged-in reddit session for direct json pulls
-#     - FORAGE_REDDIT_TOKEN_V2=your_token_v2_cookie_here   # optional: reddit token_v2 cookie
+#     - FORAGE_REDDIT_SESSION="your_session_cookie_here"     # optional: logged-in reddit session (quote string to escape special characters)
+#     - FORAGE_REDDIT_TOKEN_V2="your_token_v2_cookie_here"   # optional: reddit token_v2 cookie (quote string to escape special characters)
       - FORAGE_AUTH_ENABLED=false              # set true if exposing to the public internet
       - FORAGE_API_KEYS=your_api_key_here      # comma-separated keys when auth is enabled
       - FORAGE_REQUIRE_MAX_CHARS=false         # require LLMs to pass character budget per URL
@@ -322,8 +322,8 @@ All settings can be dynamically overridden via Docker environment variables with
 | `FORAGE_EXTRACT_ENGINE` | Markdown extraction engine (`trafilatura`, `readability`) | `trafilatura` |
 | `FORAGE_SEARCH_NAME` | Custom tool name exposed to LLMs for web search | `web_search` |
 | `FORAGE_EXTRACT_NAME` | Custom tool name exposed to LLMs for web extraction | `web_extract` |
-| `FORAGE_REDDIT_SESSION` | Authenticated `reddit_session` cookie for sub-second Reddit JSON API | `""` |
-| `FORAGE_REDDIT_TOKEN_V2` | Authenticated `token_v2` cookie for Reddit JSON API | `""` |
+| `FORAGE_REDDIT_SESSION` | Authenticated `reddit_session` cookie for Reddit JSON API (enclose in quotes `"..."`) | `""` |
+| `FORAGE_REDDIT_TOKEN_V2` | Authenticated `token_v2` cookie for Reddit JSON API (enclose in quotes `"..."`) | `""` |
 | `FORAGE_REQUIRE_MAX_CHARS` | Require LLMs to specify character budgets (`true`/`false`) | `false` |
 | `FORAGE_AUTH_ENABLED` | Enable Bearer API authentication (`true`/`false`) | `false` |
 | `FORAGE_API_KEYS` | Comma-separated API keys (when auth is enabled) | `""` |
