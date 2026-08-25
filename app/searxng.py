@@ -73,8 +73,7 @@ def get_favicon_url(domain: str) -> str:
     return f"https://www.google.com/s2/favicons?domain={domain}&sz=32"
 
 
-KNOWN_DOMAINS = {
-    "vinnews.com": "VINnews",
+KNOWN_DOMAINS = {,
     "finance.yahoo.com": "Yahoo Finance",
     "marketwatch.com": "MarketWatch",
     "bloomberg.com": "Bloomberg",
