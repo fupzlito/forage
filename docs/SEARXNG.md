@@ -40,6 +40,10 @@ search:
   formats:
     - html
     - json
+  ban_detector:
+    default:
+      http_code: 429
+      suspend_time: 300   # 5 mins suspension instead of SearXNG's default 1 hour (3600s)
 
 server:
   secret_key: "change-me-to-a-long-random-string"   # required
@@ -102,17 +106,23 @@ curl -s -X POST http://localhost:3672/search -H 'Content-Type: application/json'
 
 Expect `"success": true` with results.
 
-## Tuning & Anti-CAPTCHA Strategy
+## 5. Tuning & Anti-CAPTCHA Strategy
 
-- **Reduce Ban Suspension Time**: By default, SearXNG suspends an engine for **1 hour (3600s)** if Google or DuckDuckGo returns HTTP 429 or CAPTCHA. You can reduce this to **5 minutes (300s)** in your SearXNG `settings.yml` under `search`:
+### `ban_detector` (Engine Suspension Timing)
+SearXNG includes a built-in `ban_detector` that detects rate limits (HTTP 429) and CAPTCHA challenge pages from search providers.
+- **Default SearXNG Behavior**: When an engine is blocked, SearXNG suspends it for **3600 seconds (1 hour)**. If Google gets flagged once, your search loses Google results for 60 minutes.
+- **Recommended Forage Setting**: Lower `suspend_time` to **300 seconds (5 minutes)** in your SearXNG `settings.yml`:
   ```yaml
   search:
     ban_detector:
       default:
         http_code: 429
-        suspend_time: 300   # 5 mins instead of 60 mins
+        suspend_time: 300   # 5 minutes
   ```
-- **Fallback Engine Rotation**: Public engines like Google, Startpage, and DuckDuckGo get heavily rate-limited by anti-bot systems. Add resilient engines like `yahoo`, `bing`, and `qwant news` to `search.engines` in your `config.yaml` so search always succeeds even when Google is CAPTCHA'd.
-- **Engine filtering**: set `search.engines` in Forage's config to control which engines SearXNG uses.
-- **Language**: `search.default_lang: en-US` is passed through to SearXNG.
-- **Anti-bot protection**: Forage's search cache (TTL 300s by default) prevents identical queries from hitting SearXNG repeatedly.
+  This allows temporarily throttled engines to auto-recover quickly while other engines (`bing`, `brave`, `yahoo`, `startpage`) handle intermediate queries.
+
+### Fallback Engine Rotation
+Public engines like Google, Startpage, and DuckDuckGo get heavily rate-limited by anti-bot systems. Add resilient engines like `yahoo`, `bing`, `brave`, and `qwant news` to `search.engines` in your Forage `config.yaml` so search always succeeds even when Google is CAPTCHA'd.
+
+### Anti-Bot Protection
+Forage's in-memory search cache (TTL 300s by default) shields SearXNG engines from being suspended by upstream search providers during repeated query loops.
