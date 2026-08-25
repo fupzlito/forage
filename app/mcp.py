@@ -257,16 +257,20 @@ async def execute_tool_call(
 
         formatted_lines = [" | ".join(header_parts), "---"]
         for r in results:
-            block = (
-                f"[{r['position']}] {r['domain']}\n"
-                f"URL: {r['url']}\n"
-                f"TITLE: {r['title']}\n"
-                f"SNIPPET: {r['snippet']}\n"
-                f"CITE AS: {r['citation']}"
-            )
-            if include_fav and r.get('favicon'):
-                block += f"\nFAVICON: {r['favicon']}"
-            formatted_lines.append(block)
+            block_parts = [
+                f"[{r['position']}] {r['domain']}",
+                f"URL: {r['url']}",
+                f"TITLE: {r['title']}",
+            ]
+            if r.get("published_date"):
+                block_parts.append(f"DATE: {r['published_date']}")
+            block_parts.extend([
+                f"SNIPPET: {r['snippet']}",
+                f"CITE AS: {r['citation']}",
+            ])
+            if include_fav and r.get("favicon"):
+                block_parts.append(f"FAVICON: {r['favicon']}")
+            formatted_lines.append("\n".join(block_parts))
 
         output_text = "\n\n".join(formatted_lines)
         if warning:

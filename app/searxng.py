@@ -186,6 +186,31 @@ def normalize_and_validate_engines(
     return normalized, warning
 
 
+def _format_published_date(raw: Any) -> Optional[str]:
+    """Format SearXNG publishedDate into a clean ISO or UTC string."""
+    if not raw:
+        return None
+    if isinstance(raw, datetime):
+        return raw.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    if isinstance(raw, str):
+        raw_str = raw.strip()
+        if not raw_str:
+            return None
+        try:
+            clean = raw_str.replace("Z", "+00:00")
+            dt = datetime.fromisoformat(clean)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            else:
+                dt = dt.astimezone(timezone.utc)
+            if dt.hour == 0 and dt.minute == 0 and dt.second == 0 and ("T" not in raw_str and ":" not in raw_str):
+                return dt.strftime("%Y-%m-%d")
+            return dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+        except Exception:
+            return raw_str
+    return str(raw).strip() or None
+
+
 def search_searxng(
     config: ForageConfig,
     query: str,
@@ -283,6 +308,7 @@ def search_searxng(
         c = r.get("content", "") or ""
         dom = extract_domain(u)
         fav = get_favicon_url(dom) if include_fav else None
+        pub_date = _format_published_date(r.get("publishedDate") or r.get("pubdate") or r.get("published_date") or r.get("date"))
 
         if len(c) > max_snippet_len:
             c = c[:max_snippet_len].rsplit(" ", 1)[0] + "... [TRUNCATED]"
@@ -298,9 +324,11 @@ def search_searxng(
             "domain": dom,
             "url": u,
             "title": t,
-            "snippet": c,
-            "citation": cit_link,
         }
+        if pub_date:
+            item["published_date"] = pub_date
+        item["snippet"] = c
+        item["citation"] = cit_link
         if include_fav and fav:
             item["favicon"] = fav
 

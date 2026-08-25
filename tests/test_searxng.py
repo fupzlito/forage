@@ -107,6 +107,38 @@ class TestSearXNG(unittest.TestCase):
         self.assertIn("google", res["requested_engines"])
         self.assertIn("google", res["all_engines"])
 
+    @patch("httpx.get")
+    def test_search_searxng_published_date(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status.return_value = None
+        mock_resp.json.return_value = {
+            "results": [
+                {
+                    "title": "Article with Date",
+                    "url": "https://news.example.com/article1",
+                    "content": "News story content",
+                    "publishedDate": "2026-08-07T14:30:00Z",
+                    "score": 2.0,
+                },
+                {
+                    "title": "Article without Date",
+                    "url": "https://example.com/page",
+                    "content": "Static page content",
+                    "score": 1.0,
+                },
+            ],
+            "unresponsive_engines": [],
+        }
+        mock_get.return_value = mock_resp
+
+        res = search_searxng(self.config, query="test query", limit=5)
+        self.assertTrue(res["success"])
+        self.assertEqual(len(res["results"]), 2)
+        # First result has published_date
+        self.assertEqual(res["results"][0]["published_date"], "2026-08-07 14:30:00 UTC")
+        # Second result omits published_date
+        self.assertNotIn("published_date", res["results"][1])
+
     def test_unknown_config_keys_ignored(self):
         raw_dict = {
             "search": {
