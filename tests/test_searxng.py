@@ -139,6 +139,45 @@ class TestSearXNG(unittest.TestCase):
         # Second result omits published_date
         self.assertNotIn("published_date", res["results"][1])
 
+    @patch("httpx.get")
+    def test_search_searxng_snippet_date_fallback(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status.return_value = None
+        mock_resp.json.return_value = {
+            "results": [
+                {
+                    "title": "Google Style Result",
+                    "url": "https://example.com/google",
+                    "content": "Jul 1, 2026 ... Analysis of the SpaceX stock price stability.",
+                    "score": 3.0,
+                },
+                {
+                    "title": "Dateline Style Result",
+                    "url": "https://example.com/dateline",
+                    "content": "Jerusalem, Israel (February 10, 2026) Israel is moving ahead with plans.",
+                    "score": 2.0,
+                },
+                {
+                    "title": "Relative Time Result",
+                    "url": "https://example.com/relative",
+                    "content": "2 hours ago · SpaceX confirms booster recovery status.",
+                    "score": 1.0,
+                },
+            ],
+            "unresponsive_engines": [],
+        }
+        mock_get.return_value = mock_resp
+
+        res = search_searxng(self.config, query="test query", limit=5)
+        self.assertTrue(res["success"])
+        self.assertEqual(len(res["results"]), 3)
+        self.assertEqual(res["results"][0]["published_date"], "Jul 1, 2026")
+        self.assertEqual(res["results"][0]["snippet"], "Analysis of the SpaceX stock price stability.")
+        self.assertEqual(res["results"][1]["published_date"], "February 10, 2026")
+        self.assertEqual(res["results"][1]["snippet"], "Jerusalem, Israel - Israel is moving ahead with plans.")
+        self.assertEqual(res["results"][2]["published_date"], "2 hours ago")
+        self.assertEqual(res["results"][2]["snippet"], "SpaceX confirms booster recovery status.")
+
     def test_unknown_config_keys_ignored(self):
         raw_dict = {
             "search": {

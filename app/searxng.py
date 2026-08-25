@@ -21,6 +21,7 @@ citation formatting, engine alias mapping, and error/timeout guidance:
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
@@ -211,6 +212,59 @@ def _format_published_date(raw: Any) -> Optional[str]:
     return str(raw).strip() or None
 
 
+_MONTHS_PATTERN = (
+    r"Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
+    r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?"
+)
+_REL_UNITS_PATTERN = (
+    r"min|mins|minute|minutes|hour|hours|hr|hrs|day|days|week|weeks|month|months|year|years"
+)
+
+_SNIPPET_DATE_PATTERNS = [
+    # 1. Google / Bing prefix: 'Jul 1, 2026 ...', 'August 7, 2026 —', 'Jan 15, 2026 ·'
+    re.compile(
+        rf"^((?:{_MONTHS_PATTERN})\.?\s+\d{{1,2}},?\s+\d{{4}})\s*(?:\.\.\.|[-—–·|:]|\s{{2,}})\s*(.*)$",
+        re.IGNORECASE,
+    ),
+    # 2. Relative time prefix: '3 hours ago ...', '2 days ago -'
+    re.compile(
+        rf"^(\d+\s+(?:{_REL_UNITS_PATTERN})\s+ago)\s*(?:\.\.\.|[-—–·|:]|\s{{2,}})\s*(.*)$",
+        re.IGNORECASE,
+    ),
+    # 3. ISO date prefix: '2026-08-07 ...'
+    re.compile(r"^(\d{4}-\d{2}-\d{2})\s*(?:\.\.\.|[-—–·|:]|\s{2,})\s*(.*)$"),
+    # 4. News dateline: 'Jerusalem, Israel (February 10, 2026) Israel is...'
+    re.compile(
+        rf"^([A-Za-z\s,.\-\'/]+?)\s*\(((?:{_MONTHS_PATTERN})\s+\d{{1,2}},?\s+\d{{4}})\)\s*[-—–·:]?\s*(.*)$",
+        re.IGNORECASE,
+    ),
+]
+
+
+def _extract_snippet_date(snippet: str) -> tuple[Optional[str], str]:
+    """Extract leading published date from search snippet text if present.
+
+    Returns (date_str, cleaned_snippet).
+    """
+    if not snippet:
+        return None, snippet
+    s = snippet.strip()
+    for p in _SNIPPET_DATE_PATTERNS[:3]:
+        m = p.match(s)
+        if m:
+            date_str = m.group(1).strip()
+            rest = m.group(2).strip()
+            return date_str, rest
+    m = _SNIPPET_DATE_PATTERNS[3].match(s)
+    if m:
+        location = m.group(1).strip()
+        date_str = m.group(2).strip()
+        body = m.group(3).strip()
+        rest = f"{location} - {body}" if location else body
+        return date_str, rest
+    return None, snippet
+
+
 def search_searxng(
     config: ForageConfig,
     query: str,
@@ -309,6 +363,13 @@ def search_searxng(
         dom = extract_domain(u)
         fav = get_favicon_url(dom) if include_fav else None
         pub_date = _format_published_date(r.get("publishedDate") or r.get("pubdate") or r.get("published_date") or r.get("date"))
+
+        # Fallback: Extract high-confidence date prefix from snippet if SearXNG didn't provide publishedDate
+        if not pub_date and c:
+            extracted_date, clean_c = _extract_snippet_date(c)
+            if extracted_date:
+                pub_date = extracted_date
+                c = clean_c
 
         if len(c) > max_snippet_len:
             c = c[:max_snippet_len].rsplit(" ", 1)[0] + "... [TRUNCATED]"
