@@ -46,8 +46,8 @@ Bypass per request with the `Cache-Control: no-cache` header; the response heade
 |---|---|---|
 | `searxng_url` | `http://searxng:8080` | Base URL of the SearXNG instance. On Docker, use the service name on the shared network (see docs/SEARXNG.md). |
 | `default_lang` | `en-US` | Language passed to SearXNG. |
-| `engines` | `[google, bing, brave, duckduckgo, qwant]` | Default engine filter sent to SearXNG. |
-| `available_engines` | Auto-discovered from SearXNG (`GET /config`) | Active search engines on your SearXNG instance. Auto-discovered dynamically at runtime with fallback to built-in defaults. Used for validation, model guidance, and engine alias mapping. |
+| `default_engines` | `[google, bing, brave, duckduckgo, qwant]` | Default engine filter sent to SearXNG when no engine is requested by the model (legacy key: `engines`). |
+| `available_engines` | Auto-discovered from SearXNG (`GET /config`) | Active search engines on your SearXNG instance. Auto-discovered dynamically at runtime with fallback to built-in defaults. Not needed in `config.yaml` unless manually overriding live auto-discovery. |
 | `timeout` | `15` | Timeout in seconds per search request. |
 | `default_limit` | `10` | Default number of search results returned when limit is omitted in requests. |
 | `max_limit` | `50` | Maximum allowed search limit per query. |
@@ -175,7 +175,8 @@ Environment variables provide the highest precedence in configuration resolution
 | `FORAGE_CONFIG` | Config Loader | Path to YAML config file or mounted directory (default `/etc/forage/config.yaml`). |
 | `FORAGE_PROMPTS_CONFIG` | `prompts.prompts_path` | Standalone prompts YAML path or directory. Overrides `prompts.prompts_path`. |
 | `FORAGE_SEARXNG_URL` / `SEARXNG_URL` | `search.searxng_url` | Base URL of SearXNG instance (e.g. `http://searxng:8080`). |
-| `FORAGE_SEARCH_ENGINES` | `search.engines` | Comma-separated search engine filter (e.g. `google,bing,brave,qwant`). |
+| `FORAGE_DEFAULT_ENGINES` | `search.default_engines` | Comma-separated default engine filter (e.g. `google,bing,brave,qwant`). Legacy alias: `FORAGE_SEARCH_ENGINES`. |
+| `FORAGE_AVAILABLE_ENGINES` | `search.available_engines` | Comma-separated engine catalog to override live auto-discovery (optional; not needed unless overriding). |
 | `FORAGE_SEARCH_DEFAULT_LANG` | `search.default_lang` | Default search language code (e.g. `en-US`, `pt-BR`). |
 | `FORAGE_BROWSER_ENGINE` | `browser.engine` | Browser engine: `scrapling` (default), `playwright`, `patchright`, or `obscura`. |
 | `FORAGE_BROWSER_CDP_URL` | `browser.cdp_url` | Obscura CDP endpoint URL when `engine=obscura` (e.g. `http://obscura:9223`). |

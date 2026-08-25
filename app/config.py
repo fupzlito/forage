@@ -176,7 +176,7 @@ class ToolsConfig:
 
 @dataclass(frozen=True)
 class SearchConfig:
-    searxng_url: str = "http://host.docker.internal:8080"
+    searxng_url: str = "http://searxng:8080"
     default_lang: str = "en-US"
     engines: tuple = ("google", "bing", "brave", "duckduckgo", "qwant")
     available_engines: tuple = (
@@ -190,6 +190,10 @@ class SearchConfig:
     max_total_snippet_chars: int = 3000
     citation_style: str = "site_name"
     include_favicon: Optional[bool] = None
+
+    @property
+    def default_engines(self) -> tuple:
+        return self.engines
 
 
 @dataclass(frozen=True)
@@ -284,7 +288,10 @@ class ForageConfig:
         server = _filter_dataclass_dict(ServerConfig, data.get("server", {}))
         cache = data.get("cache", {})
         tools = _filter_dataclass_dict(ToolsConfig, data.get("tools", {}))
-        search = _filter_dataclass_dict(SearchConfig, data.get("search", {}))
+        search_data = dict(data.get("search", {}))
+        if "default_engines" in search_data and "engines" not in search_data:
+            search_data["engines"] = search_data["default_engines"]
+        search = _filter_dataclass_dict(SearchConfig, search_data)
         extract = _filter_dataclass_dict(ExtractConfig, data.get("extract", {}))
         browser = _filter_dataclass_dict(BrowserConfig, data.get("browser", {}))
         auth = _filter_dataclass_dict(AuthConfig, data.get("auth", {}))
@@ -382,6 +389,28 @@ class ForageConfig:
                 )
 
 
+def _filter_dataclass_dict(cls: Any, d: Dict[str, Any]) -> Dict[str, Any]:
+    """Return only the dictionary keys that match the dataclass fields."""
+    valid_fields = {f.name for f in fields(cls)}
+    return {k: v for k, v in d.items() if k in valid_fields}
+
+
+def _deep_merge_dict(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    """Recursively deep-merge dict `override` into `base`."""
+    out = dict(base)
+    for k, v in override.items():
+        if k in out and isinstance(out[k], dict) and isinstance(v, dict):
+            out[k] = _deep_merge_dict(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+
+def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    """Public deep merge function."""
+    return _deep_merge_dict(base, override)
+
+
 def _load_yaml(path: str) -> Dict[str, Any]:
     """Load a YAML file, returning {} when the file does not exist."""
     if not os.path.exists(path):
@@ -424,9 +453,12 @@ def _apply_env_overrides(merged: Dict[str, Any]) -> Dict[str, Any]:
     searxng_url = os.environ.get("FORAGE_SEARXNG_URL") or os.environ.get("SEARXNG_URL")
     if searxng_url:
         merged.setdefault("search", {})["searxng_url"] = searxng_url
-    if "FORAGE_SEARCH_ENGINES" in os.environ:
-        raw_engines = os.environ["FORAGE_SEARCH_ENGINES"]
-        merged.setdefault("search", {})["engines"] = [e.strip() for e in raw_engines.split(",") if e.strip()]
+    raw_default_engines = os.environ.get("FORAGE_DEFAULT_ENGINES") or os.environ.get("FORAGE_SEARCH_ENGINES")
+    if raw_default_engines is not None:
+        merged.setdefault("search", {})["engines"] = [e.strip() for e in raw_default_engines.split(",") if e.strip()]
+    if "FORAGE_AVAILABLE_ENGINES" in os.environ:
+        raw_avail = os.environ["FORAGE_AVAILABLE_ENGINES"]
+        merged.setdefault("search", {})["available_engines"] = [e.strip() for e in raw_avail.split(",") if e.strip()]
     if "FORAGE_SEARCH_DEFAULT_LANG" in os.environ:
         merged.setdefault("search", {})["default_lang"] = os.environ["FORAGE_SEARCH_DEFAULT_LANG"]
 

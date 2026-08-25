@@ -188,6 +188,25 @@ class TestSearXNG(unittest.TestCase):
         config = ForageConfig.from_dict(raw_dict, source_path="test")
         self.assertEqual(config.search.engines, ("google", "bing"))
 
+    def test_default_engines_and_legacy_engines_backwards_compatibility(self):
+        """Verify that legacy 'engines:' and new 'default_engines:' both work identically."""
+        # 1. Test legacy 'engines:' key in YAML dict
+        cfg_legacy = ForageConfig.from_dict({"search": {"engines": ["google", "bing"]}}, source_path="test")
+        self.assertEqual(cfg_legacy.search.engines, ("google", "bing"))
+        self.assertEqual(cfg_legacy.search.default_engines, ("google", "bing"))
+
+        # 2. Test new 'default_engines:' key in YAML dict
+        cfg_new = ForageConfig.from_dict({"search": {"default_engines": ["duckduckgo", "brave"]}}, source_path="test")
+        self.assertEqual(cfg_new.search.engines, ("duckduckgo", "brave"))
+        self.assertEqual(cfg_new.search.default_engines, ("duckduckgo", "brave"))
+
+        # 3. Test legacy FORAGE_SEARCH_ENGINES env var
+        import os
+        with patch.dict(os.environ, {"FORAGE_SEARCH_ENGINES": "qwant,startpage"}, clear=False):
+            cfg_env = load_config()
+            self.assertEqual(cfg_env.search.engines, ("qwant", "startpage"))
+            self.assertEqual(cfg_env.search.default_engines, ("qwant", "startpage"))
+
     def test_env_variable_overrides(self):
         """Verify environment variables override default and YAML configuration."""
         import os
@@ -195,7 +214,8 @@ class TestSearXNG(unittest.TestCase):
             "FORAGE_PORT": "4000",
             "FORAGE_LOG_LEVEL": "debug",
             "FORAGE_SEARXNG_URL": "http://custom-searxng:8080",
-            "FORAGE_SEARCH_ENGINES": "bing,brave",
+            "FORAGE_DEFAULT_ENGINES": "bing,brave",
+            "FORAGE_AVAILABLE_ENGINES": "bing,brave,wikipedia,github",
             "FORAGE_BROWSER_ENGINE": "scrapling",
             "FORAGE_EXTRACT_ENGINE": "readability",
             "FORAGE_REQUIRE_MAX_CHARS": "true",
@@ -207,6 +227,8 @@ class TestSearXNG(unittest.TestCase):
             self.assertEqual(cfg.server.log_level, "debug")
             self.assertEqual(cfg.search.searxng_url, "http://custom-searxng:8080")
             self.assertEqual(cfg.search.engines, ("bing", "brave"))
+            self.assertEqual(cfg.search.default_engines, ("bing", "brave"))
+            self.assertEqual(cfg.search.available_engines, ("bing", "brave", "wikipedia", "github"))
             self.assertEqual(cfg.browser.engine, "scrapling")
             self.assertEqual(cfg.extract.engine, "readability")
             self.assertTrue(cfg.extract.require_max_chars)

@@ -286,7 +286,8 @@ All settings can be dynamically overridden via Docker environment variables with
 | `FORAGE_CONFIG` | Config YAML file or directory path inside container | `/etc/forage/config.yaml` |
 | `FORAGE_PROMPTS_CONFIG` | Prompts YAML file or directory path inside container | `/etc/forage/prompts.yaml` |
 | `FORAGE_SEARXNG_URL` | SearXNG backend service URL | `http://searxng:8080` |
-| `FORAGE_SEARCH_ENGINES` | Comma-separated search engine filter | `google,bing,brave,duckduckgo,qwant` |
+| `FORAGE_DEFAULT_ENGINES` | Comma-separated default engine filter when no engine is specified | `google,bing,brave,duckduckgo,qwant` |
+| `FORAGE_AVAILABLE_ENGINES` | Comma-separated engine catalog (optional; overrides auto-discovery) | *Auto-discovered from SearXNG* |
 | `FORAGE_BROWSER_ENGINE` | Browser engine (`scrapling`, `playwright`, `patchright`, `obscura`) | `scrapling` |
 | `FORAGE_EXTRACT_ENGINE` | Markdown extraction engine (`trafilatura`, `readability`) | `trafilatura` |
 | `FORAGE_REQUIRE_MAX_CHARS` | Require LLMs to specify character budgets (`true`/`false`) | `false` |

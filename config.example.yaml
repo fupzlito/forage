@@ -34,9 +34,9 @@ tools:
 search:
   searxng_url: http://searxng:8080   # SearXNG instance URL (see docs/SEARXNG.md)
   default_lang: en-US                # default search language
-  engines: [google, bing, brave, duckduckgo, qwant]  # default engine filter (when no engine is requested)
+  default_engines: [google, bing, brave, duckduckgo, qwant] # engines queried when none are specified by model
   # available_engines: auto-discovered live from SearXNG GET /config.
-  # Uncomment only if you want a custom offline fallback list:
+  # (Not needed unless manually overriding live auto-discovery)
   # available_engines: [google, qwant, qwant news, brave, bing, startpage, duckduckgo, reddit, wikipedia, youtube, github, searxng, yahoo, wikidata]
   timeout: 15              # seconds per search
   default_limit: 10        # default results returned
