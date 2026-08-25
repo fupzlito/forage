@@ -139,12 +139,8 @@ DEFAULT_AVAILABLE_ENGINES = (
     "google", "qwant", "qwant news", "brave", "bing", "startpage", "duckduckgo", "reddit",
     "wikipedia", "youtube", "github", "searxng", "yahoo", "wikidata"
 )
-TEXT_SEARCH_CATEGORIES = {
-    "general", "news", "it", "science", "scientific publications",
-    "social media", "social_media", "q&a", "web", "software wikis", "repos", "blogs", "books", "dictionaries"
-}
-NON_TEXT_CATEGORIES = {"images", "videos", "music", "audio", "files", "map", "radio", "weather", "icons", "currency", "translate"}
-NON_TEXT_SUFFIXES = (".images", ".videos", ".audio", ".files", " images", " videos", " audio", " music", " weather")
+# Suffixes for sub-engine scrapers (e.g. image/audio banks) to keep text prompt concise
+NON_TEXT_SUFFIXES = (".images", ".audio", ".files", " images", " audio")
 
 _cached_available_engines: Optional[Tuple[str, ...]] = None
 _cached_general_engines: Optional[Tuple[str, ...]] = None
@@ -152,9 +148,10 @@ _last_engine_fetch: float = 0.0
 
 
 def fetch_searxng_engines_sync(searxng_url: str, timeout: float = 2.0) -> Tuple[Tuple[str, ...], Tuple[str, ...]]:
-    """Query SearXNG GET /config synchronously to discover active text/web engines and default category engines.
+    """Query SearXNG GET /config synchronously to discover active general search engines.
 
-    Filters out media/torrent/package/map engines to keep tool descriptions and prompt context concise.
+    Discovers engines with 'enabled: true' assigned to SearXNG's 'general' category,
+    filtering out media sub-engine scrapers and translation tools.
 
     Returns:
         (available_engines_tuple, general_category_engines_tuple)
@@ -174,10 +171,10 @@ def fetch_searxng_engines_sync(searxng_url: str, timeout: float = 2.0) -> Tuple[
                     if name and is_enabled:
                         categories = [c.lower().strip() for c in e.get("categories", [])]
                         is_general_cat = "general" in categories or not categories
-                        is_media_cat = any(cat in NON_TEXT_CATEGORIES for cat in categories)
+                        is_translate = "translate" in categories or "currency" in categories
                         is_media_name = any(name.lower().endswith(sfx) for sfx in NON_TEXT_SUFFIXES)
 
-                        if is_general_cat and not is_media_cat and not is_media_name:
+                        if is_general_cat and not is_translate and not is_media_name:
                             available.append(name)
                             general.append(name)
                 elif isinstance(e, str) and e:

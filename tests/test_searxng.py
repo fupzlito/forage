@@ -279,13 +279,14 @@ class TestSearXNG(unittest.TestCase):
                 {"name": "wikipedia", "categories": ["general"], "enabled": False},
                 {"name": "github", "categories": ["it"], "enabled": True},
                 {"name": "duckduckgo", "categories": ["general"], "enabled": True},
+                {"name": "youtube", "categories": ["videos", "general"], "enabled": True},
             ]
         }
         mock_get.return_value = mock_resp
 
         avail, gen = fetch_searxng_engines_sync("http://mock-searxng:8080")
-        self.assertEqual(avail, ("google", "bing", "duckduckgo"))
-        self.assertEqual(gen, ("google", "bing", "duckduckgo"))
+        self.assertEqual(avail, ("google", "bing", "duckduckgo", "youtube"))
+        self.assertEqual(gen, ("google", "bing", "duckduckgo", "youtube"))
 
     @patch("httpx.get")
     def test_get_live_available_engines_fallback(self, mock_get):
