@@ -244,11 +244,14 @@ async def execute_tool_call(
 
         results = res.get("results", [])
         warning = res.get("warning")
-        engines_ok = res.get("successful_engines", [])
+        engines_ok = res.get("returned_engines") or res.get("successful_engines")
 
         header_parts = [f'SEARCH RESULTS for "{query}" | {res.get("searched_at", res.get("timestamp", ""))}']
         if engines_ok:
-            header_parts.append(f"Engines: {', '.join(engines_ok)}")
+            if isinstance(engines_ok, list):
+                header_parts.append(f"Engines: {', '.join(engines_ok)}")
+            else:
+                header_parts.append(f"Engines: {engines_ok}")
 
         include_fav = config.search.include_favicon if getattr(config.search, "include_favicon", None) is not None else getattr(config.tools, "include_favicon", False)
 
@@ -273,9 +276,10 @@ async def execute_tool_call(
             "results": results,
             "formatted_text": output_text,
             "warning": warning,
-            "successful_engines": res.get("successful_engines"),
+            "returned_engines": res.get("returned_engines"),
             "unresponsive_engines": res.get("unresponsive_engines"),
-            "used_engines": res.get("used_engines"),
+            "requested_engines": res.get("requested_engines"),
+            "all_engines": res.get("all_engines"),
         }
 
     elif name == extract_name or name == "web_extract":

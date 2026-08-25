@@ -225,7 +225,7 @@ def search_searxng(
             "success": False,
             "error": f"SearXNG returned HTTP {exc.response.status_code}. Do not hammer search; wait or try alternative query terms.",
             "retryable": False,
-            "available_engines": list(config.search.available_engines),
+            "all_engines": ", ".join(config.search.available_engines),
         }
     except httpx.RequestError as exc:
         logger.warning("SearXNG request error: %s", exc)
@@ -233,7 +233,7 @@ def search_searxng(
             "success": False,
             "error": f"Could not reach SearXNG at {base} (timeout or network error): {exc}. Avoid rapid repeated retries.",
             "retryable": False,
-            "available_engines": list(config.search.available_engines),
+            "all_engines": ", ".join(config.search.available_engines),
         }
 
     try:
@@ -249,10 +249,13 @@ def search_searxng(
         for item in raw_unresponsive\
     ]
 
-    # Identify engines that successfully returned data vs unresponsive
+    # Identify engines that returned data vs unresponsive
     unresponsive_set = {u["engine"].lower() for u in unresponsive_engines}
     engines_with_data = {r.get("engine", "").lower() for r in raw_results if r.get("engine")}
-    successful_engines = sorted(list(engines_with_data or ({e for e in validated_engines if e not in unresponsive_set})))
+    if raw_results:
+        successful_engines = sorted(list(engines_with_data or ({e for e in validated_engines if e not in unresponsive_set})))
+    else:
+        successful_engines = []
 
     searched_at = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
     default_lim = getattr(config.search, "default_limit", 10)
@@ -303,16 +306,19 @@ def search_searxng(
 
         unified_results.append(item)
 
-    # Formulate explicit model guidance warning if empty or unresponsive
+    # Format single-line string representations
+    returned_engines_str = ", ".join(successful_engines)
+    unresponsive_str = "; ".join(f"{u['engine']} - {u['reason']}" for u in unresponsive_engines) if unresponsive_engines else None
+    requested_engines_str = ", ".join(validated_engines)
+    all_engines_str = ", ".join(config.search.available_engines)
+
+    # Formulate deduplicated model guidance warning without listing engines
     warnings: List[str] = []
     if engine_warning:
         warnings.append(engine_warning)
 
-    if unresponsive_engines:
-        unresponsive_summary = ", ".join(f"{u['engine']} ({u['reason']})" for u in unresponsive_engines)
-        warnings.append(f"Unresponsive engines (failed/CAPTCHA'd): {unresponsive_summary}.")
-        if successful_engines:
-            warnings.append(f"Results were retrieved ONLY from working engine(s): {successful_engines}. Results may be off-topic or limited.")
+    if unresponsive_engines and sorted_results:
+        warnings.append("Some requested search engines failed or were unresponsive; results may be limited or skewed.")
 
     if not sorted_results:
         if unresponsive_engines:
@@ -325,10 +331,10 @@ def search_searxng(
     return {
         "success": True,
         "searched_at": searched_at,
-        "successful_engines": successful_engines,
+        "returned_engines": returned_engines_str,
         "warning": combined_warning,
         "results": unified_results,
-        "unresponsive_engines": unresponsive_engines,
-        "used_engines": validated_engines,
-        "available_engines": list(config.search.available_engines),
+        "unresponsive_engines": unresponsive_str,
+        "requested_engines": requested_engines_str,
+        "all_engines": all_engines_str,
     }

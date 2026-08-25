@@ -101,8 +101,11 @@ class TestSearXNG(unittest.TestCase):
         self.assertTrue(res["success"])
         self.assertEqual(len(res["results"]), 0)
         self.assertIsNotNone(res["warning"])
-        self.assertIn("google (Timeout)", res["warning"])
         self.assertIn("Do NOT hammer", res["warning"])
+        self.assertEqual(res["unresponsive_engines"], "google - Timeout; bing - HTTP 429")
+        self.assertEqual(res["returned_engines"], "")
+        self.assertIn("google", res["requested_engines"])
+        self.assertIn("google", res["all_engines"])
 
     def test_unknown_config_keys_ignored(self):
         raw_dict = {
