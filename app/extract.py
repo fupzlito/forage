@@ -690,10 +690,13 @@ async def extract_url(
     effective_main = only_main_content and not bool(override and override.full_text)
     effective_scroll = bool(override and override.scroll)
     # Extract engine: request-level is absolute; then the domain override;
+    # then Reddit default ("readability", required for custom <shreddit-comment> components);
     # then the global default ("trafilatura").
+    is_reddit = "reddit.com" in url.lower() or "safereddit.com" in url.lower()
     effective_engine = (
         engine
         or (override.engine if override is not None else None)
+        or ("readability" if is_reddit else None)
         or config.extract.engine
     )
     effective_readability = effective_engine == "readability"
@@ -724,14 +727,12 @@ async def extract_url(
             return doc_result
 
     # Reddit 3-tier fast path: Tier 1 (.json) -> Tier 2 (Redlib mirror) -> Tier 3 (browser fallback).
-    # Always attempt the lightweight Reddit pipeline before launching a heavy browser session,
-    # unless force_render was explicitly requested at the request level.
-    if not force_render:
-        reddit_result = await _try_reddit_extract(config, url, effective_timeout)
-        if reddit_result is not None:
-            reddit_result["url"] = original_url
-            reddit_result["citation"] = f"[Source: {reddit_result['title']}]({original_url})"
-            return reddit_result
+    # Always attempt the lightweight Reddit pipeline before launching a heavy browser session.
+    reddit_result = await _try_reddit_extract(config, url, effective_timeout)
+    if reddit_result is not None:
+        reddit_result["url"] = original_url
+        reddit_result["citation"] = f"[Source: {reddit_result['title']}]({original_url})"
+        return reddit_result
 
     # The extract engine (trafilatura vs readability) applies ONLY to browser
     # renders. It must NOT force the browser: pages that extract fine with
