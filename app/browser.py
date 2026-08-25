@@ -90,7 +90,7 @@ def _readability_eval() -> str:
         "      var meta = ['Score: ' + score];\n"
         "      if (timeStr) meta.push(timeStr);\n"
         "      var opStr = isOp ? ' [OP]' : '';\n"
-        "      var hTag = depth === 0 ? 'h3' : 'h4';\n"
+        "      var hTag = 'h' + Math.min(6, 3 + depth);\n"
         "      var header = document.createElement(hTag);\n"
         "      header.innerHTML = '<strong>u/' + author + '</strong>' + opStr + ' (' + meta.join(' | ') + ')';\n"
         "      el.prepend(header);\n"
