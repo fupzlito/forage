@@ -47,7 +47,7 @@ Bypass per request with the `Cache-Control: no-cache` header; the response heade
 | `searxng_url` | `http://searxng:8080` | Base URL of the SearXNG instance. On Docker, use the service name on the shared network (see docs/SEARXNG.md). |
 | `default_lang` | `en-US` | Language passed to SearXNG. |
 | `engines` | `[google, bing, brave, duckduckgo, qwant]` | Default engine filter sent to SearXNG. |
-| `available_engines` | `[google, qwant, qwant news, brave, bing, startpage, duckduckgo, reddit, wikipedia, youtube, github, searxng, yahoo, wikidata]` | List of enabled search engines on your SearXNG instance. Used for validation, model guidance, and engine alias mapping. |
+| `available_engines` | Auto-discovered from SearXNG (`GET /config`) | Active search engines on your SearXNG instance. Auto-discovered dynamically at runtime with fallback to built-in defaults. Used for validation, model guidance, and engine alias mapping. |
 | `timeout` | `15` | Timeout in seconds per search request. |
 | `default_limit` | `10` | Default number of search results returned when limit is omitted in requests. |
 | `max_limit` | `50` | Maximum allowed search limit per query. |
