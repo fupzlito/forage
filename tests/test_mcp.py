@@ -83,7 +83,13 @@ class TestMCPAndOpenAIEndpoints(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         search_op = data["paths"]["/search"]["post"]
+        extract_op = data["paths"]["/extract"]["post"]
         self.assertEqual(search_op["operationId"], "web_search")
+        self.assertEqual(extract_op["operationId"], "web_extract")
+        self.assertIn("Search the web via SearXNG", search_op["description"])
+        self.assertIn("CITATION RULES", search_op["description"])
+        self.assertIn("Fetch and extract clean markdown", extract_op["description"])
+        self.assertIn("CITATION RULES", extract_op["description"])
 
     @patch("app.mcp.extract_url", new_callable=AsyncMock)
     def test_mcp_tools_call_extract_require_max_chars(self, mock_extract):

@@ -167,15 +167,39 @@ def custom_openapi():
         routes=app.routes,
     )
     paths = openapi_schema.get("paths", {})
+    components = openapi_schema.get("components", {})
+    schemas = components.get("schemas", {})
+
+    from .mcp import get_tool_definitions
+
+    tools_def = get_tool_definitions(config)
     search_name = config.tools.search_name
     extract_name = config.tools.extract_name
+
+    search_def = next((t for t in tools_def if t["name"] == search_name), None)
+    extract_def = next((t for t in tools_def if t["name"] == extract_name), None)
 
     if "/search" in paths and "post" in paths["/search"]:
         paths["/search"]["post"]["operationId"] = search_name
         paths["/search"]["post"]["summary"] = "Web Search"
+        if search_def:
+            paths["/search"]["post"]["description"] = search_def["description"]
+        if search_def and "SearchRequest" in schemas:
+            for prop_name, prop_spec in search_def["inputSchema"].get("properties", {}).items():
+                if prop_name in schemas["SearchRequest"].get("properties", {}):
+                    if "description" in prop_spec:
+                        schemas["SearchRequest"]["properties"][prop_name]["description"] = prop_spec["description"]
+
     if "/extract" in paths and "post" in paths["/extract"]:
         paths["/extract"]["post"]["operationId"] = extract_name
         paths["/extract"]["post"]["summary"] = "Web Extract"
+        if extract_def:
+            paths["/extract"]["post"]["description"] = extract_def["description"]
+        if extract_def and "ExtractRequest" in schemas:
+            for prop_name, prop_spec in extract_def["inputSchema"].get("properties", {}).items():
+                if prop_name in schemas["ExtractRequest"].get("properties", {}):
+                    if "description" in prop_spec:
+                        schemas["ExtractRequest"]["properties"][prop_name]["description"] = prop_spec["description"]
 
     app.openapi_schema = openapi_schema
     return app.openapi_schema
