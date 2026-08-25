@@ -375,10 +375,10 @@ class BrowserPool:
                     pass
             if steps > 0:
                 await self._scroll_to_bottom(page, steps)
-            elif "reddit.com" in url.lower():
+            if readability and "reddit.com" in url.lower():
                 try:
                     await page.wait_for_selector("shreddit-comment, #comment-tree, div[slot='comments']", timeout=4000)
-                except Exception:
+                except Exception:  # noqa: BLE001
                     pass
             if readability:
                 article = _parse_readability(await page.evaluate(_readability_eval()))
@@ -442,10 +442,10 @@ class BrowserPool:
                     pass
             if scroll_steps > 0:
                 await self._scroll_to_bottom(page, scroll_steps)
-            elif "reddit.com" in url.lower():
+            if readability and "reddit.com" in url.lower():
                 try:
                     await page.wait_for_selector("shreddit-comment, #comment-tree, div[slot='comments']", timeout=4000)
-                except Exception:
+                except Exception:  # noqa: BLE001
                     pass
             if readability:
                 article = _parse_readability(await page.evaluate(_readability_eval()))
@@ -538,10 +538,10 @@ class BrowserPool:
                     pass
             if scroll_steps > 0:
                 await self._scroll_to_bottom(page, scroll_steps)
-            elif "reddit.com" in url.lower():
+            if readability and "reddit.com" in url.lower():
                 try:
                     await page.wait_for_selector("shreddit-comment, #comment-tree, div[slot='comments']", timeout=4000)
-                except Exception:
+                except Exception:  # noqa: BLE001
                     pass
             if readability:
                 try:

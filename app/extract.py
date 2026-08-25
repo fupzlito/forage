@@ -737,12 +737,12 @@ async def extract_url(
     effective_wait_for = wait_for if wait_for is not None else (
         override.wait_for if override is not None else None
     )
-    is_reddit = "reddit.com" in url.lower() or "safereddit.com" in url.lower()
-    effective_main = False if is_reddit else (only_main_content and not bool(override and override.full_text))
-    effective_scroll = bool(override and override.scroll) or is_reddit
+    effective_main = only_main_content and not bool(override and override.full_text)
+    effective_scroll = bool(override and override.scroll)
     # Extract engine: request-level is absolute; then the domain override;
     # then Reddit default ("readability", required for custom <shreddit-comment> components);
     # then the global default ("trafilatura").
+    is_reddit = "reddit.com" in url.lower() or "safereddit.com" in url.lower()
     effective_engine = (
         engine
         or (override.engine if override is not None else None)
