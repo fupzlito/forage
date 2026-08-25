@@ -169,9 +169,10 @@ curl -N -X POST http://localhost:3672/v1/chat/completions \
 ### 5. OpenWebUI & MCP Integration
 
 Connect OpenWebUI directly using either:
+- **Native MCP (Streamable HTTP)**: `http://forage:3672/mcp`
 - **OpenAI Compatible Tool Server**: `http://forage:3672/v1` (with full streaming support)
-- **MCP Server**: `http://forage:3672/mcp/sse`
 - **OpenAPI Tool**: Import `http://forage:3672/openapi.json`
+- **MCP SSE (Claude Desktop / Cursor / Cline)**: `http://forage:3672/mcp/sse`
 
 ---
 
