@@ -44,7 +44,14 @@ def _get_config_and_pool(request: Request):
 def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
     """Return JSON schemas for MCP and OpenAI API tools."""
     from datetime import datetime, timezone
-    from .prompts import render_prompt
+    from .prompts import (
+        DEFAULT_CITATION_GUIDELINES,
+        DEFAULT_EXTRACT_PARAMS,
+        DEFAULT_EXTRACT_TOOL_DESCRIPTION,
+        DEFAULT_SEARCH_PARAMS,
+        DEFAULT_SEARCH_TOOL_DESCRIPTION,
+        render_prompt,
+    )
 
     search_name = config.tools.search_name
     extract_name = config.tools.extract_name
@@ -64,18 +71,22 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
         "max_content_chars": config.extract.max_content_chars,
         "min_chars": 500,
         "max_chars_requirement": req_label,
-        "citation_guidelines": config.prompts.citation_guidelines,
+        "citation_guidelines": config.prompts.citation_guidelines or DEFAULT_CITATION_GUIDELINES,
     }
 
     # Render reusable citation guidelines with context if template variables are inside it
-    rendered_citations = render_prompt(config.prompts.citation_guidelines, context)
+    citation_template = config.prompts.citation_guidelines if config.prompts.citation_guidelines else DEFAULT_CITATION_GUIDELINES
+    rendered_citations = render_prompt(citation_template, context)
     context["citation_guidelines"] = rendered_citations
 
-    search_desc = render_prompt(config.prompts.search_tool_description, context)
-    extract_desc = render_prompt(config.prompts.extract_tool_description, context)
+    search_template = config.prompts.search_tool_description if config.prompts.search_tool_description else DEFAULT_SEARCH_TOOL_DESCRIPTION
+    extract_template = config.prompts.extract_tool_description if config.prompts.extract_tool_description else DEFAULT_EXTRACT_TOOL_DESCRIPTION
 
-    search_params = config.prompts.search_params or {}
-    extract_params = config.prompts.extract_params or {}
+    search_desc = render_prompt(search_template, context)
+    extract_desc = render_prompt(extract_template, context)
+
+    search_params = {**DEFAULT_SEARCH_PARAMS, **(config.prompts.search_params or {})}
+    extract_params = {**DEFAULT_EXTRACT_PARAMS, **(config.prompts.extract_params or {})}
 
     search_schema = {
         "type": "object",

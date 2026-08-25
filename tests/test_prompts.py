@@ -27,7 +27,18 @@ class TestPrompts(unittest.TestCase):
         self.assertIn("Search the web via SearXNG", search_tool["description"])
         self.assertIn("year 2026", search_tool["description"])
         self.assertIn("CITATION RULES", search_tool["description"])
+    def test_empty_prompts_config_renders_full_defaults(self):
+        # Empty prompts dictionary should still render rich default descriptions with citation rules
+        config = ForageConfig.from_dict({}, source_path="test")
+        tools = get_tool_definitions(config)
+        self.assertEqual(len(tools), 2)
+        search_tool = next(t for t in tools if t["name"] == "web_search")
+        extract_tool = next(t for t in tools if t["name"] == "web_extract")
+
+        self.assertIn("Search the web via SearXNG", search_tool["description"])
+        self.assertIn("CITATION RULES", search_tool["description"])
         self.assertIn("Fetch and extract clean markdown", extract_tool["description"])
+        self.assertIn("CITATION RULES", extract_tool["description"])
 
     def test_custom_prompt_override(self):
         raw_dict = {
