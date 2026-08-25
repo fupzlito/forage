@@ -50,8 +50,8 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
     extract_name = config.tools.extract_name
     default_engines_str = ", ".join(config.search.engines)
     available_engines_str = ", ".join(config.search.available_engines)
-    now_dt = datetime.now(timezone.utc)
-    now_date = now_dt.strftime("%Y-%m-%d %H:%M UTC")
+    now_dt = datetime.now().astimezone()
+    now_date = now_dt.strftime("%Y-%m-%d %H:%M %Z")
     year = str(now_dt.year)
 
     context = {
@@ -341,8 +341,8 @@ async def execute_tool_call(
 
         formatted_blocks = []
         ok_count = sum(1 for r in extracted if "error" not in r)
-        from datetime import datetime as _dt, timezone as _tz
-        _now = _dt.now(_tz.utc).strftime("%Y-%m-%d %H:%M UTC")
+        from datetime import datetime as _dt
+        _now = _dt.now().astimezone().strftime("%Y-%m-%d %H:%M %Z")
         formatted_blocks.append(f"EXTRACTED {ok_count} of {len(urls)} URLs | {_now}\n---")
 
         include_fav = config.extract.include_favicon if getattr(config.extract, "include_favicon", None) is not None else getattr(config.tools, "include_favicon", False)

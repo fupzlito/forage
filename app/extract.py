@@ -846,7 +846,7 @@ async def extract_url(
     domain = extract_domain(original_url)
     include_fav = config.extract.include_favicon if getattr(config.extract, "include_favicon", None) is not None else getattr(config.tools, "include_favicon", False)
     favicon = get_favicon_url(domain) if include_fav else None
-    extracted_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    extracted_at = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
     cit_style = getattr(config.extract, "citation_style", "site_name")
     citation_markdown = format_citation(title, domain, original_url, position=position, style=cit_style)
 

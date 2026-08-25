@@ -254,7 +254,7 @@ def search_searxng(
     engines_with_data = {r.get("engine", "").lower() for r in raw_results if r.get("engine")}
     successful_engines = sorted(list(engines_with_data or ({e for e in validated_engines if e not in unresponsive_set})))
 
-    now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    searched_at = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
     default_lim = getattr(config.search, "default_limit", 10)
     max_lim = getattr(config.search, "max_limit", 50)
     requested_limit = limit if limit is not None else default_lim
@@ -324,7 +324,7 @@ def search_searxng(
 
     return {
         "success": True,
-        "searched_at": now_utc,
+        "searched_at": searched_at,
         "successful_engines": successful_engines,
         "warning": combined_warning,
         "results": unified_results,
