@@ -41,7 +41,7 @@ DEFAULTS: Dict[str, Any] = {
     "search": {
         "searxng_url": "http://searxng:8080",
         "default_lang": "en-US",
-        "engines": ["google", "qwant", "brave", "bing", "duckduckgo", "startpage", "reddit"],
+        "engines": ["google", "bing", "brave", "duckduckgo", "qwant"],
         "available_engines": [
             "google", "qwant", "qwant news", "brave", "bing", "startpage", "duckduckgo", "reddit",
             "wikipedia", "youtube", "github", "searxng", "yahoo", "wikidata"
@@ -178,7 +178,7 @@ class ToolsConfig:
 class SearchConfig:
     searxng_url: str = "http://host.docker.internal:8080"
     default_lang: str = "en-US"
-    engines: tuple = ("google", "qwant", "brave", "bing", "duckduckgo", "startpage", "reddit")
+    engines: tuple = ("google", "bing", "brave", "duckduckgo", "qwant")
     available_engines: tuple = (
         "google", "qwant", "qwant news", "brave", "bing", "startpage", "duckduckgo", "reddit",
         "wikipedia", "youtube", "github", "searxng", "yahoo", "wikidata"
