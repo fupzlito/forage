@@ -426,7 +426,7 @@ class BrowserPool:
             )
             if wait_for:
                 await page.wait_for_selector(wait_for, timeout=timeout * 1000)
-            else:
+            elif idle_cap > 0 and not any(d in url.lower() for d in ("reddit.com", "x.com", "twitter.com")):
                 try:
                     await page.wait_for_load_state(
                         "networkidle",
@@ -505,7 +505,7 @@ class BrowserPool:
             )
             if wait_for:
                 await page.wait_for_selector(wait_for, timeout=timeout * 1000)
-            else:
+            elif idle_cap > 0 and not any(d in url.lower() for d in ("reddit.com", "x.com", "twitter.com")):
                 try:
                     await page.wait_for_load_state(
                         "networkidle",
@@ -620,7 +620,7 @@ class BrowserPool:
                 if not any(c in title for c in CHALLENGE_TITLES):
                     break
                 await page.wait_for_timeout(1000)
-            if idle_cap > 0:
+            if idle_cap > 0 and not any(d in url.lower() for d in ("reddit.com", "x.com", "twitter.com")):
                 try:
                     await page.wait_for_load_state(
                         "networkidle",
@@ -742,7 +742,7 @@ class BrowserPool:
                     await page.context.add_cookies(cookie_list)
                 except Exception:  # noqa: BLE001
                     pass
-            if idle_cap > 0:
+            if idle_cap > 0 and not any(d in url.lower() for d in ("reddit.com", "x.com", "twitter.com")):
                 try:
                     await page.wait_for_load_state(
                         "networkidle",

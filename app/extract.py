@@ -650,16 +650,21 @@ async def _try_reddit_extract(
             json_url = f"https://www.reddit.com{clean_path}?raw_json=1"
 
         headers = {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://www.reddit.com/",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-User": "?1",
         }
         if extra_headers:
             headers.update(extra_headers)
 
         try:
             await _throttle_reddit_request()
-            async with httpx.AsyncClient(timeout=min(timeout, 10), headers=headers, cookies=cookies, follow_redirects=True) as client:
+            async with httpx.AsyncClient(timeout=min(timeout, 8), headers=headers, cookies=cookies, follow_redirects=True) as client:
                 resp = await client.get(json_url)
                 if resp.status_code in (403, 429):
                     _set_reddit_json_cooldown(30.0)
@@ -700,7 +705,7 @@ async def _try_reddit_extract(
 
     try:
         await _throttle_reddit_request()
-        async with httpx.AsyncClient(timeout=min(timeout, 10), headers=headers, cookies=cookies, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=min(timeout, 4), headers=headers, cookies=cookies, follow_redirects=True) as client:
             mresp = await client.get(mirror_url)
             if mresp.status_code == 404:
                 return {
