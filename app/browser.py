@@ -98,8 +98,9 @@ def _readability_eval() -> str:
         "    });\n"
         "    document.querySelectorAll('div[slot=\"creditBar\"], shreddit-comment-action-row').forEach(function(el) { el.remove(); });\n"
         "    var postEl = document.querySelector('shreddit-post, div[data-testid=\"post-container\"], div[id^=\"t3_\"]');\n"
-        "    var treeEl = document.querySelector('shreddit-comment-tree, #comment-tree, div[slot=\"comments\"], [slot=\"comments\"]');\n"
-        "    if (postEl && treeEl && postEl.parentNode) {\n"
+        "    var treeEl = document.querySelector('shreddit-comment-tree, #comment-tree, div[slot=\"comments\"], [slot=\"comments\"], shreddit-async-loader[bundlename=\"comment_tree\"]');\n"
+        "    var comments = document.querySelectorAll('shreddit-comment');\n"
+        "    if (postEl && (treeEl || comments.length > 0) && postEl.parentNode) {\n"
         "      var wrapper = document.createElement('article');\n"
         "      wrapper.id = 'forage-reddit-thread';\n"
         "      postEl.parentNode.insertBefore(wrapper, postEl);\n"
@@ -107,7 +108,13 @@ def _readability_eval() -> str:
         "      var heading = document.createElement('h2');\n"
         "      heading.textContent = 'Comments';\n"
         "      wrapper.appendChild(heading);\n"
-        "      wrapper.appendChild(treeEl);\n"
+        "      if (treeEl) {\n"
+        "        wrapper.appendChild(treeEl);\n"
+        "      } else {\n"
+        "        var commentContainer = document.createElement('div');\n"
+        "        comments.forEach(function(c) { commentContainer.appendChild(c); });\n"
+        "        wrapper.appendChild(commentContainer);\n"
+        "      }\n"
         "    }\n"
         "  }\n"
         "} catch(e) {}\n"
@@ -385,7 +392,7 @@ class BrowserPool:
                 await self._scroll_to_bottom(page, steps)
             if readability and "reddit.com" in url.lower():
                 try:
-                    await page.wait_for_selector("shreddit-comment, #comment-tree, div[slot='comments']", timeout=4000)
+                    await page.wait_for_selector("shreddit-comment, shreddit-comment-tree, #comment-tree, div[slot='comments'], shreddit-async-loader", timeout=5000)
                 except Exception:  # noqa: BLE001
                     pass
             if readability:
@@ -458,7 +465,7 @@ class BrowserPool:
                 await self._scroll_to_bottom(page, scroll_steps)
             if readability and "reddit.com" in url.lower():
                 try:
-                    await page.wait_for_selector("shreddit-comment, #comment-tree, div[slot='comments']", timeout=4000)
+                    await page.wait_for_selector("shreddit-comment, shreddit-comment-tree, #comment-tree, div[slot='comments'], shreddit-async-loader", timeout=5000)
                 except Exception:  # noqa: BLE001
                     pass
             if readability:
@@ -567,7 +574,7 @@ class BrowserPool:
                 await self._scroll_to_bottom(page, scroll_steps)
             if readability and "reddit.com" in url.lower():
                 try:
-                    await page.wait_for_selector("shreddit-comment, #comment-tree, div[slot='comments']", timeout=4000)
+                    await page.wait_for_selector("shreddit-comment, shreddit-comment-tree, #comment-tree, div[slot='comments'], shreddit-async-loader", timeout=5000)
                 except Exception:  # noqa: BLE001
                     pass
             if readability:
