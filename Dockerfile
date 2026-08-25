@@ -17,9 +17,11 @@ RUN pip install --no-cache-dir -r requirements.txt \
 # Application code & templates
 COPY app/ app/
 COPY config.example.yaml config.example.yaml
+COPY prompts.example.yaml prompts.example.yaml
 
 # Factory-default config (users override via bind mount in compose)
 COPY config.example.yaml /etc/forage/config.yaml
+COPY prompts.example.yaml /etc/forage/prompts.yaml
 
 ENV FORAGE_CONFIG=/etc/forage/config.yaml
 

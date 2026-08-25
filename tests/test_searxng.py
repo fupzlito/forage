@@ -213,14 +213,33 @@ class TestSearXNG(unittest.TestCase):
             self.assertTrue(cfg.auth.enabled)
 
     def test_auto_seed_empty_mounted_directory(self):
-        """Verify empty mounted directory gets auto-seeded with config.yaml."""
+        """Verify empty mounted directory gets auto-seeded with config.yaml and prompts.yaml, and regenerates on deletion."""
         import os
+        import stat
         import tempfile
         with tempfile.TemporaryDirectory() as tmpdir:
+            # 1. First run on empty directory: both files created
             cfg = load_config(tmpdir)
             self.assertIsNotNone(cfg)
-            seeded_file = os.path.join(tmpdir, "config.yaml")
-            self.assertTrue(os.path.exists(seeded_file))
+            config_file = os.path.join(tmpdir, "config.yaml")
+            prompts_file = os.path.join(tmpdir, "prompts.yaml")
+            self.assertTrue(os.path.exists(config_file))
+            self.assertTrue(os.path.exists(prompts_file))
+
+            # 2. Delete prompts.yaml: regenerated on next load
+            os.remove(prompts_file)
+            self.assertFalse(os.path.exists(prompts_file))
+            cfg2 = load_config(tmpdir)
+            self.assertIsNotNone(cfg2)
+            self.assertTrue(os.path.exists(prompts_file))
+
+            # 3. Read-only directory: logs warning and uses defaults without crashing
+            os.chmod(tmpdir, stat.S_IREAD | stat.S_IEXEC)
+            try:
+                cfg_ro = load_config(tmpdir)
+                self.assertIsNotNone(cfg_ro)
+            finally:
+                os.chmod(tmpdir, stat.S_IRWXU)
 
 
 if __name__ == "__main__":

@@ -129,10 +129,9 @@ services:
       - FORAGE_REQUIRE_MAX_CHARS=false         # require LLMs to budget token limits per URL
       - FORAGE_SEARXNG_URL=http://searxng:8080 # SearXNG instance URL
     volumes:
-      # Optional: mount directory for custom config.yaml / prompts.yaml:
-      # - ./config:/etc/forage:ro
-      # OR mount individual config file:
-      # - ./config.yaml:/etc/forage/config.yaml:ro
+      # Mount directory (auto-seeds editable config.yaml and prompts.yaml on first run):
+      - ./config:/etc/forage
+      # (If mounted read-only with :ro, missing files log a warning and use built-in defaults)
     networks:
       - searxng_default
     healthcheck:

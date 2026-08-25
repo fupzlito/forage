@@ -451,36 +451,66 @@ def _apply_env_overrides(merged: Dict[str, Any]) -> Dict[str, Any]:
     return merged
 
 
+def _find_template_file(filename: str) -> Optional[str]:
+    """Find pristine template file within container or package search paths."""
+    candidates = (
+        f"/srv/forage/{filename}",
+        os.path.join(os.path.dirname(__file__), "..", filename),
+        filename,
+    )
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    return None
+
+
+def _seed_file_if_missing(target_dir: str, target_filename: str, template_filename: str) -> Optional[str]:
+    """Seed target file from template if neither .yaml nor .yml exists in target_dir.
+
+    Returns the path to the existing or newly seeded file, or None if unwritable.
+    """
+    base_name = target_filename.rsplit(".", 1)[0]
+    for ext in (".yaml", ".yml"):
+        existing = os.path.join(target_dir, f"{base_name}{ext}")
+        if os.path.isfile(existing):
+            return existing
+
+    target_path = os.path.join(target_dir, target_filename)
+    template_path = _find_template_file(template_filename)
+    if template_path:
+        try:
+            import shutil
+            shutil.copy2(template_path, target_path)
+            logger.info("Auto-seeded default %s to %s", target_filename, target_path)
+            return target_path
+        except (PermissionError, OSError) as exc:
+            logger.warning(
+                "Config directory %s is read-only or unwritable (%s). Cannot auto-seed %s; continuing with built-in defaults.",
+                target_dir,
+                exc,
+                target_filename,
+            )
+            return None
+    return None
+
+
 def _resolve_config_path(path: Optional[str]) -> str:
     """Resolve config file path from explicit path, env var, or defaults.
 
     Supports both file paths and directory mounts (e.g. mounting a folder
-    to /etc/forage). If an empty writable directory is mounted, automatically
-    seeds it with config.example.yaml so users get an editable starter config.
+    to /etc/forage). Auto-seeds config.yaml if directory is empty and writable.
     """
     raw = path or os.environ.get("FORAGE_CONFIG") or DEFAULT_CONFIG_PATH
     if os.path.isdir(raw):
-        for candidate in ("config.yaml", "config.yml"):
-            full = os.path.join(raw, candidate)
-            if os.path.exists(full):
-                return full
-        # Mounted directory is empty; attempt to auto-seed with starter template if writable
-        target = os.path.join(raw, "config.yaml")
-        for template in (
-            "/srv/forage/config.example.yaml",
-            os.path.join(os.path.dirname(__file__), "..", "config.example.yaml"),
-            "config.example.yaml",
-        ):
-            if os.path.isfile(template):
-                try:
-                    import shutil
-                    shutil.copy2(template, target)
-                    logger.info("Auto-seeded default config.yaml to mounted directory %s", target)
-                    return target
-                except Exception:
-                    # Directory is read-only or not writable; proceed with defaults
-                    pass
-        return target
+        seeded = _seed_file_if_missing(raw, "config.yaml", "config.example.yaml")
+        if seeded:
+            return seeded
+        return os.path.join(raw, "config.yaml")
+
+    parent_dir = os.path.dirname(raw)
+    if parent_dir and os.path.isdir(parent_dir):
+        _seed_file_if_missing(parent_dir, "config.yaml", "config.example.yaml")
+
     if not os.path.exists(raw) and raw.endswith(".yaml"):
         alt = raw[:-5] + ".yml"
         if os.path.exists(alt):
@@ -488,21 +518,27 @@ def _resolve_config_path(path: Optional[str]) -> str:
     return raw
 
 
-def _resolve_prompts_path(raw_path: Optional[str]) -> Optional[str]:
-    """Resolve prompts file path from explicit path, env var, or directory."""
-    if not raw_path:
-        return None
-    if os.path.isdir(raw_path):
-        for candidate in ("prompts.yaml", "prompts.yml"):
-            full = os.path.join(raw_path, candidate)
-            if os.path.exists(full):
-                return full
-        return os.path.join(raw_path, "prompts.yaml")
-    if not os.path.exists(raw_path) and raw_path.endswith(".yaml"):
-        alt = raw_path[:-5] + ".yml"
-        if os.path.exists(alt):
-            return alt
-    return raw_path
+def _resolve_prompts_path(raw_path: Optional[str], config_dir: Optional[str] = None) -> Optional[str]:
+    """Resolve prompts file path from explicit path, env var, or config directory."""
+    if raw_path:
+        if os.path.isdir(raw_path):
+            seeded = _seed_file_if_missing(raw_path, "prompts.yaml", "prompts.example.yaml")
+            if seeded:
+                return seeded
+            return os.path.join(raw_path, "prompts.yaml")
+        if not os.path.exists(raw_path) and raw_path.endswith(".yaml"):
+            alt = raw_path[:-5] + ".yml"
+            if os.path.exists(alt):
+                return alt
+        return raw_path
+
+    # If no explicit prompts path is set, auto-seed/load prompts.yaml in config_dir
+    if config_dir and os.path.isdir(config_dir):
+        seeded = _seed_file_if_missing(config_dir, "prompts.yaml", "prompts.example.yaml")
+        if seeded and os.path.isfile(seeded):
+            return seeded
+
+    return None
 
 
 def load_config(path: Optional[str] = None) -> ForageConfig:
@@ -511,7 +547,7 @@ def load_config(path: Optional[str] = None) -> ForageConfig:
     Resolution order (lowest to highest precedence):
       1. Built-in DEFAULTS (this module)
       2. Main config YAML (FORAGE_CONFIG env var, default /etc/forage/config.yaml)
-      3. External prompts YAML (prompts.prompts_path in config, or FORAGE_PROMPTS_CONFIG env var)
+      3. External prompts YAML (prompts.prompts_path in config, or FORAGE_PROMPTS_CONFIG env var, or <config_dir>/prompts.yaml)
       4. Environment variable overrides (e.g. FORAGE_SEARXNG_URL, FORAGE_BROWSER_ENGINE, etc.)
 
     The prompts YAML is merged only into the ``prompts`` sub-dict so it cannot
@@ -522,9 +558,11 @@ def load_config(path: Optional[str] = None) -> ForageConfig:
     file_data = _load_yaml(config_path)
     merged = deep_merge(copy.deepcopy(DEFAULTS), file_data)
 
-    # External prompts file: prompts_path in config OR FORAGE_PROMPTS_CONFIG env var
+    config_dir = config_path if os.path.isdir(config_path) else os.path.dirname(config_path)
+
+    # External prompts file: prompts_path in config OR FORAGE_PROMPTS_CONFIG env var OR <config_dir>/prompts.yaml
     raw_prompts_path = merged.get("prompts", {}).get("prompts_path") or os.environ.get("FORAGE_PROMPTS_CONFIG")
-    prompts_path = _resolve_prompts_path(raw_prompts_path)
+    prompts_path = _resolve_prompts_path(raw_prompts_path, config_dir=config_dir)
     if prompts_path:
         prompts_data = _load_yaml(prompts_path)
         if prompts_data:
