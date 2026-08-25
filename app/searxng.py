@@ -37,6 +37,9 @@ from urllib.parse import urlparse
 ENGINE_ALIASES: Dict[str, str] = {
     "google_search": "google",
     "googlesearch": "google",
+    "google_cse": "google cse",
+    "google-cse": "google cse",
+    "googlecse": "google cse",
     "bing_search": "bing",
     "bingsearch": "bing",
     "ddg": "duckduckgo",
@@ -49,6 +52,8 @@ ENGINE_ALIASES: Dict[str, str] = {
     "wikipedia_search": "wikipedia",
     "github_search": "github",
     "yahoo_search": "yahoo",
+    "youtube_search": "youtube",
+    "reddit_search": "reddit",
 }
 
 
@@ -224,10 +229,16 @@ def normalize_and_validate_engines(
     Returns:
         (valid_engines_list, warning_message_if_any)
     """
-    if not requested:
-        return list(default_engines), None
-
     available_set = {e.lower() for e in available_engines}
+    effective_defaults = (
+        [e for e in default_engines if e.lower() in available_set]
+        if available_set
+        else list(default_engines)
+    ) or list(default_engines)
+
+    if not requested:
+        return effective_defaults, None
+
     normalized: List[str] = []
     invalid: List[str] = []
 
@@ -248,7 +259,7 @@ def normalize_and_validate_engines(
                 f"Used available engine(s): {normalized}. Available engines: {list(available_engines)}."
             )
         else:
-            normalized = list(default_engines)
+            normalized = effective_defaults
             warning = (
                 f"None of the requested engines {invalid} are available. "
                 f"Auto-selected default engine(s): {normalized}. Available engines: {list(available_engines)}."
