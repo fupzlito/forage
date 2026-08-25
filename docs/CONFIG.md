@@ -56,6 +56,13 @@ Bypass per request with the `Cache-Control: no-cache` header; the response heade
 | `citation_style` | `site_name` | Citation link style format: `site_name` (`[Site Name](url)`), `site_name_brackets` (`[[Site Name]](url)`), `academic` (`[[1]](url)` - numbered reference), `site_name_bold` (`[**Site Name**](url)`), `site_name_italic` (`[*Site Name*](url)`), `bracket_domain` (`[domain.com](url)`), `bracket_title` (`[Source: Title](url)`). |
 | `include_favicon` | `null` | Optional override for `tools.include_favicon` specifically for search responses. |
 
+### Search Engine Validation & Suspension Handling
+
+Forage handles search engine reliability on multiple levels:
+1. **Alias Normalization & Validation**: When an LLM requests engines (e.g. `google_search`, `ddg`), Forage resolves aliases and validates against `available_engines`. If unknown engines are requested, it gracefully falls back to `search.engines` with an informative warning rather than failing the call.
+2. **SearXNG Suspension Tracking**: When upstream engines encounter bot blocks or CAPTCHAs, SearXNG suspends them and marks them in `unresponsive_engines`. Forage parses these, distinguishes active from failing engines, and surfaces a single-line summary (`unresponsive_engines`) and guidance warning to prevent LLM retry loops.
+3. **Search Caching**: Search queries are cached in-memory for 5 minutes (`search.ttl: 300`) by default, protecting upstream search providers from being suspended.
+
 ## `extract`
 
 | Key | Default | Description |

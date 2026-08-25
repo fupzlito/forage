@@ -56,7 +56,9 @@ Everything built on top of commit `93920b3` has been vibecoded to transform Fora
 - 🔍 **SearXNG Engine Management & Resiliency**:
   - Separation of default engines (`search.engines`) vs all available engines (`search.available_engines`).
   - Dynamic engine alias resolution and model-passable `language` parameter.
-  - Automatic SearXNG engine failure tracking and temporary suspension to prevent slow/broken search engines from crashing queries.
+  - Real-time engine health tracking: parses SearXNG `unresponsive_engines` (suspensions, CAPTCHAs, network timeouts) to report active vs failing engines and prevent LLMs from hammering broken engines.
+  - In-process rate-limit cooldown (30s) and intra-batch request throttling (0.75s) on native extract engines (Reddit `.json` API).
+  - Search cache (TTL 300s) to shield SearXNG upstream search providers from bot detection and bans.
   - Publication date extraction (`published_date`) and snippet date prioritization.
 - 🔒 **Browser Resiliency & Deadlock Safety**:
   - Strict `asyncio.wait_for` timeout guards on all browser operations, eliminating stuck browser tabs and semaphore deadlocks.
