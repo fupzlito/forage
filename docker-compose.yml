@@ -12,6 +12,7 @@ services:
       - FORAGE_API_KEYS=your_api_key_here      # comma-separated keys when auth is enabled
       - FORAGE_REQUIRE_MAX_CHARS=false         # require LLMs to budget token limits per URL
       - FORAGE_SEARXNG_URL=http://searxng:8080 # SearXNG metasearch instance
+      - FORAGE_DEFAULT_ENGINES=google-cse,brave,bing,duckduckgo,startpage # default engines queried when omitted by LLMs
     volumes:
       # Mount directory (auto-seeds editable config.yaml and prompts.yaml on first run):
       - ./config:/etc/forage

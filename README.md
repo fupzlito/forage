@@ -128,6 +128,7 @@ services:
       - PGID=1000                              # optional group id
       - TZ=America/New_York                    # sets local time context for LLM prompts
       - FORAGE_SEARXNG_URL=http://searxng:8080 # SearXNG backend service
+      - FORAGE_DEFAULT_ENGINES=google-cse,brave,bing,duckduckgo,startpage # default engines queried when omitted by LLMs
       - FORAGE_AUTH_ENABLED=false              # set true if exposing to the public internet
       - FORAGE_API_KEYS=your_api_key_here      # comma-separated keys when auth is enabled
       - FORAGE_REQUIRE_MAX_CHARS=false         # require LLMs to pass character budget per URL

@@ -2,6 +2,7 @@
 # Forage Configuration Template
 # Auto-seeded to /etc/forage/config.yaml when mounting a config directory.
 # Deleting config.yaml regenerates a fresh default copy on next restart.
+# Note: Docker environment variables (e.g. FORAGE_SEARXNG_URL) override config.yaml settings.
 # Apply changes: docker compose restart forage
 # Full reference: docs/CONFIG.md
 # ============================================================
