@@ -13,6 +13,8 @@ services:
       - FORAGE_REQUIRE_MAX_CHARS=false         # require LLMs to budget token limits per URL
       - FORAGE_SEARXNG_URL=http://searxng:8080 # SearXNG metasearch instance
       - FORAGE_DEFAULT_ENGINES=google-cse,brave,bing,duckduckgo,startpage # default engines queried when search engine(s) omitted by LLMs
+#     - FORAGE_REDDIT_SESSION=your_session_cookie_here     # optional: logged-in reddit session for direct json pulls
+#     - FORAGE_REDDIT_TOKEN_V2=your_token_v2_cookie_here   # optional: reddit token_v2 cookie
 #   volumes:
 #     # Uncomment if detailed config/prompt overrides are desired.
 #     # Stores config.yaml and prompts.yaml (auto-seeded on first run if directory is empty):

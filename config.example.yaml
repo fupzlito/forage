@@ -126,9 +126,10 @@ extract:
     reddit.com:                 # 3-tier pipeline: .json API -> Redlib mirror -> browser
       engine: readability
       timeout: 30
-      # Optional: pass cookies for private/age-gated Reddit feeds
+      # Optional: pass cookies for private/age-gated Reddit feeds (or set FORAGE_REDDIT_SESSION and FORAGE_REDDIT_TOKEN_V2 env vars)
       # cookies:
       #   reddit_session: "..."
+      #   token_v2: "..."
     fandom.com:
       force_render: true
       network_idle_timeout: 10

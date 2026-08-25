@@ -455,6 +455,47 @@ def _apply_env_overrides(merged: Dict[str, Any]) -> Dict[str, Any]:
     if extract_name:
         merged.setdefault("tools", {})["extract_name"] = extract_name.strip()
 
+    # Reddit Cookies & Auth Overrides
+    reddit_session = os.environ.get("FORAGE_REDDIT_SESSION") or os.environ.get("REDDIT_SESSION")
+    reddit_token = (
+        os.environ.get("FORAGE_REDDIT_TOKEN_V2")
+        or os.environ.get("REDDIT_TOKEN_V2")
+        or os.environ.get("FORAGE_REDDIT_TOKEN")
+        or os.environ.get("REDDIT_TOKEN")
+    )
+    reddit_cookies_raw = os.environ.get("FORAGE_REDDIT_COOKIES")
+
+    reddit_cookies: Dict[str, str] = {}
+    if reddit_cookies_raw:
+        sep = ";" if ";" in reddit_cookies_raw else ","
+        for pair in reddit_cookies_raw.split(sep):
+            if "=" in pair:
+                k, v = pair.split("=", 1)
+                if k.strip():
+                    reddit_cookies[k.strip()] = v.strip()
+    if reddit_session:
+        reddit_cookies["reddit_session"] = reddit_session.strip()
+    if reddit_token:
+        reddit_cookies["token_v2"] = reddit_token.strip()
+
+    if reddit_cookies:
+        extract_dict = merged.setdefault("extract", {})
+        overrides = extract_dict.setdefault("domain_overrides", {})
+        if isinstance(overrides, dict):
+            matched = False
+            for pat in ("reddit.com", "reddit.com/r/", ".reddit.com"):
+                if pat in overrides and isinstance(overrides[pat], dict):
+                    existing_cookies = overrides[pat].setdefault("cookies", {})
+                    if isinstance(existing_cookies, dict):
+                        existing_cookies.update(reddit_cookies)
+                        matched = True
+            if not matched:
+                reddit_entry = overrides.setdefault("reddit.com", {})
+                if isinstance(reddit_entry, dict):
+                    existing_cookies = reddit_entry.setdefault("cookies", {})
+                    if isinstance(existing_cookies, dict):
+                        existing_cookies.update(reddit_cookies)
+
     return merged
 
 
