@@ -124,8 +124,21 @@ def _readability_eval() -> str:
         + dom_prep
         + "\n"
         + _READABILITY_JS
-        + "\nvar _r = new Readability(document).parse();"
-        "\nreturn _r ? JSON.stringify({title: _r.title || '', content: _r.content}) : null;\n})()"
+        + "\nvar _r = null;\n"
+        "try { _r = new Readability(document).parse(); } catch(e) {}\n"
+        "if (_r && _r.content) {\n"
+        "  return JSON.stringify({title: _r.title || '', content: _r.content});\n"
+        "}\n"
+        "if (window.location.hostname.includes('reddit.com')) {\n"
+        "  var wrapper = document.getElementById('forage-reddit-thread');\n"
+        "  var post = document.querySelector('shreddit-post, div[data-testid=\"post-container\"], div[id^=\"t3_\"]');\n"
+        "  var target = wrapper || post;\n"
+        "  if (target) {\n"
+        "    var title = (post ? (post.getAttribute('post-title') || post.getAttribute('title')) : '') || document.title || '';\n"
+        "    return JSON.stringify({title: title, content: target.innerHTML});\n"
+        "  }\n"
+        "}\n"
+        "return null;\n})()"
     )
 
 
