@@ -29,10 +29,12 @@ Everything built on top of commit `93920b3` has been vibecoded to transform Fora
 
 - 🔌 **Native Model Context Protocol (MCP) & OpenAI Compatibility**:
   - MCP over SSE (`GET /mcp/sse`, `POST /mcp/messages`) and standard JSON-RPC (`POST /mcp`).
-  - OpenAI Function-Calling tools endpoint (`GET /v1/tools`, `POST /v1/tools/call`, `POST /v1/chat/completions`, `GET /v1/models`).
+  - OpenAI Function-Calling & Chat endpoint (`GET /v1/tools`, `POST /v1/tools/call`, `POST /v1/chat/completions`, `GET /v1/models`).
+  - Full OpenAI SSE streaming support on `POST /v1/chat/completions` (`chat.completion.chunk`) when `"stream": true` is passed.
   - Direct OpenAPI schema (`GET /openapi.json`) for seamless OpenWebUI integration.
 - ⚡ **Real-Time SSE Streaming**:
   - `POST /extract` with `stream: true` or `Accept: text/event-stream` progressively streams extracted URLs as Server-Sent Events as soon as each finishes.
+  - `POST /v1/chat/completions` with `stream: true` progressively streams tool execution chunks directly to OpenAI clients and OpenWebUI.
 - 🎯 **Advanced 3-Tier Reddit Extraction Engine**:
   - **Tier 1 (`reddit+json`)**: High-throughput direct JSON API with Akamai-compliant `Sec-Fetch-*` navigation headers, intra-call rate throttling (0.75s), and rate-limit cooldown. Extracts full threads or multi-post feeds in **<1s** with ~0% CPU/RAM.
   - **Tier 2 (`reddit+mirror`)**: Redlib / SafeReddit mirror failover with 4.0s fast timeout and instant 404 detection.
@@ -149,12 +151,27 @@ curl -N -X POST http://localhost:3672/extract \
   -d '{"urls":["https://en.wikipedia.org/wiki/Python_(programming_language)","https://x.com/OpenAI"],"stream":true}'
 ```
 
-### 4. OpenWebUI & MCP Integration
+### 4. OpenAI Chat Completions Streaming (`POST /v1/chat/completions`)
+
+```bash
+curl -N -X POST http://localhost:3672/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "web_extract",
+    "messages": [
+      {"role": "user", "content": "https://en.wikipedia.org/wiki/Python_(programming_language)"}
+    ],
+    "stream": true,
+    "max_chars": 5000
+  }'
+```
+
+### 5. OpenWebUI & MCP Integration
 
 Connect OpenWebUI directly using either:
+- **OpenAI Compatible Tool Server**: `http://forage:3672/v1` (with full streaming support)
 - **MCP Server**: `http://forage:3672/mcp/sse`
 - **OpenAPI Tool**: Import `http://forage:3672/openapi.json`
-- **OpenAI Compatible Tool Server**: `http://forage:3672/v1`
 
 ---
 
