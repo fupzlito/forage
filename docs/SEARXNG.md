@@ -53,17 +53,27 @@ engines:
   - name: google
     engine: google
     shortcut: g
+    categories: [general]
   - name: bing
     engine: bing
     shortcut: b
+    categories: [general]
   - name: brave
     engine: brave
     shortcut: br
+    categories: [general]
   - name: startpage
     engine: startpage
     shortcut: sp
+    categories: [general]
+  - name: reddit
+    engine: reddit
+    shortcut: re
+    categories: [general]
 ```
 
+> **Category Note**: SearXNG filters queries by the `general` category by default. If you enable non-standard engines like `reddit`, `github`, or `youtube`, ensure `categories: [general]` is added under their definition in `settings.yml` so Forage can query them directly by name.
+>
 > **Pitfall**: the `wikidata` engine fails on startup in some versions. If the container logs show a wikidata error, disable it (`enabled: false`).
 
 ## 3. Network layout: how Forage reaches SearXNG

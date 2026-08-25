@@ -50,21 +50,6 @@ ENGINE_ALIASES: Dict[str, str] = {
     "yahoo_search": "yahoo",
 }
 
-# Category mapping for SearXNG engines outside the default 'general' category
-ENGINE_CATEGORIES: Dict[str, str] = {
-    "reddit": "social media",
-    "github": "it",
-    "gitlab": "it",
-    "stackoverflow": "it",
-    "youtube": "videos",
-    "vimeo": "videos",
-    "qwant news": "news",
-    "google news": "news",
-    "bing news": "news",
-    "arxiv": "science",
-    "google scholar": "science",
-}
-
 
 def extract_domain(url: str) -> str:
     """Extract clean domain name (TLD/host) from a URL."""
@@ -216,18 +201,10 @@ def search_searxng(
         config.search.available_engines,
     )
 
-    # Dynamically resolve categories needed for requested engines
-    categories = {"general"}
-    for eng in validated_engines:
-        cat = ENGINE_CATEGORIES.get(eng)
-        if cat:
-            categories.add(cat)
-
     params: Dict[str, Any] = {
         "q": query,
         "format": "json",
         "pageno": 1,
-        "categories": ",".join(sorted(categories)),
     }
     if language:
         params["language"] = language
