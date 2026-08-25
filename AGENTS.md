@@ -64,9 +64,8 @@ API: `GET /health`, `POST /search`, `POST /extract`, `GET /v1/tools`, `POST /v1/
   desktop Chrome UA. Do not add playwright-stealth/curl_cffi unless a real case
   demands it (YAGNI, maintenance cost).
 - **Engine is pluggable via config** (`browser.engine`):
-  `playwright` (default in example), `patchright`, `scrapling` (default on the
-  production instance since 2026-08-07; strongest anti-bot), `obscura`
-  (experimental Rust/V8 browser via CDP).
+  `scrapling` (default; strongest anti-bot), `playwright`, `patchright`,
+  `obscura` (experimental Rust/V8 browser via CDP).
 - **Cache in memory, per operation**: search ON (TTL 300s, protects SearXNG
   engines from bot detection), extract OFF by default (always fresh; TTL 120s
   on the instance). Master switch `cache.enabled` + per-section toggles.

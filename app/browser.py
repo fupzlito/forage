@@ -198,14 +198,14 @@ class BrowserPool:
     """In-process browser pool for Forage.
 
     Supports four engines:
-      - playwright (default): vanilla Playwright Chromium with light stealth
-      - patchright: undetected Playwright fork (same API)
-      - scrapling: StealthyFetcher from the Scrapling framework, which
+      - scrapling (default): StealthyFetcher from the Scrapling framework, which
         impersonates real browser fingerprints and can solve Cloudflare
         Turnstile/Interstitial out of the box. A single AsyncStealthySession
         is kept alive and its internal tab pool (max_pages) handles
         concurrency; networkidle and scrolling are replicated inside a
         page_action so behaviour matches the Playwright path.
+      - playwright: vanilla Playwright Chromium with light stealth
+      - patchright: undetected Playwright fork (same API)
       - obscura: external CDP server (the Obscura Rust/V8 browser). The
         pool connects via Playwright connect_over_cdp to browser.cdp_url
         instead of launching Chromium locally. Concurrency is capped by

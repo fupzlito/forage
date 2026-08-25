@@ -237,7 +237,7 @@ All settings can be dynamically overridden via Docker environment variables with
 |---|---|---|
 | `FORAGE_SEARXNG_URL` | SearXNG backend service URL | `http://searxng:8080` |
 | `FORAGE_SEARCH_ENGINES` | Comma-separated search engine filter | `google,bing,brave,duckduckgo,qwant` |
-| `FORAGE_BROWSER_ENGINE` | Browser engine (`playwright`, `scrapling`, `patchright`, `obscura`) | `playwright` |
+| `FORAGE_BROWSER_ENGINE` | Browser engine (`scrapling`, `playwright`, `patchright`, `obscura`) | `scrapling` |
 | `FORAGE_EXTRACT_ENGINE` | Markdown extraction engine (`trafilatura`, `readability`) | `trafilatura` |
 | `FORAGE_REQUIRE_MAX_CHARS` | Require LLMs to specify character budgets (`true`/`false`) | `false` |
 | `FORAGE_AUTH_ENABLED` | Enable Bearer API authentication (`true`/`false`) | `false` |

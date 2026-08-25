@@ -73,7 +73,7 @@ DEFAULTS: Dict[str, Any] = {
         "require_max_chars": False,
     },
     "browser": {
-        "engine": "playwright",
+        "engine": "scrapling",
         "cdp_url": "",       # engine=obscura: CDP endpoint of the Obscura server (http://host:port or ws://host:port)
         "min_idle": 1,
         "max_instances": 5,
@@ -237,7 +237,7 @@ class ExtractConfig:
 
 @dataclass(frozen=True)
 class BrowserConfig:
-    engine: str = "playwright"  # "playwright" (default), "patchright", "scrapling" or "obscura"
+    engine: str = "scrapling"  # "scrapling" (default), "playwright", "patchright" or "obscura"
     cdp_url: str = ""  # engine=obscura: CDP endpoint (http://host:port or ws://host:port)
     min_idle: int = 1
     max_instances: int = 5

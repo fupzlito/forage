@@ -123,7 +123,7 @@ extract:
 
 | Key | Default | Description |
 |---|---|---|
-| `engine` | `playwright` | Browser backend engine: `playwright` (default in example), `patchright`, `scrapling` (production default; stealthiest), or `obscura` (external Rust/V8 headless browser via CDP). |
+| `engine` | `scrapling` | Browser backend engine: `scrapling` (default; StealthyFetcher fingerprint impersonation and Cloudflare bypass), `playwright`, `patchright`, or `obscura` (external Rust/V8 headless browser via CDP). |
 | `cdp_url` | `""` | CDP endpoint URL when `engine: obscura` (e.g. `http://127.0.0.1:9223` or `ws://127.0.0.1:9223`). Ignored for other engines. |
 | `min_idle` | `1` | Warm browser instances kept idle in pool. On `scrapling`, pool size is fixed at 1. |
 | `max_instances` | `5` | Upper limit of concurrent browser instances. |
