@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from .auth import key_is_valid, load_api_keys
 from .browser import BrowserPool
@@ -28,6 +29,7 @@ mcp_router = APIRouter()
 
 # Active SSE sessions for MCP
 _sse_sessions: Dict[str, asyncio.Queue] = {}
+_bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def _get_config_and_pool(request: Request):
@@ -39,6 +41,29 @@ def _get_config_and_pool(request: Request):
         cfg = cfg or main_config
         pool = pool or main_pool
     return cfg, pool
+
+
+def require_mcp_auth(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
+) -> None:
+    """Validate Bearer / API-key auth on MCP and OpenAI endpoints when auth.enabled is true."""
+    cfg, _ = _get_config_and_pool(request)
+    if not cfg.auth.enabled:
+        return
+    api_keys = load_api_keys()
+    token = credentials.credentials if credentials else None
+    if not token:
+        token = request.headers.get("x-api-key") or request.headers.get("api-key")
+    if not token:
+        token = (
+            request.query_params.get("api_key")
+            or request.query_params.get("token")
+            or request.query_params.get("key")
+            or request.query_params.get("auth")
+        )
+    if not key_is_valid(token, api_keys):
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
@@ -521,6 +546,7 @@ async def process_mcp_rpc(
 async def mcp_post(
     request: Request,
     session_id: Optional[str] = None,
+    _auth: None = Depends(require_mcp_auth),
 ) -> JSONResponse:
     """Standard HTTP POST JSON-RPC endpoint for MCP clients."""
     config, browser_pool = _get_config_and_pool(request)
@@ -556,7 +582,10 @@ async def mcp_post(
 
 @mcp_router.get("/mcp")
 @mcp_router.get("/mcp/sse")
-async def mcp_sse(request: Request) -> Any:
+async def mcp_sse(
+    request: Request,
+    _auth: None = Depends(require_mcp_auth),
+) -> Any:
     """SSE endpoint for OpenWebUI MCP connection (or direct JSON-RPC discovery on GET)."""
     accept = request.headers.get("accept", "")
     session_id = str(uuid.uuid4())
@@ -590,6 +619,7 @@ async def mcp_sse(request: Request) -> Any:
 async def mcp_messages(
     request: Request,
     session_id: Optional[str] = None,
+    _auth: None = Depends(require_mcp_auth),
 ) -> JSONResponse:
     """Handle incoming JSON-RPC messages from an SSE client."""
     config, browser_pool = _get_config_and_pool(request)
@@ -614,7 +644,10 @@ async def mcp_messages(
 
 
 @mcp_router.get("/v1/tools")
-async def v1_tools_list(request: Request) -> dict:
+async def v1_tools_list(
+    request: Request,
+    _auth: None = Depends(require_mcp_auth),
+) -> dict:
     """OpenAI API compatible tool definitions."""
     config, _ = _get_config_and_pool(request)
     tools_def = get_tool_definitions(config)
@@ -635,7 +668,7 @@ async def v1_tools_list(request: Request) -> dict:
 @mcp_router.post("/v1/tools/call")
 async def v1_tools_call(
     request: Request,
-    _auth: None = Depends(lambda: None),
+    _auth: None = Depends(require_mcp_auth),
 ) -> Any:
     """Execute a single OpenAI-compatible function tool call with streaming support."""
     config, browser_pool = _get_config_and_pool(request)
@@ -727,7 +760,10 @@ async def v1_tools_call(
 
 @mcp_router.get("/v1/models")
 @mcp_router.get("/models")
-async def get_v1_models(request: Request) -> JSONResponse:
+async def get_v1_models(
+    request: Request,
+    _auth: None = Depends(require_mcp_auth),
+) -> JSONResponse:
     """OpenAI API compatible models listing endpoint."""
     config, _ = _get_config_and_pool(request)
     search_name = config.tools.search_name
@@ -888,7 +924,10 @@ async def _stream_openai_chat_completions(
 
 
 @mcp_router.post("/v1/chat/completions")
-async def post_v1_chat_completions(request: Request) -> Any:
+async def post_v1_chat_completions(
+    request: Request,
+    _auth: None = Depends(require_mcp_auth),
+) -> Any:
     """OpenAI API compatible chat completion endpoint for tool invocation with streaming support."""
     config, browser_pool = _get_config_and_pool(request)
 

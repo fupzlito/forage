@@ -43,13 +43,25 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def require_auth(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> None:
     """Reject unauthenticated requests when auth.enabled is true."""
-    if not config.auth.enabled:
+    cfg = getattr(request.app.state, "config", config)
+    if not cfg.auth.enabled:
         return
+    keys = load_api_keys() or api_keys
     token = credentials.credentials if credentials else None
-    if not key_is_valid(token, api_keys):
+    if not token:
+        token = request.headers.get("x-api-key") or request.headers.get("api-key")
+    if not token:
+        token = (
+            request.query_params.get("api_key")
+            or request.query_params.get("token")
+            or request.query_params.get("key")
+            or request.query_params.get("auth")
+        )
+    if not key_is_valid(token, keys):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 

@@ -212,6 +212,38 @@ class TestMCPAndOpenAIEndpoints(unittest.TestCase):
         self.assertIn("Example page content here.", resp.text)
         self.assertIn("data: [DONE]", resp.text)
 
+    def test_mcp_auth_enforcement(self):
+        """Verify MCP & OpenAI endpoints enforce authentication when auth.enabled is True."""
+        from dataclasses import replace
+        auth_config = replace(config, auth=replace(config.auth, enabled=True))
+
+        with patch("app.mcp.load_api_keys", return_value=["test-secret-key"]), \
+             patch("app.main.api_keys", ["test-secret-key"]), \
+             patch("app.main.load_api_keys", return_value=["test-secret-key"]):
+            app.state.config = auth_config
+
+            # 1. Unauthenticated -> 401
+            resp = self.client.get("/v1/tools")
+            self.assertEqual(resp.status_code, 401)
+
+            resp = self.client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+            self.assertEqual(resp.status_code, 401)
+
+            # 2. Bearer token auth -> 200
+            resp = self.client.get("/v1/tools", headers={"Authorization": "Bearer test-secret-key"})
+            self.assertEqual(resp.status_code, 200)
+
+            # 3. X-API-Key header -> 200
+            resp = self.client.get("/v1/tools", headers={"X-API-Key": "test-secret-key"})
+            self.assertEqual(resp.status_code, 200)
+
+            # 4. Query param token -> 200
+            resp = self.client.get("/v1/tools?api_key=test-secret-key")
+            self.assertEqual(resp.status_code, 200)
+
+            # Reset config back to unauthenticated
+            app.state.config = config
+
 
 if __name__ == "__main__":
     unittest.main()
