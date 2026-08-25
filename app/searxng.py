@@ -173,14 +173,13 @@ def fetch_searxng_engines_sync(searxng_url: str, timeout: float = 2.0) -> Tuple[
                     is_enabled = e.get("enabled") if "enabled" in e else not e.get("disabled", False)
                     if name and is_enabled:
                         categories = [c.lower().strip() for c in e.get("categories", [])]
-                        is_text_cat = any(cat in TEXT_SEARCH_CATEGORIES for cat in categories) or not categories
+                        is_general_cat = "general" in categories or not categories
                         is_media_cat = any(cat in NON_TEXT_CATEGORIES for cat in categories)
                         is_media_name = any(name.lower().endswith(sfx) for sfx in NON_TEXT_SUFFIXES)
 
-                        if is_text_cat and not is_media_cat and not is_media_name:
+                        if is_general_cat and not is_media_cat and not is_media_name:
                             available.append(name)
-                            if "general" in categories or not categories:
-                                general.append(name)
+                            general.append(name)
                 elif isinstance(e, str) and e:
                     clean = e.lower().strip()
                     if not any(clean.endswith(sfx) for sfx in NON_TEXT_SUFFIXES):

@@ -284,7 +284,7 @@ class TestSearXNG(unittest.TestCase):
         mock_get.return_value = mock_resp
 
         avail, gen = fetch_searxng_engines_sync("http://mock-searxng:8080")
-        self.assertEqual(avail, ("google", "bing", "github", "duckduckgo"))
+        self.assertEqual(avail, ("google", "bing", "duckduckgo"))
         self.assertEqual(gen, ("google", "bing", "duckduckgo"))
 
     @patch("httpx.get")
