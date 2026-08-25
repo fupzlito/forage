@@ -514,19 +514,24 @@ async def _try_reddit_extract(config: ForageConfig, url: str, timeout: int) -> O
     """3-tier extraction for Reddit: 1) .json API, 2) Redlib mirror, 3) None (fallback to browser)."""
     parsed = urlparse(url)
     host = (parsed.hostname or "").lower()
-    if host not in ("reddit.com", "www.reddit.com", "old.reddit.com", "sh.reddit.com"):
+    if host not in ("reddit.com", "www.reddit.com", "old.reddit.com", "new.reddit.com", "sh.reddit.com", "safereddit.com"):
         return None
     path = parsed.path or ""
-    if "/comments/" not in path and not path.endswith(".json"):
+    # Support subreddit listings (/r/...), comments threads, user pages (/user/), or direct .json URLs
+    if not (path.startswith("/r/") or path.startswith("/user/") or path.startswith("/u/") or "/comments/" in path or path.endswith(".json")):
         return None
 
     # --- Tier 1: Official Reddit .json endpoint ---
-    json_url = url
-    if not path.endswith(".json"):
+    if path.endswith(".json"):
+        clean_path = path
+        mirror_path = path[:-5]
+    else:
         clean_path = path.rstrip("/") + ".json"
-        json_url = f"{parsed.scheme or 'https'}://{parsed.netloc}{clean_path}"
-        if parsed.query:
-            json_url += f"?{parsed.query}"
+        mirror_path = path
+
+    json_url = f"https://www.reddit.com{clean_path}"
+    if parsed.query:
+        json_url += f"?{parsed.query}"
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -546,13 +551,13 @@ async def _try_reddit_extract(config: ForageConfig, url: str, timeout: int) -> O
                         "raw_content": markdown_content,
                         "method": "reddit+json",
                     }
-                except Exception:  # noqa: BLE001
-                    pass
+                except Exception as parse_err:  # noqa: BLE001
+                    logger.debug("Reddit JSON parse failed: %s", parse_err)
     except Exception as exc:  # noqa: BLE001
         logger.debug("Reddit Tier 1 (.json) failed for %s: %s", url, exc)
 
     # --- Tier 2: Redlib Mirror (safereddit) ---
-    mirror_url = f"https://safereddit.com{path}"
+    mirror_url = f"https://safereddit.com{mirror_path}"
     if parsed.query:
         mirror_url += f"?{parsed.query}"
 
@@ -655,6 +660,10 @@ async def extract_url(
             doc_result["url"] = original_url
             return doc_result
 
+    # Reddit 3-tier fast path: Tier 1 (.json) -> Tier 2 (Redlib mirror) -> Tier 3 (browser fallback).
+    # Always attempt the lightweight Reddit pipeline before launching a heavy browser session,
+    # unless force_render was explicitly requested at the request level.
+    if not force_render:
         reddit_result = await _try_reddit_extract(config, url, effective_timeout)
         if reddit_result is not None:
             reddit_result["url"] = original_url

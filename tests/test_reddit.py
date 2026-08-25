@@ -70,6 +70,48 @@ class TestRedditJSON(unittest.TestCase):
         self.assertIn("Great post!", markdown)
         self.assertIn("u/reply_user", markdown)
 
+    def test_parse_subreddit_listing_json(self):
+        sample_listing = {
+            "kind": "Listing",
+            "data": {
+                "children": [
+                    {
+                        "kind": "t3",
+                        "data": {
+                            "title": "SpaceX Starship Launch Update",
+                            "subreddit_name_prefixed": "r/SpaceX",
+                            "author": "elon_fan",
+                            "score": 1500,
+                            "num_comments": 350,
+                            "selftext": "Flight 5 summary and booster catch discussion.",
+                            "permalink": "/r/SpaceX/comments/abc/starship/",
+                        },
+                    },
+                    {
+                        "kind": "t3",
+                        "data": {
+                            "title": "Falcon 9 Record Turnaround",
+                            "subreddit_name_prefixed": "r/SpaceX",
+                            "author": "rocket_nerd",
+                            "score": 820,
+                            "num_comments": 45,
+                            "selftext": "New turnaround record achieved.",
+                            "permalink": "/r/SpaceX/comments/def/falcon9/",
+                        },
+                    },
+                ]
+            },
+        }
+
+        markdown, title = parse_reddit_json(sample_listing)
+        self.assertEqual(title, "r/SpaceX - Reddit Posts")
+        self.assertIn("# r/SpaceX - Reddit Posts", markdown)
+        self.assertIn("### [SpaceX Starship Launch Update](https://www.reddit.com/r/SpaceX/comments/abc/starship/)", markdown)
+        self.assertIn("u/elon_fan", markdown)
+        self.assertIn("**Score**: 1500", markdown)
+        self.assertIn("### [Falcon 9 Record Turnaround](https://www.reddit.com/r/SpaceX/comments/def/falcon9/)", markdown)
+        self.assertIn("u/rocket_nerd", markdown)
+
 
 if __name__ == "__main__":
     unittest.main()

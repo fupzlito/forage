@@ -219,6 +219,36 @@ def format_reddit_comments(children: list, indent: int = 0) -> list[str]:
 
 def parse_reddit_json(raw_json: Any) -> Tuple[str, str]:
     """Parse Reddit JSON response into (markdown_content, title)."""
+    # 1. Subreddit or user post listing (e.g. /r/SpaceX/.json or /r/SpaceX/)
+    if isinstance(raw_json, dict) and raw_json.get("kind") == "Listing":
+        children = raw_json.get("data", {}).get("children", [])
+        posts = []
+        sub_name = ""
+        for item in children:
+            if not isinstance(item, dict) or item.get("kind") != "t3":
+                continue
+            p = item.get("data", {})
+            if not sub_name:
+                sub_name = p.get("subreddit_name_prefixed", p.get("subreddit", ""))
+            p_title = p.get("title", "")
+            p_author = p.get("author", "[deleted]")
+            p_score = p.get("score", 0)
+            p_comments = p.get("num_comments", 0)
+            permalink = p.get("permalink", "")
+            p_url = f"https://www.reddit.com{permalink}" if permalink else p.get("url", "")
+            p_selftext = p.get("selftext", "")
+
+            entry = f"### [{p_title}]({p_url})\n**Subreddit**: {sub_name or 'Reddit'} | **Author**: u/{p_author} | **Score**: {p_score} | **Comments**: {p_comments}"
+            if p_selftext:
+                preview = p_selftext[:300].strip() + ("..." if len(p_selftext) > 300 else "")
+                entry += f"\n\n{preview}"
+            posts.append(entry)
+
+        title = f"{sub_name} - Reddit Posts" if sub_name else "Reddit Posts"
+        content = f"# {title}\n\n" + ("\n\n---\n\n".join(posts) if posts else "No posts found.")
+        return content, title
+
+    # 2. Thread + comments listing ([post_listing, comments_listing])
     if not isinstance(raw_json, list) or not raw_json:
         raise ValueError("Invalid Reddit JSON response format")
 
