@@ -135,6 +135,12 @@ class ExtractRequest(BaseModel):
         pattern="^(trafilatura|readability)$",
         description="Extraction engine: 'trafilatura' (default, fast main-content markdown parser) or 'readability' (Mozilla Readability.js + markdownify, recommended for e-commerce buyboxes, forums, and complex page layouts).",
     )
+    max_chars: Optional[int] = Field(
+        default=None,
+        ge=500,
+        le=500000,
+        description="Optional maximum characters to return per URL. Truncates long pages to save context.",
+    )
     stream: bool = Field(
         default=False,
         description="Stream extraction results via Server-Sent Events (SSE) as each URL finishes.",
@@ -287,6 +293,12 @@ async def extract(
     import json
     from fastapi.responses import StreamingResponse
 
+    if config.extract.require_max_chars and req.max_chars is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Missing required parameter 'max_chars'. Specify a character limit per URL (between 500 and {config.extract.max_content_chars:,}).",
+        )
+
     bypass = bool(cache_control and "no-cache" in cache_control.lower())
     cache_enabled = config.cache.enabled and config.cache.extract.enabled and not bypass
     is_stream = req.stream or bool(accept and "text/event-stream" in accept.lower())
@@ -300,7 +312,7 @@ async def extract(
 
     async def _extract_one(url: str, pos: int) -> Dict[str, Any]:
         try:
-            return await extract_url(
+            res = await extract_url(
                 config,
                 browser_pool,
                 url,
@@ -312,6 +324,13 @@ async def extract(
                 timeout=req.timeout,
                 engine=req.engine,
             )
+            if req.max_chars and "content" in res:
+                full_len = len(res["content"])
+                if full_len > req.max_chars:
+                    res["content"] = res["content"][:req.max_chars] + f"\n\n[TRUNCATED at {req.max_chars:,} of {full_len:,} chars]"
+                    if "raw_content" in res:
+                        res["raw_content"] = res["raw_content"][:req.max_chars]
+            return res
         except Exception as exc:  # noqa: BLE001
             logger.exception("Extract failed for %s", url)
             return {"url": url, "error": str(exc)}

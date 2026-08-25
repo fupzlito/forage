@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
 
+from app.config import ForageConfig
 from app.main import app, config
 
 
@@ -83,6 +84,47 @@ class TestMCPAndOpenAIEndpoints(unittest.TestCase):
         data = response.json()
         search_op = data["paths"]["/search"]["post"]
         self.assertEqual(search_op["operationId"], "web_search")
+
+    @patch("app.mcp.extract_url", new_callable=AsyncMock)
+    def test_mcp_tools_call_extract_require_max_chars(self, mock_extract):
+        mock_extract.return_value = {
+            "position": 1,
+            "domain": "example.com",
+            "url": "https://example.com",
+            "title": "Example",
+            "content": "A" * 5000,
+            "citation": "[Example](https://example.com)",
+            "method": "static",
+            "extracted_at": "2026-08-25 03:00:00 UTC",
+        }
+
+        # 1. require_max_chars is True, but max_chars omitted -> error
+        cfg_req = ForageConfig.from_dict({"extract": {"require_max_chars": True}}, source_path="test")
+        with patch("app.mcp._get_config_and_pool", return_value=(cfg_req, None)):
+            payload = {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "tools/call",
+                "params": {"name": "web_extract", "arguments": {"urls": ["https://example.com"]}},
+            }
+            resp = self.client.post("/mcp", json=payload)
+            data = resp.json()
+            self.assertTrue(data["result"]["isError"])
+            self.assertIn("Missing required parameter 'max_chars'", data["result"]["content"][0]["text"])
+
+        # 2. require_max_chars is True, max_chars supplied -> succeeds and truncates
+        with patch("app.mcp._get_config_and_pool", return_value=(cfg_req, None)):
+            payload = {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "tools/call",
+                "params": {"name": "web_extract", "arguments": {"urls": ["https://example.com"], "max_chars": 1000}},
+            }
+            resp = self.client.post("/mcp", json=payload)
+            data = resp.json()
+            self.assertFalse(data["result"]["isError"])
+            text = data["result"]["content"][0]["text"]
+            self.assertIn("[TRUNCATED at 1,000 of 5,000 chars]", text)
 
 
 if __name__ == "__main__":

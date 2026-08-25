@@ -54,6 +54,7 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
     now_date = now_dt.strftime("%Y-%m-%d %H:%M %Z")
     year = str(now_dt.year)
 
+    req_label = "Required" if getattr(config.extract, "require_max_chars", False) else "Optional"
     context = {
         "now_date": now_date,
         "year": year,
@@ -61,6 +62,8 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
         "available_engines": available_engines_str,
         "default_limit": config.search.default_limit,
         "max_content_chars": config.extract.max_content_chars,
+        "min_chars": 500,
+        "max_chars_requirement": req_label,
         "citation_guidelines": config.prompts.citation_guidelines,
     }
 
@@ -169,7 +172,10 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
             "max_chars": {
                 "type": "integer",
                 "description": render_prompt(
-                    extract_params.get("max_chars", "Optional maximum characters to return per URL. Truncates long pages to save context."),
+                    extract_params.get(
+                        "max_chars",
+                        f"{req_label} maximum characters to return per URL (500 to {config.extract.max_content_chars}). Truncates long pages to save context.",
+                    ),
                     context,
                 ),
                 "minimum": 500,
@@ -295,6 +301,22 @@ async def execute_tool_call(
         fmt = "markdown"
         if formats and ("html" in formats or "raw_html" in formats):
             fmt = "html"
+
+        if getattr(config.extract, "require_max_chars", False) and max_chars is None:
+            return {
+                "error": (
+                    f"Missing required parameter 'max_chars'. You must specify a character limit per URL "
+                    f"(between 500 and {config.extract.max_content_chars:,})."
+                )
+            }
+
+        if max_chars is not None:
+            try:
+                max_chars = max(500, min(int(max_chars), config.extract.max_content_chars))
+            except (ValueError, TypeError):
+                if getattr(config.extract, "require_max_chars", False):
+                    return {"error": "Invalid 'max_chars' parameter. Must be an integer."}
+                max_chars = None
 
         async def _one(u: str, pos: int) -> Dict[str, Any]:
             try:
