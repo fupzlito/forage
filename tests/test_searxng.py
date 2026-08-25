@@ -212,6 +212,16 @@ class TestSearXNG(unittest.TestCase):
             self.assertTrue(cfg.extract.require_max_chars)
             self.assertTrue(cfg.auth.enabled)
 
+    def test_auto_seed_empty_mounted_directory(self):
+        """Verify empty mounted directory gets auto-seeded with config.yaml."""
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cfg = load_config(tmpdir)
+            self.assertIsNotNone(cfg)
+            seeded_file = os.path.join(tmpdir, "config.yaml")
+            self.assertTrue(os.path.exists(seeded_file))
+
 
 if __name__ == "__main__":
     unittest.main()

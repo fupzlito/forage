@@ -14,8 +14,9 @@ RUN pip install --no-cache-dir -r requirements.txt \
     # To enable patchright anti-detection fork, uncomment below and in requirements.txt:
     # && (patchright install chromium || true)
 
-# Application code
+# Application code & templates
 COPY app/ app/
+COPY config.example.yaml config.example.yaml
 
 # Factory-default config (users override via bind mount in compose)
 COPY config.example.yaml /etc/forage/config.yaml

@@ -455,7 +455,8 @@ def _resolve_config_path(path: Optional[str]) -> str:
     """Resolve config file path from explicit path, env var, or defaults.
 
     Supports both file paths and directory mounts (e.g. mounting a folder
-    to /etc/forage containing config.yaml or config.yml).
+    to /etc/forage). If an empty writable directory is mounted, automatically
+    seeds it with config.example.yaml so users get an editable starter config.
     """
     raw = path or os.environ.get("FORAGE_CONFIG") or DEFAULT_CONFIG_PATH
     if os.path.isdir(raw):
@@ -463,7 +464,23 @@ def _resolve_config_path(path: Optional[str]) -> str:
             full = os.path.join(raw, candidate)
             if os.path.exists(full):
                 return full
-        return os.path.join(raw, "config.yaml")
+        # Mounted directory is empty; attempt to auto-seed with starter template if writable
+        target = os.path.join(raw, "config.yaml")
+        for template in (
+            "/srv/forage/config.example.yaml",
+            os.path.join(os.path.dirname(__file__), "..", "config.example.yaml"),
+            "config.example.yaml",
+        ):
+            if os.path.isfile(template):
+                try:
+                    import shutil
+                    shutil.copy2(template, target)
+                    logger.info("Auto-seeded default config.yaml to mounted directory %s", target)
+                    return target
+                except Exception:
+                    # Directory is read-only or not writable; proceed with defaults
+                    pass
+        return target
     if not os.path.exists(raw) and raw.endswith(".yaml"):
         alt = raw[:-5] + ".yml"
         if os.path.exists(alt):
