@@ -180,6 +180,18 @@ class TestRedditJSON(unittest.TestCase):
         self.assertNotIn("communityIcon_", cleaned)
         self.assertIn("[Cake](https://reddit.com/r/Baking/comments/123/cake/)", cleaned)
 
+    def test_reddit_cooldown_and_throttle(self):
+        import asyncio
+        from app.extract import _throttle_reddit_request, _is_reddit_json_on_cooldown, _set_reddit_json_cooldown
+
+        async def _run():
+            self.assertFalse(_is_reddit_json_on_cooldown())
+            await _throttle_reddit_request(min_interval=0.01)
+            _set_reddit_json_cooldown(5.0)
+            self.assertTrue(_is_reddit_json_on_cooldown())
+
+        asyncio.run(_run())
+
 
 if __name__ == "__main__":
     unittest.main()
