@@ -1,17 +1,10 @@
-# prompts.example.yaml - Standalone Prompts & Citation Guidelines Template for Forage
-# Bind-mount this file to /etc/forage/prompts.yaml in docker-compose.yml:
-#   volumes:
-#     - ./prompts.yaml:/etc/forage/prompts.yaml:ro
-#
-# And reference it in your config.yaml:
-#   prompts:
-#     prompts_path: /etc/forage/prompts.yaml
-# (Or set env var FORAGE_PROMPTS_CONFIG=/etc/forage/prompts.yaml)
-#
-# This file overrides the built-in defaults in app/config.py.
-# Keys not listed here keep their built-in values (partial override is fine).
-# Supports template placeholders: {now_date}, {year}, {default_engines},
-# {available_engines}, {default_limit}, {citation_guidelines}.
+# ============================================================
+# Forage Prompts & Citation Guidelines Template
+# Auto-seeded to /etc/forage/prompts.yaml when mounting a config directory.
+# Deleting prompts.yaml regenerates a fresh default copy on next restart.
+# Supported placeholders: {now_date}, {year}, {default_engines},
+# {available_engines}, {default_limit}, {citation_guidelines}
+# ============================================================
 
 # Reusable citation guidelines block (kept short for token efficiency)
 citation_guidelines: >

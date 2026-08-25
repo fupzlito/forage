@@ -483,11 +483,13 @@ def _seed_file_if_missing(target_dir: str, target_filename: str, template_filena
             shutil.copy2(template_path, target_path)
             logger.info("Auto-seeded default %s to %s", target_filename, target_path)
             return target_path
-        except (PermissionError, OSError) as exc:
+        except (PermissionError, OSError):
             logger.warning(
-                "Config directory %s is read-only or unwritable (%s). Cannot auto-seed %s; continuing with built-in defaults.",
+                "Config directory %s is read-only. Cannot auto-seed %s. "
+                "Remove the bind mount if you're only using docker compose environment overrides, "
+                "or allow writes / create %s manually if you need custom config settings.",
                 target_dir,
-                exc,
+                target_filename,
                 target_filename,
             )
             return None

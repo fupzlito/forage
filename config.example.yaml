@@ -1,116 +1,68 @@
 # ============================================================
-# Forage configuration: example (safe to commit)
-# Copy to config.yaml and adjust for your instance.
-# Secrets NEVER go here: use env vars (e.g. FORAGE_API_KEYS).
-# Reload: docker compose restart
-# See docs/CONFIG.md for the full reference.
+# Forage Configuration Template
+# Auto-seeded to /etc/forage/config.yaml when mounting a config directory.
+# Deleting config.yaml regenerates a fresh default copy on next restart.
+# Apply changes: docker compose restart forage
+# Full reference: docs/CONFIG.md
 # ============================================================
 
 # --- Server -------------------------------------------------
 server:
-  host: 0.0.0.0            # bind inside the container (bridge requires 0.0.0.0)
-  port: 3672               # default port (T9 of "FORA"); customize freely
+  host: 0.0.0.0            # bind inside the container
+  port: 3672               # HTTP port
   workers: 2               # uvicorn workers
   log_level: info          # debug | info | warning | error
 
 # --- Cache --------------------------------------------------
-# In-memory LRU only. Master switch: when enabled: false, ALL caching is off
-# regardless of per-section toggles. Per-section toggles can only disable
-# further (never enable over the master).
 cache:
-  enabled: true            # universal master switch
-  max_entries: 500         # global LRU cap (total keys, both caches)
+  enabled: true            # master toggle (false disables all caching)
+  max_entries: 500         # global LRU key cap
   search:
     enabled: true          # cache search results
-    ttl: 300               # seconds (5 min); protects SearXNG engines from anti-bot
+    ttl: 300               # seconds (5 min)
   extract:
-    enabled: true          # short TTL: fast repeat extraction, bounded staleness
-    ttl: 60                # seconds (1 min); stores full content so re-fetches with higher max_chars hit cache instantly
+    enabled: true          # cache extracted web pages
+    ttl: 60                # seconds (1 min); stores full content for instant dynamic max_chars slices
 
 # --- Tools ---------------------------------------------------
-# Custom tool names for OpenWebUI and MCP integration
 tools:
-  search_name: web_search  # tool call name presented to LLMs (e.g. web_search, search_web)
-  extract_name: web_extract # tool call name presented to LLMs (e.g. web_extract, fetch_page)
-  include_favicon: false   # if true, adds "FAVICON: <url>" to the formatted text for models
+  search_name: web_search  # tool call name exposed to LLMs
+  extract_name: web_extract # tool call name exposed to LLMs
+  include_favicon: false   # if true, injects favicon URLs for search results & extracts
 
 # --- Search (SearXNG) ----------------------------------------
-# Point this at your SearXNG instance. See docs/SEARXNG.md for setup.
 search:
-  searxng_url: http://searxng:8080   # service name on the shared docker network
-  default_lang: en-US     # language passed to SearXNG
+  searxng_url: http://searxng:8080   # SearXNG instance URL (see docs/SEARXNG.md)
+  default_lang: en-US                # default search language
   engines: [google, bing, brave, duckduckgo, qwant]  # default engine filter
-  available_engines: [google, qwant, qwant news, brave, bing, startpage, duckduckgo, reddit, wikipedia, youtube, github, searxng, yahoo, wikidata] # engines available on your SearXNG instance
+  available_engines: [google, qwant, qwant news, brave, bing, startpage, duckduckgo, reddit, wikipedia, youtube, github, searxng, yahoo, wikidata]
   timeout: 15              # seconds per search
-  default_limit: 10        # default number of search results returned
-  max_limit: 50            # maximum search results allowed per call
-  max_snippet_chars: 350   # max length per search result snippet
-  max_total_snippet_chars: 3000 # total char cap across all snippets per response
-  citation_style: site_name # citation link format: "site_name" (default: [Site Name](url)),
-                             # "site_name_brackets" ([[Site Name]](url) - visible square brackets),
-                             # "academic" ([[1]](url) - numbered reference),
-                             # "site_name_bold" ([**Site Name**](url)), "site_name_italic" ([*Site Name*](url)),
-                             # "bracket_domain" ([domain.com](url)), "bracket_title" ([Source: Title](url))
+  default_limit: 10        # default results returned
+  max_limit: 50            # maximum results allowed
+  max_snippet_chars: 350   # max length per snippet
+  max_total_snippet_chars: 3000 # total snippet budget per search
+  citation_style: site_name # citation style: "site_name" ([Site Name](url)), "academic" ([[1]](url)), etc.
 
 # --- Extract ------------------------------------------------
 extract:
-  timeout: 30              # seconds, total per URL
-  max_content_chars: 100000 # cap on extracted content size
-  only_main_content: true  # strip nav/ads/footer (trafilatura)
-  engine: readability     # extract engine: "readability" (default; Readability.js in the
-                          # browser + markdownify; keeps buyboxes/comments that
-                          # trafilatura drops as non-main, as markdown) or "trafilatura".
-                          # Applies ONLY to browser renders: the static path always
-                          # uses httpx + trafilatura.
-  user_agent: "ForageBot/0.1 (+https://github.com/aldemaroc/forage)"  # static fetch
-  # browser_user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36"
-                           # browser (Playwright); commented = built-in Chrome desktop UA
-  respect_robots: false    # default: DO NOT respect robots.txt (configurable)
-  force_render: false      # hybrid default: static first, auto-fallback to browser
-  wait_for: null           # optional CSS selector to wait before extracting
-  min_content_chars: 200   # static result below this length -> browser fallback
-  raw_content_markdown: true
-                          # true: raw_content mirrors clean markdown (Firecrawl-style contract)
-                          # false: raw_content keeps the raw HTML
-  prefer_markdown: true   # negotiate Accept: text/markdown; when the server serves native
-                          # markdown (e.g. via .htaccess / Vary: Accept), use it directly
-                          # instead of converting HTML with trafilatura (method: "markdown")
-  require_max_chars: false # if true, makes max_chars a required argument in the web_extract tool schema
-                          # (forces LLMs to specify character budgets per extraction call)
-  # domain_overrides: per-pattern extraction overrides. The YAML key is a
-  # pattern (www-insensitive, case-insensitive):
-  #   "x.com"            -> host or any subdomain
-  #   ".x.com"           -> same, leading dot is an explicit convention
-  #   "amazon.*"         -> wildcard on a host label (fnmatch); matches the
-  #                         host itself and any subdomain suffix
-  #   "reddit.com/r/"    -> exact host + path prefix (path matching)
-  # Supported override keys:
-  #   force_render: bool   -> always use the browser (SPAs, anti-bot)
-  #   full_text: bool      -> extract the WHOLE page text instead of main
-  #                           content (forums/comment-heavy sites; trafilatura
-  #                           drops comments and buyboxes as non-main)
-  #   engine: str          -> per-domain extract engine override:
-  #                           "trafilatura" or "readability" (Readability.js
-  #                           + markdownify, keeps buybox and returns markdown)
-  #   wait_for: str        -> default CSS selector to wait before extracting
-  #   url_rewrite: str     -> rewrite matching URLs before fetching; format
-  #                           "host[/path]" (e.g. "old.reddit.com/r/"), the
-  #                           remaining path, query and fragment are preserved
-  #   scroll: bool         -> scroll to bottom to mount lazy content
-  #   timeout: int (1-120) -> total seconds budget per URL (default 30)
-  #   network_idle_timeout: int (0-60) -> cap for the networkidle wait after
-  #                           DOMContentLoaded (streaming pages never idle,
-  #                           lower it; slow hydrating pages, raise it)
-  #   challenge_timeout: int (0-120) -> max seconds to wait for an anti-bot
-  #                           challenge to auto-resolve (Cloudflare/Turnstile)
-  #   headers: dict[str, str] -> custom HTTP headers passed to static, tiered, and browser requests
-  #   cookies: dict[str, str] -> session cookies (e.g. reddit_session) passed to static, tiered, and browser
-  # Request-level params (force_render/wait_for/timeout in the API call) are
-  # absolute and override the domain override.
+  timeout: 30              # seconds per URL
+  max_content_chars: 100000 # character cap for extracted content
+  only_main_content: true  # strip boilerplate nav/footers/ads
+  engine: readability     # browser engine: "readability" (Readability.js + markdown) or "trafilatura"
+  user_agent: "ForageBot/0.1 (+https://github.com/fupzlito/forage)"  # static fetch UA
+  respect_robots: false    # respect robots.txt rules
+  force_render: false      # hybrid mode (static first, fallback to browser on JS/challenges)
+  wait_for: null           # default CSS selector or delay to wait before extracting
+  min_content_chars: 200   # static text below this threshold triggers browser render
+  raw_content_markdown: true # true: raw_content mirrors clean markdown; false: raw HTML
+  prefer_markdown: true    # negotiate Accept: text/markdown with servers
+  require_max_chars: false # require LLMs to pass character budget per URL
+
+  # Domain-specific overrides (override patterns match host and subdomains)
   domain_overrides:
     x.com:
       force_render: true
-      network_idle_timeout: 3   # streaming: never goes idle, cut early
+      network_idle_timeout: 3   # streaming: never goes idle
       timeout: 45
     twitter.com:
       force_render: true
@@ -124,13 +76,13 @@ extract:
       timeout: 45
     tiktok.com:
       force_render: true
-      challenge_timeout: 30     # puzzle captcha is intermittent
+      challenge_timeout: 30
       timeout: 60
     youtube.com:
       force_render: true
       scroll: true              # comments mount on scroll
-      network_idle_timeout: 10  # slow hydration (comments/recommendations)
-      engine: readability       # benchmark 2026-08-08: traf error in browser; readability ok (15.7s)
+      network_idle_timeout: 10
+      engine: readability
       timeout: 60
     youtu.be:
       force_render: true
@@ -138,145 +90,82 @@ extract:
       network_idle_timeout: 10
       timeout: 60
     ".amazon.*":
-      force_render: true        # product pages: price arrives via JS after load
-      engine: readability       # Readability.js + markdownify: keeps the buybox
-                                # (trafilatura drops it) AND returns structured
-                                # markdown (full_text only gave plain text)
-      timeout: 60               # 1.5MB+ DOM with the full buybox
-    # ---- readability via benchmark 2026-08-08 (trafilatura failed info/access) ----
+      force_render: true        # product pages mount buybox dynamically
+      engine: readability
+      timeout: 60
     bestbuy.com:
-      engine: readability       # traf: timeout 60s; readability ok (33.4s)
+      engine: readability
       timeout: 60
     bloomberg.com:
-      engine: readability       # traf: timeout 60s; readability ok (23.6s)
+      engine: readability
       timeout: 60
     marketwatch.com:
-      engine: readability       # traf: ok but no price (384c); readability has price (27k)
+      engine: readability
     yahoo.com:
-      engine: readability       # traf: quote page became an article without quotes; readability returns full quotes (benchmark 09/08)
+      engine: readability
     openai.com:
-      engine: readability       # traf: /news/ became "category+date" without titles (cards treated as boilerplate); readability keeps the cards (09/08)
+      engine: readability
     playstation.com:
-      engine: readability       # traf: ok but no price (13k); readability has price (12k)
+      engine: readability
     coursera.org:
-      engine: readability       # traf: timeout 60s; readability ok (40.9s)
+      engine: readability
       timeout: 60
     udemy.com:
-      engine: readability       # traf: timeout 60s; readability ok (7.2s)
+      engine: readability
     lyft.com:
-      engine: readability       # traf: timeout 60s; readability ok (4.9s)
+      engine: readability
     docs.aws.amazon.com:
-      engine: readability       # traf: timeout 60s; readability ok (6.6s)
+      engine: readability
     react.dev:
-      engine: readability       # traf: timeout 60s; readability ok (4.4s)
+      engine: readability
     git-scm.com:
-      engine: readability       # traf: timeout 60s; readability ok (1.8s)
-    reddit.com:                 # 3-tier pipeline: Tier 1 (.json API) -> Tier 2 (Redlib mirror) -> Tier 3 (browser)
+      engine: readability
+    reddit.com:                 # 3-tier pipeline: .json API -> Redlib mirror -> browser
       engine: readability
       timeout: 30
-      # Optional: pass your logged-in cookies for unrestricted .json API pulls
+      # Optional: pass cookies for private/age-gated Reddit feeds
       # cookies:
       #   reddit_session: "..."
-      #   token_v2: "..."
     fandom.com:
-      force_render: true        # 3.3MB HTML (16-24s in the benchmark)
+      force_render: true
       network_idle_timeout: 10
       timeout: 60
     dailymail.co.uk:
-      force_render: true        # heavy Cloudflare (only scrapling passes)
+      force_render: true
       challenge_timeout: 30
       timeout: 60
     stackoverflow.com:
-      force_render: true        # intermittent Cloudflare
+      force_render: true
       challenge_timeout: 30
       timeout: 45
     zoom.us:
-      force_render: true        # pricing page ~15s in the benchmark
+      force_render: true
       timeout: 45
     twitch.tv:
       force_render: true
-      network_idle_timeout: 3   # streaming: never goes idle
+      network_idle_timeout: 3
       timeout: 45
 
-# --- Browser pool (Playwright/Chromium, in-process) ----------
+# --- Browser pool (Playwright/Chromium/Scrapling, in-process) --
 browser:
-  engine: scrapling        # "scrapling" (default; StealthyFetcher: fingerprint
-                           # impersonation + Cloudflare Turnstile bypass, strongest anti-bot),
-                           # "playwright" (vanilla), "patchright" (anti-detection fork, same
-                           # API) or "obscura" (experimental Rust/V8 via CDP)
-  min_idle: 1              # browsers kept warm at boot (standby; scrapling keeps a session)
-  max_instances: 5         # pool ceiling (parallel URL extraction)
-  idle_timeout: 60         # seconds idle before an instance is closed
+  engine: scrapling        # "scrapling" (default; strongest anti-bot), "playwright", "patchright", or "obscura" (CDP)
+  min_idle: 1              # standby instances kept warm at boot
+  max_instances: 5         # maximum parallel browser extraction concurrency
+  idle_timeout: 60         # seconds before an idle browser instance terminates
   headless: true
-  launch_timeout: 30       # seconds to launch a new instance
-  stealth: true            # hide automation signals (anti-bot); ON by default
-  network_idle_timeout: 5  # seconds; cap for networkidle wait (streaming pages never idle)
-  scroll_steps: 0          # scroll-to-bottom passes in browser mode; triggers lazy
-                           # content (YouTube/Reddit comments). 0 (default) disables; it adds
-                           # ~6s on pages that don't grow. Enable only when needed.
-  challenge_timeout: 15    # seconds; how long to wait for a Cloudflare/Turnstile challenge
-                           # to auto-resolve after load (scrapling engine only)
-  solve_cloudflare: false  # scrapling only: use the built-in Cloudflare solver instead of
-                           # the page_action poll. The built-in solver waits ~5s per page
-                           # before detecting; the poll (default) resolves non-interactive
-                           # challenges with no fixed cost
-  fallback_solver: true    # on any anti-bot failure (any engine), retry the page with the
-                           # scrapling built-in solver as a last resort. Costs ~5s/page only
-                           # when a challenge is detected; turns failures into successes
+  launch_timeout: 30       # seconds allowed for browser launch
+  stealth: true            # mask automation signals (navigator.webdriver, UA)
+  network_idle_timeout: 5  # cap for networkidle wait in seconds
+  scroll_steps: 0          # scroll passes for lazy content (0 disables; override per-domain)
+  challenge_timeout: 15    # max seconds to wait for Cloudflare/Turnstile auto-resolution
+  solve_cloudflare: false  # scrapling: use built-in solver (adds ~5s/page) vs fast poll (default)
+  fallback_solver: true    # on anti-bot failure, retry once with solver as last resort
 
 # --- Auth (optional) ------------------------------------------
-# API keys come from env: FORAGE_API_KEYS (comma separated)
+# When enabled, API keys are passed via FORAGE_API_KEYS environment variable
 auth:
-  enabled: false           # when true, every request needs Authorization: Bearer <key>
+  enabled: false           # when true, requires Authorization: Bearer <key>
 
-# --- Prompts & Tool Descriptions (optional) -------------------
-# Customize citation rules, tool descriptions, and parameter guidance.
-# Supports template placeholders: {now_date}, {year}, {default_engines},
-# {available_engines}, {default_limit}, {citation_guidelines}.
-# You can also load an external YAML file via prompts_path (or FORAGE_PROMPTS_CONFIG env var).
-# NOTE: If this section is uncommented, it will OVERRIDE the built-in defaults.
-# To use the built-in defaults (which are updated alongside the code), comment this entire section out.
-#
-# prompts:
-#   # prompts_path: /etc/forage/prompts.yaml  # optional path to external prompts YAML file
-#
-#   # Reusable citation guidelines block
-#   citation_guidelines: >
-#     CITATION RULES: Always link-cite sources inline next to claims, quotes, articles, repositories, or posts.
-#     Cite as markdown links using site names, short titles, usernames, or repository names as link text:
-#     'per [CNBC](url)', '[Reddit](url)', 'the [docs](url)', or '[org/repo](url)'.
-#     Results provide a ready-to-use 'citation' markdown link.
-#     Never put prepositions inside brackets: '[per CNBC](url)' is WRONG.
-#     Place periods before citation links: 'Shares fell 4%. [CNBC](url)'.
-#     List any remaining uncited sources under a 'Sources' heading at the bottom.
-#     Never duplicate a source that was already cited inline.
-#
-#   # Web search tool description template
-#   search_tool_description: >
-#     Search the web via SearXNG to find relevant links and sources. Today is {now_date} (year {year}).
-#     Do not add dates or years to queries unless time-specific or directly relevant.
-#     Prioritize relevant sources based on snippet and domain before fetching full pages.
-#     {citation_guidelines}
-#
-#   # Web extract tool description template
-#   extract_tool_description: >
-#     Fetch and extract clean markdown content from web URLs. Supports rich forum (Reddit), article, documentation, and e-commerce extraction.
-#     {max_chars_requirement}: set max_chars per URL to budget context. Today is {now_date} (year {year}).
-#     {citation_guidelines}
-#
-#   # Parameter descriptions for OpenAPI & MCP schemas
-#   search_params:
-#     query: "Search query terms. Keep queries focused on essential keywords. Do not add date/year unless directly relevant."
-#     limit: "Number of search results to return (1 to 50, default {default_limit}). Set higher (e.g. 10-15) for broad topics instead of making multiple separate search calls."
-#     engines: "Optional list of specific engines to query. Default engines: [{default_engines}]. Available: [{available_engines}]. Do NOT specify engines unless targeting a specific engine."
-#     language: "Optional language code for search results (e.g. 'en-US', 'pt-BR', 'es', 'de')."
-#
-#   extract_params:
-#     urls: "List of HTTP/HTTPS URLs to fetch and extract content from (1 to 20 URLs)."
-#     force_render: "Force full headless browser rendering (Chromium) for JavaScript SPAs or dynamic sites."
-#     only_main_content: "If true (default), strips headers, footers, ads, and navigation. Set to false for full page text including comments and sidebars."
-#     wait_for: "Optional CSS selector or delay in seconds to wait for before extracting (browser mode only)."
-#     engine: "Extraction engine: 'trafilatura' (default) or 'readability' (Mozilla Readability.js, better for e-commerce and forums)."
-#     timeout: "Maximum extraction timeout per URL in seconds (1 to 120)."
-#     max_chars: "{max_chars_requirement} maximum characters to return (applied per URL) (500 to {max_content_chars}). Truncates long pages to save context."
-#     formats: "Desired output format: ['markdown'] (default) or ['html']."
+# --- Prompts & Citation Guidelines ----------------------------
+# Prompts and citation rules are configured in prompts.yaml (auto-seeded in /etc/forage/prompts.yaml).
+# Edit prompts.yaml directly to customize tool descriptions and system instructions.
