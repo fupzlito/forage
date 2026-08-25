@@ -97,6 +97,18 @@ def _readability_eval() -> str:
         "      el.querySelectorAll('div[slot=\"creditBar\"], div[slot=\"actions\"], div[slot=\"action-row\"], [slot=\"actionRow\"], shreddit-comment-action-row, faceplate-number, shreddit-overflow-menu, [slot=\"comment-menu\"]').forEach(function(x) { x.remove(); });\n"
         "    });\n"
         "    document.querySelectorAll('div[slot=\"creditBar\"], shreddit-comment-action-row').forEach(function(el) { el.remove(); });\n"
+        "    var postEl = document.querySelector('shreddit-post, div[data-testid=\"post-container\"], div[id^=\"t3_\"]');\n"
+        "    var treeEl = document.querySelector('shreddit-comment-tree, #comment-tree, div[slot=\"comments\"], [slot=\"comments\"]');\n"
+        "    if (postEl && treeEl && postEl.parentNode) {\n"
+        "      var wrapper = document.createElement('article');\n"
+        "      wrapper.id = 'forage-reddit-thread';\n"
+        "      postEl.parentNode.insertBefore(wrapper, postEl);\n"
+        "      wrapper.appendChild(postEl);\n"
+        "      var heading = document.createElement('h2');\n"
+        "      heading.textContent = 'Comments';\n"
+        "      wrapper.appendChild(heading);\n"
+        "      wrapper.appendChild(treeEl);\n"
+        "    }\n"
         "  }\n"
         "} catch(e) {}\n"
     )
@@ -363,6 +375,11 @@ class BrowserPool:
                     pass
             if steps > 0:
                 await self._scroll_to_bottom(page, steps)
+            elif "reddit.com" in url.lower():
+                try:
+                    await page.wait_for_selector("shreddit-comment, #comment-tree, div[slot='comments']", timeout=4000)
+                except Exception:
+                    pass
             if readability:
                 article = _parse_readability(await page.evaluate(_readability_eval()))
                 if article:
@@ -425,6 +442,11 @@ class BrowserPool:
                     pass
             if scroll_steps > 0:
                 await self._scroll_to_bottom(page, scroll_steps)
+            elif "reddit.com" in url.lower():
+                try:
+                    await page.wait_for_selector("shreddit-comment, #comment-tree, div[slot='comments']", timeout=4000)
+                except Exception:
+                    pass
             if readability:
                 article = _parse_readability(await page.evaluate(_readability_eval()))
                 if article:
@@ -516,6 +538,11 @@ class BrowserPool:
                     pass
             if scroll_steps > 0:
                 await self._scroll_to_bottom(page, scroll_steps)
+            elif "reddit.com" in url.lower():
+                try:
+                    await page.wait_for_selector("shreddit-comment, #comment-tree, div[slot='comments']", timeout=4000)
+                except Exception:
+                    pass
             if readability:
                 try:
                     result["article"] = _parse_readability(

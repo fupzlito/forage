@@ -592,13 +592,17 @@ async def _try_reddit_extract(config: ForageConfig, url: str, timeout: int) -> O
 
     # --- Tier 1: Official Reddit .json endpoint ---
     clean_path = path.rstrip("/") + ".json"
-    json_url = f"https://www.reddit.com{clean_path}"
-    if parsed.query:
-        json_url += f"?{parsed.query}"
+    if "/comments/" in clean_path:
+        json_url = f"https://www.reddit.com{clean_path}?raw_json=1&limit=100&depth=10"
+    elif parsed.query:
+        json_url = f"https://www.reddit.com{clean_path}?{parsed.query}&raw_json=1"
+    else:
+        json_url = f"https://www.reddit.com{clean_path}?raw_json=1"
 
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept": "application/json, text/plain, */*",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+        "Accept": "application/json",
+        "Accept-Language": "en-US,en;q=0.9",
     }
 
     try:
