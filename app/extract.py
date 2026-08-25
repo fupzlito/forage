@@ -236,6 +236,10 @@ CHALLENGE_TITLES = [
     "attention required",
     "just a moment",
     "checking your browser",
+    "verifying your browser",
+    "verify you are human",
+    "security check",
+    "robot or human",
     "access denied",
     "ddos-guard",
     "sucuri",
@@ -249,6 +253,8 @@ CHALLENGE_MARKERS = [
     "cf-challenge",
     "cf-browser-verification",
     "cf-error-details",
+    "protected by anubis",
+    "anubis uses a proof-of-work",
 ]
 
 
@@ -575,7 +581,15 @@ async def _try_reddit_extract(config: ForageConfig, url: str, timeout: int) -> O
                     max_chars=config.extract.max_content_chars,
                     raw_md=config.extract.raw_content_markdown,
                 )
-                if content and "Welcome to Reddit" not in title and "Log in to use old Reddit" not in content:
+                if (
+                    content
+                    and not looks_like_challenge(html, title)
+                    and "welcome to reddit" not in title.lower()
+                    and "log in to use old reddit" not in content.lower()
+                    and "verifying your browser" not in title.lower()
+                    and "anubis" not in html.lower()
+                    and len(content) > 100
+                ):
                     return {
                         "title": title or _title_from_url(url),
                         "content": content,
@@ -731,10 +745,20 @@ async def extract_url(
             result["rewritten_url"] = url
         return result
 
+    render_url = url
+    parsed_u = urlparse(url)
+    if parsed_u.hostname and parsed_u.hostname.lower() in ("reddit.com", "www.reddit.com", "old.reddit.com", "sh.reddit.com", "new.reddit.com", "safereddit.com"):
+        r_path = parsed_u.path or "/"
+        if r_path.endswith(".json"):
+            r_path = r_path[:-5]
+        render_url = f"https://www.reddit.com{r_path}"
+        if parsed_u.query:
+            render_url += f"?{parsed_u.query}"
+
     if want_browser:
         try:
             html = await pool.render(
-                url,
+                render_url,
                 wait_for=effective_wait_for,
                 timeout=effective_timeout,
                 scroll_steps=_scroll_steps_for(config, effective_scroll),
@@ -768,7 +792,7 @@ async def extract_url(
             logger.info("%s -> %s, falling back to browser", url, render_reason)
             try:
                 html = await pool.render(
-                    url,
+                    render_url,
                     wait_for=effective_wait_for,
                     timeout=effective_timeout,
                     scroll_steps=_scroll_steps_for(config, effective_scroll),
