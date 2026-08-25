@@ -42,10 +42,7 @@ DEFAULTS: Dict[str, Any] = {
         "searxng_url": "http://searxng:8080",
         "default_lang": "en-US",
         "engines": ["google", "bing", "brave", "duckduckgo", "qwant"],
-        "available_engines": [
-            "google", "qwant", "qwant news", "brave", "bing", "startpage", "duckduckgo", "reddit",
-            "wikipedia", "youtube", "github", "searxng", "yahoo", "wikidata"
-        ],
+        "available_engines": None,  # None = auto-discover live text/web engines from SearXNG GET /config
         "timeout": 15,
         "default_limit": 10,
         "max_limit": 50,
@@ -179,10 +176,7 @@ class SearchConfig:
     searxng_url: str = "http://searxng:8080"
     default_lang: str = "en-US"
     engines: tuple = ("google", "bing", "brave", "duckduckgo", "qwant")
-    available_engines: tuple = (
-        "google", "qwant", "qwant news", "brave", "bing", "startpage", "duckduckgo", "reddit",
-        "wikipedia", "youtube", "github", "searxng", "yahoo", "wikidata"
-    )
+    available_engines: Optional[tuple] = None
     timeout: int = 15
     default_limit: int = 10
     max_limit: int = 50
@@ -299,7 +293,7 @@ class ForageConfig:
 
         if "engines" in search:
             search["engines"] = tuple(search["engines"])
-        if "available_engines" in search:
+        if "available_engines" in search and search["available_engines"] is not None:
             search["available_engines"] = tuple(search["available_engines"])
 
         if "domain_overrides" in extract:

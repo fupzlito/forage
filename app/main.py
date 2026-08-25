@@ -105,7 +105,7 @@ class SearchRequest(BaseModel):
     engines: Optional[List[str]] = Field(
         default=None,
         description=(
-            f"Optional list of search engines to query. Available engines: {', '.join(config.search.available_engines)}. "
+            f"Optional list of search engines to query. Available engines: {', '.join(get_live_available_engines(config))}. "
             "Engine name aliases (e.g. 'ddg', 'google_search') will be auto-mapped or filtered gracefully."
         ),
     )

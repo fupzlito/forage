@@ -135,13 +135,23 @@ def format_citation(
         return f"[{domain}]({url})" if domain else f"[{site_name}]({url})"
     elif style == "bracket_title":
         return f"[Source: {site_name}]({url})"
+DEFAULT_AVAILABLE_ENGINES = (
+    "google", "qwant", "qwant news", "brave", "bing", "startpage", "duckduckgo", "reddit",
+    "wikipedia", "youtube", "github", "searxng", "yahoo", "wikidata"
+)
+TEXT_SEARCH_CATEGORIES = {"general", "news", "it", "science", "social media", "social_media"}
+NON_TEXT_CATEGORIES = {"images", "videos", "music", "audio", "files", "map", "packages", "apps"}
+NON_TEXT_SUFFIXES = (".images", ".videos", ".audio", ".files", " images", " videos", " audio", " music")
+
 _cached_available_engines: Optional[Tuple[str, ...]] = None
 _cached_general_engines: Optional[Tuple[str, ...]] = None
 _last_engine_fetch: float = 0.0
 
 
 def fetch_searxng_engines_sync(searxng_url: str, timeout: float = 2.0) -> Tuple[Tuple[str, ...], Tuple[str, ...]]:
-    """Query SearXNG GET /config synchronously to discover enabled engines and default category engines.
+    """Query SearXNG GET /config synchronously to discover active text/web engines and default category engines.
+
+    Filters out media/torrent/package/map engines to keep tool descriptions and prompt context concise.
 
     Returns:
         (available_engines_tuple, general_category_engines_tuple)
@@ -158,12 +168,19 @@ def fetch_searxng_engines_sync(searxng_url: str, timeout: float = 2.0) -> Tuple[
                 if isinstance(e, dict):
                     name = e.get("name")
                     if name and not e.get("disabled", False):
-                        available.append(name)
-                        categories = e.get("categories", [])
-                        if "general" in categories or not categories:
-                            general.append(name)
+                        categories = [c.lower().strip() for c in e.get("categories", [])]
+                        is_text_cat = any(cat in TEXT_SEARCH_CATEGORIES for cat in categories) or not categories
+                        is_media_cat = any(cat in NON_TEXT_CATEGORIES for cat in categories)
+                        is_media_name = any(name.lower().endswith(sfx) for sfx in NON_TEXT_SUFFIXES)
+
+                        if is_text_cat and not is_media_cat and not is_media_name:
+                            available.append(name)
+                            if "general" in categories or not categories:
+                                general.append(name)
                 elif isinstance(e, str) and e:
-                    available.append(e)
+                    clean = e.lower().strip()
+                    if not any(clean.endswith(sfx) for sfx in NON_TEXT_SUFFIXES):
+                        available.append(e)
             if available:
                 return tuple(available), tuple(general)
     except Exception as exc:
@@ -172,7 +189,14 @@ def fetch_searxng_engines_sync(searxng_url: str, timeout: float = 2.0) -> Tuple[
 
 
 def get_live_available_engines(config: ForageConfig) -> Tuple[str, ...]:
-    """Return live available engines from SearXNG GET /config with 5-minute cache fallback."""
+    """Return live available engines.
+
+    If config.search.available_engines is explicitly configured, returns it directly.
+    Otherwise, auto-discovers live text/web engines from SearXNG GET /config with a 5-minute cache.
+    """
+    if config.search.available_engines is not None:
+        return config.search.available_engines
+
     global _cached_available_engines, _cached_general_engines, _last_engine_fetch
     import time
     now = time.monotonic()
@@ -186,8 +210,8 @@ def get_live_available_engines(config: ForageConfig) -> Tuple[str, ...]:
         _last_engine_fetch = now
         return avail
 
-    # Fallback to configured or built-in default available engines
-    return config.search.available_engines
+    # Fallback default text engines baseline
+    return DEFAULT_AVAILABLE_ENGINES
 
 
 def normalize_and_validate_engines(
