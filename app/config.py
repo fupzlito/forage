@@ -70,6 +70,7 @@ DEFAULTS: Dict[str, Any] = {
         "domain_overrides": {},
         "citation_style": "site_name",
         "include_favicon": None,
+        "require_max_chars": False,
     },
     "browser": {
         "engine": "playwright",
@@ -231,6 +232,7 @@ class ExtractConfig:
     domain_overrides: tuple = ()
     citation_style: str = "site_name"
     include_favicon: Optional[bool] = None
+    require_max_chars: bool = False
 
 
 @dataclass(frozen=True)

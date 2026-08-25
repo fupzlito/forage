@@ -41,6 +41,28 @@ class TestPrompts(unittest.TestCase):
         search_tool = next(t for t in tools if t["name"] == "web_search")
         self.assertEqual(search_tool["description"], "Search custom: Custom rules for testing.")
 
+    def test_extract_max_chars_schema_and_require_toggle(self):
+        # 1. Default config: max_chars optional, maximum bound to extract.max_content_chars
+        config_default = load_config()
+        tools_def = get_tool_definitions(config_default)
+        extract_def = next(t for t in tools_def if t["name"] == "web_extract")
+        schema = extract_def["inputSchema"]
+
+        self.assertEqual(schema["required"], ["urls"])
+        self.assertEqual(schema["properties"]["max_chars"]["maximum"], config_default.extract.max_content_chars)
+
+        # 2. Config with require_max_chars=True and custom max_content_chars
+        config_req = ForageConfig.from_dict(
+            {"extract": {"require_max_chars": True, "max_content_chars": 50000}},
+            source_path="test",
+        )
+        tools_req = get_tool_definitions(config_req)
+        extract_req = next(t for t in tools_req if t["name"] == "web_extract")
+        schema_req = extract_req["inputSchema"]
+
+        self.assertEqual(schema_req["required"], ["urls", "max_chars"])
+        self.assertEqual(schema_req["properties"]["max_chars"]["maximum"], 50000)
+
 
 if __name__ == "__main__":
     unittest.main()

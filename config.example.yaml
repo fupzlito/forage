@@ -75,6 +75,8 @@ extract:
   prefer_markdown: true   # negotiate Accept: text/markdown; when the server serves native
                           # markdown (e.g. via .htaccess / Vary: Accept), use it directly
                           # instead of converting HTML with trafilatura (method: "markdown")
+  require_max_chars: false # if true, makes max_chars a required argument in the web_extract tool schema
+                          # (forces LLMs to specify character budgets per extraction call)
   # domain_overrides: per-pattern extraction overrides. The YAML key is a
   # pattern (www-insensitive, case-insensitive):
   #   "x.com"            -> host or any subdomain

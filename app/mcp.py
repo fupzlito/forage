@@ -60,6 +60,7 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
         "default_engines": default_engines_str,
         "available_engines": available_engines_str,
         "default_limit": config.search.default_limit,
+        "max_content_chars": config.extract.max_content_chars,
         "citation_guidelines": config.prompts.citation_guidelines,
     }
 
@@ -172,7 +173,7 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
                     context,
                 ),
                 "minimum": 500,
-                "maximum": 500000,
+                "maximum": config.extract.max_content_chars,
             },
             "formats": {
                 "type": "array",
@@ -183,7 +184,7 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
                 ),
             },
         },
-        "required": ["urls"],
+        "required": ["urls", "max_chars"] if getattr(config.extract, "require_max_chars", False) else ["urls"],
     }
 
     return [
