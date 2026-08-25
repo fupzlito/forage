@@ -53,7 +53,7 @@ Bypass per request with the `Cache-Control: no-cache` header; the response heade
 | `max_limit` | `50` | Maximum allowed search limit per query. |
 | `max_snippet_chars` | `350` | Max character cap per search result snippet. |
 | `max_total_snippet_chars` | `3000` | Total character cap across all snippets per response. |
-| `citation_style` | `site_name` | Citation link style format: `site_name` (`[Site Name](url)`), `site_name_code` (``[`Site Name`](url)``), `site_name_bold` (`[**Site Name**](url)`), `site_name_italic` (`[*Site Name*](url)`), `superscript` (`<sup>[Site Name](url)</sup>`), `bracket_numeric` (`[1](url)`), `bracket_domain` (`[domain.com](url)`), `bracket_title` (`[Source: Title](url)`). |
+| `citation_style` | `site_name` | Citation link style format: `site_name` (`[Site Name](url)`), `site_name_brackets` (`[[Site Name]](url)`), `academic` (`[[1]](url)` - numbered reference), `site_name_bold` (`[**Site Name**](url)`), `site_name_italic` (`[*Site Name*](url)`), `bracket_domain` (`[domain.com](url)`), `bracket_title` (`[Source: Title](url)`). |
 | `include_favicon` | `null` | Optional override for `tools.include_favicon` specifically for search responses. |
 
 ## `extract`
@@ -72,6 +72,7 @@ Bypass per request with the `Cache-Control: no-cache` header; the response heade
 | `min_content_chars` | `200` | If static extraction yields less text than this, Forage falls back to the browser. |
 | `raw_content_markdown` | `true` | `true`: `raw_content` mirrors the clean markdown (Firecrawl-style contract; what Hermes' `web_extract_tool` reads first). `false`: `raw_content` keeps the raw HTML. |
 | `prefer_markdown` | `true` | Negotiate `Accept: text/markdown` on the static fetch. When the server implements markdown negotiation (e.g. via `.htaccess` / `Vary: Accept`) and serves `text/markdown`, Forage uses the body directly as markdown (`method: "markdown"`), skipping trafilatura conversion. Servers without negotiation ignore the Accept and return HTML, so the normal hybrid flow continues. |
+| `citation_style` | `site_name` | Citation link style format for extracted content (same styles as `search.citation_style`). |
 | `include_favicon` | `null` | Optional override for `tools.include_favicon` specifically for extract responses. |
 | `domain_overrides` | `{}` | Per-pattern extraction overrides. The YAML key is a pattern (www-insensitive, case-insensitive): `x.com` matches the host or any subdomain; `.x.com` is the same with an explicit leading dot; `amazon.*` is a wildcard on a host label (fnmatch) that matches the host and any subdomain suffix; `reddit.com/r/` requires an exact host plus a path prefix. Supported keys per override: `force_render` (bool), `full_text` (bool), `engine` (str: `trafilatura` or `readability`), `wait_for` (str), `url_rewrite` (str, format `host[/path]`), `scroll` (bool), `timeout` (int 1-120), `network_idle_timeout` (int 0-60), `challenge_timeout` (int 0-120), `headers` (map of custom request headers), `cookies` (map of custom session cookies). Request-level `force_render`/`wait_for`/`timeout`/`engine` are absolute and override the domain override. |
 

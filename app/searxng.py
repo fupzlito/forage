@@ -325,7 +325,7 @@ def search_searxng(
 
     return {
         "success": True,
-        "timestamp": now_utc,
+        "searched_at": now_utc,
         "successful_engines": successful_engines,
         "warning": combined_warning,
         "results": unified_results,

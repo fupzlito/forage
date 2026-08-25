@@ -239,7 +239,7 @@ async def execute_tool_call(
         warning = res.get("warning")
         engines_ok = res.get("successful_engines", [])
 
-        header_parts = [f'SEARCH RESULTS for "{query}" | {res.get("timestamp", "")}']
+        header_parts = [f'SEARCH RESULTS for "{query}" | {res.get("searched_at", res.get("timestamp", ""))}']
         if engines_ok:
             header_parts.append(f"Engines: {', '.join(engines_ok)}")
 
