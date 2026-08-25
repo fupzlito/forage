@@ -172,12 +172,12 @@ Environment variables provide the highest precedence in configuration resolution
 |---|---|---|
 | `FORAGE_API_KEYS` | `auth` | Comma-separated API keys used when auth is enabled (e.g. `key1,key2`). |
 | `FORAGE_AUTH_ENABLED` | `auth.enabled` | Enable or disable API authentication (`true`/`false`). |
-| `FORAGE_CONFIG` | Config Loader | Path to YAML config file (default `/etc/forage/config.yaml`). |
-| `FORAGE_PROMPTS_CONFIG` | `prompts.prompts_path` | Standalone prompts YAML path. Overrides `prompts.prompts_path`. |
+| `FORAGE_CONFIG` | Config Loader | Path to YAML config file or mounted directory (default `/etc/forage/config.yaml`). |
+| `FORAGE_PROMPTS_CONFIG` | `prompts.prompts_path` | Standalone prompts YAML path or directory. Overrides `prompts.prompts_path`. |
 | `FORAGE_SEARXNG_URL` / `SEARXNG_URL` | `search.searxng_url` | Base URL of SearXNG instance (e.g. `http://searxng:8080`). |
 | `FORAGE_SEARCH_ENGINES` | `search.engines` | Comma-separated search engine filter (e.g. `google,bing,brave,qwant`). |
 | `FORAGE_SEARCH_DEFAULT_LANG` | `search.default_lang` | Default search language code (e.g. `en-US`, `pt-BR`). |
-| `FORAGE_BROWSER_ENGINE` | `browser.engine` | Browser engine: `playwright`, `patchright`, `scrapling`, or `obscura`. |
+| `FORAGE_BROWSER_ENGINE` | `browser.engine` | Browser engine: `scrapling` (default), `playwright`, `patchright`, or `obscura`. |
 | `FORAGE_BROWSER_CDP_URL` | `browser.cdp_url` | Obscura CDP endpoint URL when `engine=obscura` (e.g. `http://obscura:9223`). |
 | `FORAGE_BROWSER_HEADLESS` | `browser.headless` | Run browser in headless mode (`true`/`false`). |
 | `FORAGE_EXTRACT_ENGINE` | `extract.engine` | Extraction engine: `trafilatura` or `readability`. |

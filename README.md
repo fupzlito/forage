@@ -283,6 +283,8 @@ All settings can be dynamically overridden via Docker environment variables with
 
 | Variable | Description | Default |
 |---|---|---|
+| `FORAGE_CONFIG` | Config YAML file or directory path inside container | `/etc/forage/config.yaml` |
+| `FORAGE_PROMPTS_CONFIG` | Prompts YAML file or directory path inside container | `/etc/forage/prompts.yaml` |
 | `FORAGE_SEARXNG_URL` | SearXNG backend service URL | `http://searxng:8080` |
 | `FORAGE_SEARCH_ENGINES` | Comma-separated search engine filter | `google,bing,brave,duckduckgo,qwant` |
 | `FORAGE_BROWSER_ENGINE` | Browser engine (`scrapling`, `playwright`, `patchright`, `obscura`) | `scrapling` |
