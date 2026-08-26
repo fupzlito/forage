@@ -524,11 +524,13 @@ def search_searxng(
             item["engine"] = str(engine_name)
         if author:
             clean_author = str(author).strip()
-            item["author"] = clean_author
             if is_video:
-                item["channel"] = clean_author
-        if channel_id:
-            item["channel_id"] = str(channel_id).strip()
+                if channel_id and f"({channel_id})" not in clean_author:
+                    item["channel"] = f"{clean_author} ({channel_id})"
+                else:
+                    item["channel"] = clean_author
+            else:
+                item["author"] = clean_author
         if live_stat:
             item["live_status"] = live_stat
         if duration:

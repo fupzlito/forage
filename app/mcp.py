@@ -314,8 +314,6 @@ async def execute_tool_call(
                 block_parts.append(f"CHANNEL: {chan_str}")
             elif r.get("author"):
                 block_parts.append(f"AUTHOR: {r['author']}")
-            if r.get("channel_id"):
-                block_parts.append(f"CHANNEL ID: {r['channel_id']}")
             if r.get("duration"):
                 block_parts.append(f"DURATION: {r['duration']}")
             if r.get("views") is not None:

@@ -216,10 +216,10 @@ class TestSearXNG(unittest.TestCase):
 
         # YouTube video result has rich metadata
         yt_res = res["results"][0]
-        self.assertEqual(yt_res["author"], "Veritasium")
-        self.assertEqual(yt_res["channel"], "Veritasium")
+        self.assertEqual(yt_res["channel"], "Veritasium (UCvB5TYey1VC4456)")
+        self.assertNotIn("author", yt_res)
+        self.assertNotIn("channel_id", yt_res)
         self.assertEqual(yt_res["video_title"], "Veritasium - The Science of Thinking")
-        self.assertEqual(yt_res["channel_id"], "UCvB5TYey1VC4456")
         self.assertEqual(yt_res["duration"], "14:22")
         self.assertEqual(yt_res["views"], 1540200)
         self.assertEqual(yt_res["engine"], "youtube")
@@ -257,8 +257,8 @@ class TestSearXNG(unittest.TestCase):
         res = search_searxng(self.config, query="veritasium pi", limit=5)
         self.assertTrue(res["success"])
         item = res["results"][0]
-        self.assertEqual(item["channel"], "Veritasium")
-        self.assertEqual(item["channel_id"], "UCHnyfMqiRRG1u-2MsSQLbXA")
+        self.assertEqual(item["channel"], "Veritasium (UCHnyfMqiRRG1u-2MsSQLbXA)")
+        self.assertNotIn("channel_id", item)
         self.assertEqual(item["video_title"], "The Discovery That Transformed Pi")
         self.assertEqual(item["live_status"], "[🔴 LIVE]")
         self.assertEqual(item["snippet"], "For thousands of years, mathematicians were calculating Pi.")
