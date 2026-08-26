@@ -119,13 +119,18 @@ def format_citation(
     url: str,
     position: int = 1,
     style: str = "site_name",
+    is_video: bool = False,
 ) -> str:
     """Format citation link based on requested citation_style.
 
     All styles produce standard markdown links that render as clickable
     text in OpenWebUI and other markdown consumers.
     """
-    site_name = get_clean_source_name(title, domain)
+    if is_video and title:
+        site_name = title.strip()
+    else:
+        site_name = get_clean_source_name(title, domain)
+
     if style == "site_name":
         return f"[{site_name}]({url})"
     elif style == "site_name_bold":
@@ -524,7 +529,7 @@ def search_searxng(
             composed_title = t
 
         cit_style = getattr(config.search, "citation_style", "site_name")
-        cit_link = format_citation(composed_title, dom, u, position=idx + 1, style=cit_style)
+        cit_link = format_citation(composed_title, dom, u, position=idx + 1, style=cit_style, is_video=is_video)
 
         item: Dict[str, Any] = {
             "position": idx + 1,

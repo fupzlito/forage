@@ -218,6 +218,7 @@ class TestSearXNG(unittest.TestCase):
         yt_res = res["results"][0]
         self.assertEqual(yt_res["title"], "Veritasium | Veritasium - The Science of Thinking")
         self.assertEqual(yt_res["channel"], "Veritasium (UCvB5TYey1VC4456)")
+        self.assertEqual(yt_res["citation"], "[Veritasium | Veritasium - The Science of Thinking](https://www.youtube.com/watch?v=12345)")
         self.assertNotIn("author", yt_res)
         self.assertNotIn("channel_id", yt_res)
         self.assertNotIn("video_title", yt_res)
@@ -232,6 +233,7 @@ class TestSearXNG(unittest.TestCase):
         google_res = res["results"][1]
         self.assertEqual(google_res["engine"], "google")
         self.assertEqual(google_res["title"], "Standard Google Result")
+        self.assertEqual(google_res["citation"], "[Standard Google Result](https://example.com/article)")
         self.assertNotIn("channel", google_res)
         self.assertNotIn("video_title", google_res)
         self.assertNotIn("author", google_res)
@@ -261,6 +263,7 @@ class TestSearXNG(unittest.TestCase):
         item = res["results"][0]
         self.assertEqual(item["title"], "Veritasium | The Discovery That Transformed Pi")
         self.assertEqual(item["channel"], "Veritasium (UCHnyfMqiRRG1u-2MsSQLbXA)")
+        self.assertEqual(item["citation"], "[Veritasium | The Discovery That Transformed Pi](https://www.youtube.com/watch?v=gMlf1ELvRzc)")
         self.assertNotIn("channel_id", item)
         self.assertNotIn("video_title", item)
         self.assertEqual(item["live_status"], "[🔴 LIVE]")
