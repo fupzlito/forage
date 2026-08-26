@@ -234,6 +234,21 @@ def custom_openapi():
                     if "description" in prop_spec:
                         schemas["ExtractRequest"]["properties"][prop_name]["description"] = prop_spec["description"]
 
+    youtube_name = getattr(config.tools, "youtube_name", "youtube_search")
+    youtube_def = next((t for t in tools_def if t["name"] in (youtube_name, "youtube_search")), None)
+
+    for yt_path in ("/v1/youtube/search", "/youtube/search"):
+        if yt_path in paths and "post" in paths[yt_path]:
+            paths[yt_path]["post"]["operationId"] = youtube_name
+            paths[yt_path]["post"]["summary"] = "YouTube Search"
+            if youtube_def:
+                paths[yt_path]["post"]["description"] = youtube_def["description"]
+            if youtube_def and "YouTubeSearchRequest" in schemas:
+                for prop_name, prop_spec in youtube_def["inputSchema"].get("properties", {}).items():
+                    if prop_name in schemas["YouTubeSearchRequest"].get("properties", {}):
+                        if "description" in prop_spec:
+                            schemas["YouTubeSearchRequest"]["properties"][prop_name]["description"] = prop_spec["description"]
+
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
@@ -245,11 +260,14 @@ app.openapi = custom_openapi
 @app.post("/")
 async def root() -> dict:
     """Root status probe for tool server and proxy compatibility."""
+    tools_list = [config.tools.search_name, config.tools.extract_name]
+    if getattr(config.youtube, "enabled", True):
+        tools_list.append(getattr(config.tools, "youtube_name", "youtube_search"))
     return {
         "status": "ok",
         "service": "forage",
         "version": __version__,
-        "tools": [config.tools.search_name, config.tools.extract_name],
+        "tools": tools_list,
     }
 
 

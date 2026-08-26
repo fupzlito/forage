@@ -36,6 +36,7 @@ DEFAULTS: Dict[str, Any] = {
     "tools": {
         "search_name": "web_search",
         "extract_name": "web_extract",
+        "youtube_name": "youtube_search",
         "include_favicon": False,
     },
     "search": {
@@ -90,8 +91,16 @@ DEFAULTS: Dict[str, Any] = {
         "citation_guidelines": None,
         "search_tool_description": None,
         "extract_tool_description": None,
+        "youtube_tool_description": None,
         "search_params": None,
         "extract_params": None,
+        "youtube_params": None,
+    },
+    "youtube": {
+        "enabled": True,
+        "api_key": None,
+        "default_limit": 20,
+        "max_limit": 50,
     },
 }
 
@@ -141,6 +150,7 @@ class CacheConfig:
 class ToolsConfig:
     search_name: str = "web_search"
     extract_name: str = "web_extract"
+    youtube_name: str = "youtube_search"
     include_favicon: bool = False
 
 
@@ -473,6 +483,9 @@ def _apply_env_overrides(merged: Dict[str, Any]) -> Dict[str, Any]:
     extract_name = os.environ.get("FORAGE_EXTRACT_NAME") or os.environ.get("FORAGE_TOOL_EXTRACT_NAME") or os.environ.get("FORAGE_EXTRACT_TOOL_NAME")
     if extract_name:
         merged.setdefault("tools", {})["extract_name"] = extract_name.strip()
+    youtube_name = os.environ.get("FORAGE_YOUTUBE_NAME") or os.environ.get("FORAGE_TOOL_YOUTUBE_NAME") or os.environ.get("FORAGE_YOUTUBE_TOOL_NAME")
+    if youtube_name:
+        merged.setdefault("tools", {})["youtube_name"] = youtube_name.strip()
 
     # Reddit Cookies & Auth Overrides
     def _clean_val(v: str) -> str:

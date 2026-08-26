@@ -82,6 +82,7 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
 
     search_name = config.tools.search_name
     extract_name = config.tools.extract_name
+    youtube_name = getattr(config.tools, "youtube_name", "youtube_search")
     from .searxng import get_live_available_engines
     live_available = get_live_available_engines(config)
     default_engines_str = ", ".join(config.search.engines)
@@ -96,8 +97,10 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
         "year": year,
         "search_name": search_name,
         "extract_name": extract_name,
+        "youtube_name": youtube_name,
         "search_tool": search_name,
         "extract_tool": extract_name,
+        "youtube_tool": youtube_name,
         "default_engines": default_engines_str,
         "available_engines": available_engines_str,
         "default_limit": config.search.default_limit,
@@ -295,7 +298,7 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
             },
         }
         tools_list.append({
-            "name": "youtube_search",
+            "name": youtube_name,
             "description": youtube_desc,
             "inputSchema": youtube_schema,
             "parameters": youtube_schema,
@@ -313,6 +316,7 @@ async def execute_tool_call(
     """Execute a tool call by name and return a structured response dictionary."""
     search_name = config.tools.search_name
     extract_name = config.tools.extract_name
+    youtube_name = getattr(config.tools, "youtube_name", "youtube_search")
 
     if name == search_name or name == "web_search":
         query = str(arguments.get("query", "")).strip()
@@ -517,7 +521,7 @@ async def execute_tool_call(
             "formatted_text": "\n\n---\n\n".join(formatted_blocks),
         }
 
-    elif name == "youtube_search":
+    elif name == youtube_name or name == "youtube_search":
         from app.youtube import search_youtube
 
         query = arguments.get("query")
@@ -914,29 +918,44 @@ async def get_v1_models(
     config, _ = _get_config_and_pool(request)
     search_name = config.tools.search_name
     extract_name = config.tools.extract_name
+    youtube_name = getattr(config.tools, "youtube_name", "youtube_search")
+
+    models_data = [
+        {
+            "id": search_name,
+            "object": "model",
+            "created": 1700000000,
+            "owned_by": "forage",
+            "permission": [],
+            "root": search_name,
+            "parent": None,
+        },
+        {
+            "id": extract_name,
+            "object": "model",
+            "created": 1700000000,
+            "owned_by": "forage",
+            "permission": [],
+            "root": extract_name,
+            "parent": None,
+        },
+    ]
+
+    if getattr(config.youtube, "enabled", True):
+        models_data.append({
+            "id": youtube_name,
+            "object": "model",
+            "created": 1700000000,
+            "owned_by": "forage",
+            "permission": [],
+            "root": youtube_name,
+            "parent": None,
+        })
+
     return JSONResponse(
         content={
             "object": "list",
-            "data": [
-                {
-                    "id": search_name,
-                    "object": "model",
-                    "created": 1700000000,
-                    "owned_by": "forage",
-                    "permission": [],
-                    "root": search_name,
-                    "parent": None,
-                },
-                {
-                    "id": extract_name,
-                    "object": "model",
-                    "created": 1700000000,
-                    "owned_by": "forage",
-                    "permission": [],
-                    "root": extract_name,
-                    "parent": None,
-                },
-            ],
+            "data": models_data,
         }
     )
 

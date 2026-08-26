@@ -42,6 +42,7 @@ class TestMCPAndOpenAIEndpoints(unittest.TestCase):
         tool_names = [t["name"] for t in tools]
         self.assertIn("web_search", tool_names)
         self.assertIn("web_extract", tool_names)
+        self.assertIn("youtube_search", tool_names)
 
         # Ensure POST /mcp/sse also works seamlessly
         response_sse_post = self.client.post("/mcp/sse", json=payload)
@@ -71,17 +72,23 @@ class TestMCPAndOpenAIEndpoints(unittest.TestCase):
     def test_mcp_tools_call_search(self, mock_search):
         mock_search.return_value = {
             "success": True,
-            "results": [{"position": 1, "domain": "example.com", "title": "Search Title", "url": "https://example.com", "snippet": "desc", "citation": "[Search Title](https://example.com)"}],
-            "warning": None,
+            "results": [
+                {
+                    "title": "Search Title",
+                    "domain": "example.com",
+                    "url": "https://example.com",
+                    "snippet": "Example snippet",
+                    "citation": "[Example](https://example.com)",
+                    "position": 1,
+                }
+            ],
+            "searched_at": "2026-08-25 00:00:00 UTC",
         }
         payload = {
             "jsonrpc": "2.0",
             "id": 3,
             "method": "tools/call",
-            "params": {
-                "name": "web_search",
-                "arguments": {"query": "python fastapi"},
-            },
+            "params": {"name": "web_search", "arguments": {"query": "test query"}},
         }
         response = self.client.post("/mcp", json=payload)
         self.assertEqual(response.status_code, 200)
@@ -101,6 +108,7 @@ class TestMCPAndOpenAIEndpoints(unittest.TestCase):
         names = [t["function"]["name"] for t in data["tools"]]
         self.assertIn("web_search", names)
         self.assertIn("web_extract", names)
+        self.assertIn("youtube_search", names)
 
     def test_openapi_schema(self):
         response = self.client.get("/openapi.json")
@@ -108,11 +116,15 @@ class TestMCPAndOpenAIEndpoints(unittest.TestCase):
         data = response.json()
         search_op = data["paths"]["/search"]["post"]
         extract_op = data["paths"]["/extract"]["post"]
+        youtube_op = data["paths"]["/v1/youtube/search"]["post"]
         self.assertEqual(search_op["operationId"], "web_search")
         self.assertEqual(extract_op["operationId"], "web_extract")
+        self.assertEqual(youtube_op["operationId"], "youtube_search")
+        self.assertEqual(youtube_op["summary"], "YouTube Search")
         self.assertIn("Search the web via SearXNG", search_op["description"])
         self.assertIn("CITATION RULES", search_op["description"])
         self.assertIn("Fetch and extract clean markdown", extract_op["description"])
+        self.assertIn("Search YouTube videos", youtube_op["description"])
         self.assertIn("CITATION RULES", extract_op["description"])
 
     @patch("app.mcp.extract_url", new_callable=AsyncMock)
