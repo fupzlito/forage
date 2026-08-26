@@ -302,10 +302,20 @@ async def execute_tool_call(
             block_parts = [
                 f"[{r['position']}] {r['domain']}",
                 f"URL: {r['url']}",
-                f"TITLE: {r['title']}",
             ]
-            if r.get("author"):
+            if r.get("video_title"):
+                block_parts.append(f"VIDEO TITLE: {r['video_title']}")
+            else:
+                block_parts.append(f"TITLE: {r['title']}")
+            if r.get("channel"):
+                chan_str = r['channel']
+                if r.get("live_status"):
+                    chan_str += f" {r['live_status']}"
+                block_parts.append(f"CHANNEL: {chan_str}")
+            elif r.get("author"):
                 block_parts.append(f"AUTHOR: {r['author']}")
+            if r.get("channel_id"):
+                block_parts.append(f"CHANNEL ID: {r['channel_id']}")
             if r.get("duration"):
                 block_parts.append(f"DURATION: {r['duration']}")
             if r.get("views") is not None:

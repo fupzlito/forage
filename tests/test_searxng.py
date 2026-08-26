@@ -217,6 +217,8 @@ class TestSearXNG(unittest.TestCase):
         # YouTube video result has rich metadata
         yt_res = res["results"][0]
         self.assertEqual(yt_res["author"], "Veritasium")
+        self.assertEqual(yt_res["channel"], "Veritasium")
+        self.assertEqual(yt_res["video_title"], "Veritasium - The Science of Thinking")
         self.assertEqual(yt_res["channel_id"], "UCvB5TYey1VC4456")
         self.assertEqual(yt_res["duration"], "14:22")
         self.assertEqual(yt_res["views"], 1540200)
@@ -228,9 +230,38 @@ class TestSearXNG(unittest.TestCase):
         # Standard Google result in same search preserves clean structure
         google_res = res["results"][1]
         self.assertEqual(google_res["engine"], "google")
+        self.assertNotIn("channel", google_res)
+        self.assertNotIn("video_title", google_res)
         self.assertNotIn("author", google_res)
         self.assertNotIn("duration", google_res)
         self.assertNotIn("views", google_res)
+
+    @patch("httpx.get")
+    def test_search_searxng_channel_snippet_extraction(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status.return_value = None
+        mock_resp.json.return_value = {
+            "results": [
+                {
+                    "title": "The Discovery That Transformed Pi",
+                    "url": "https://www.youtube.com/watch?v=gMlf1ELvRzc",
+                    "content": "Channel: Veritasium (UCHnyfMqiRRG1u-2MsSQLbXA) [🔴 LIVE] | For thousands of years, mathematicians were calculating Pi.",
+                    "engine": "youtube-api",
+                    "score": 3.0,
+                },
+            ],
+            "unresponsive_engines": [],
+        }
+        mock_get.return_value = mock_resp
+
+        res = search_searxng(self.config, query="veritasium pi", limit=5)
+        self.assertTrue(res["success"])
+        item = res["results"][0]
+        self.assertEqual(item["channel"], "Veritasium")
+        self.assertEqual(item["channel_id"], "UCHnyfMqiRRG1u-2MsSQLbXA")
+        self.assertEqual(item["video_title"], "The Discovery That Transformed Pi")
+        self.assertEqual(item["live_status"], "[🔴 LIVE]")
+        self.assertEqual(item["snippet"], "For thousands of years, mathematicians were calculating Pi.")
 
     def test_unknown_config_keys_ignored(self):
         raw_dict = {

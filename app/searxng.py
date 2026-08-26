@@ -346,6 +346,29 @@ def _extract_snippet_date(snippet: str) -> tuple[Optional[str], str]:
     return None, snippet
 
 
+_CHANNEL_SNIPPET_PATTERN = re.compile(
+    r"^Channel:\s*([^|(]+?)(?:\s*\(([^)]+)\))?(?:\s*(\[[^\]]+\]))?\s*\|\s*(.*)$",
+    re.IGNORECASE,
+)
+
+
+def _extract_snippet_channel(snippet: str) -> tuple[Optional[str], Optional[str], Optional[str], str]:
+    """Extract Channel name, Channel ID, and Live status from snippet if formatted like 'Channel: Name (ID) [LIVE] | ...'.
+
+    Returns (channel_name, channel_id, live_status, clean_snippet).
+    """
+    if not snippet:
+        return None, None, None, snippet
+    m = _CHANNEL_SNIPPET_PATTERN.match(snippet.strip())
+    if m:
+        chan_name = m.group(1).strip()
+        chan_id = m.group(2).strip() if m.group(2) else None
+        live_status = m.group(3).strip() if m.group(3) else None
+        clean_snippet = m.group(4).strip()
+        return chan_name, chan_id, live_status, clean_snippet
+    return None, None, None, snippet
+
+
 def search_searxng(
     config: ForageConfig,
     query: str,
@@ -453,6 +476,18 @@ def search_searxng(
                 pub_date = extracted_date
                 c = clean_c
 
+        author = None
+        channel_id = None
+        live_stat = None
+
+        # Extract Channel, Channel ID, and Live status prefix from snippet if present
+        chan_name, chan_id_snip, live_stat, clean_c = _extract_snippet_channel(c)
+        if chan_name:
+            author = chan_name
+            if chan_id_snip:
+                channel_id = chan_id_snip
+            c = clean_c
+
         if len(c) > max_snippet_len:
             c = c[:max_snippet_len].rsplit(" ", 1)[0] + "... [TRUNCATED]"
 
@@ -460,12 +495,19 @@ def search_searxng(
             c = c[: max(0, max_total_len - total_snippet_chars)].rsplit(" ", 1)[0] + "... [TRUNCATED]"
 
         engine_name = r.get("engine")
-        author = r.get("author") or r.get("channel") or r.get("creator")
-        channel_id = r.get("channel_id") or r.get("channelId")
+        author = r.get("author") or r.get("channel") or r.get("creator") or author
+        channel_id = r.get("channel_id") or r.get("channelId") or channel_id
         duration = r.get("duration") or r.get("length")
         views = r.get("views") or r.get("view_count")
         iframe_src = r.get("iframe_src")
         thumbnail = r.get("thumbnail") or r.get("img_src")
+
+        is_video = bool(
+            dom in ("youtube.com", "youtu.be", "vimeo.com", "dailymotion.com", "rumble.com")
+            or r.get("template") == "videos.html"
+            or str(engine_name or "").lower() in ("youtube", "youtube-api", "invidious", "piped", "vimeo", "dailymotion", "rumble")
+            or iframe_src
+        )
 
         cit_style = getattr(config.search, "citation_style", "site_name")
         cit_link = format_citation(t, dom, u, position=idx + 1, style=cit_style)
@@ -476,12 +518,19 @@ def search_searxng(
             "url": u,
             "title": t,
         }
+        if is_video:
+            item["video_title"] = t
         if engine_name:
             item["engine"] = str(engine_name)
         if author:
-            item["author"] = str(author).strip()
+            clean_author = str(author).strip()
+            item["author"] = clean_author
+            if is_video:
+                item["channel"] = clean_author
         if channel_id:
             item["channel_id"] = str(channel_id).strip()
+        if live_stat:
+            item["live_status"] = live_stat
         if duration:
             item["duration"] = str(duration).strip()
         if views is not None:
