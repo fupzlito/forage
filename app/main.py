@@ -111,6 +111,27 @@ class SearchRequest(BaseModel):
     )
 
 
+class YouTubeSearchRequest(BaseModel):
+    query: Optional[str] = Field(
+        default=None,
+        description="Search keywords or topic (e.g. 'quantum mechanics', 'blind playthrough'). Optional if channel is specified.",
+    )
+    channel: Optional[str] = Field(
+        default=None,
+        description="YouTube channel ID (e.g. 'UCC-0KKfcSG4BGpMeyUXhu0Q'), creator handle (e.g. '@aboutoliver'), or channel URL.",
+    )
+    sort_by: Optional[str] = Field(
+        default=None,
+        description="Sort order: 'date' (newest), 'popular' (views), 'rating', or 'relevance'.",
+    )
+    limit: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=50,
+        description=f"Maximum number of video results to return (1 to 50, default {config.youtube.default_limit}).",
+    )
+
+
 class ExtractRequest(BaseModel):
     urls: List[str] = Field(
         ...,
@@ -315,6 +336,26 @@ async def search(
 
     header = "miss" if cache_enabled else ("bypass" if bypass else "disabled")
     return JSONResponse(content=result, headers={"X-Forage-Cache": header})
+
+
+@app.post("/v1/youtube/search")
+@app.post("/youtube/search")
+async def youtube_search_endpoint(
+    req: YouTubeSearchRequest,
+    request: Request,
+    _auth: None = Depends(require_auth),
+) -> JSONResponse:
+    """Search YouTube videos, discover channel uploads, or query videos inside a specific channel."""
+    from .youtube import search_youtube
+
+    result = search_youtube(
+        config=config,
+        query=req.query,
+        channel=req.channel,
+        sort_by=req.sort_by,
+        limit=req.limit,
+    )
+    return JSONResponse(content=result)
 
 
 @app.post("/extract")

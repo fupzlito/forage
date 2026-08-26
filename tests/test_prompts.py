@@ -20,20 +20,24 @@ class TestPrompts(unittest.TestCase):
     def test_default_tool_definitions_rendered(self):
         config = load_config()
         tools = get_tool_definitions(config)
-        self.assertEqual(len(tools), 2)
+        self.assertEqual(len(tools), 3)
         search_tool = next(t for t in tools if t["name"] == "web_search")
         extract_tool = next(t for t in tools if t["name"] == "web_extract")
+        youtube_tool = next(t for t in tools if t["name"] == "youtube_search")
 
         self.assertIn("Search the web via SearXNG", search_tool["description"])
         self.assertIn("year 2026", search_tool["description"])
         self.assertIn("CITATION RULES", search_tool["description"])
+        self.assertIn("Search YouTube videos", youtube_tool["description"])
+
     def test_empty_prompts_config_renders_full_defaults(self):
         # Empty prompts dictionary should still render rich default descriptions with citation rules
         config = ForageConfig.from_dict({}, source_path="test")
         tools = get_tool_definitions(config)
-        self.assertEqual(len(tools), 2)
+        self.assertEqual(len(tools), 3)
         search_tool = next(t for t in tools if t["name"] == "web_search")
         extract_tool = next(t for t in tools if t["name"] == "web_extract")
+        youtube_tool = next(t for t in tools if t["name"] == "youtube_search")
 
         self.assertIn("Search the web via SearXNG", search_tool["description"])
         self.assertIn("CITATION RULES", search_tool["description"])

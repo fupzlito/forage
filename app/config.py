@@ -164,6 +164,14 @@ class SearchConfig:
 
 
 @dataclass(frozen=True)
+class YouTubeConfig:
+    enabled: bool = True
+    api_key: Optional[str] = None
+    default_limit: int = 20
+    max_limit: int = 50
+
+
+@dataclass(frozen=True)
 class DomainOverride:
     """Per-domain extraction overrides.
 
@@ -248,6 +256,7 @@ class ForageConfig:
     browser: BrowserConfig
     auth: AuthConfig
     prompts: PromptsConfig
+    youtube: YouTubeConfig
     source_path: str
 
     @classmethod
@@ -263,6 +272,7 @@ class ForageConfig:
         browser = _filter_dataclass_dict(BrowserConfig, data.get("browser", {}))
         auth = _filter_dataclass_dict(AuthConfig, data.get("auth", {}))
         prompts = _filter_dataclass_dict(PromptsConfig, data.get("prompts", {}))
+        youtube = _filter_dataclass_dict(YouTubeConfig, data.get("youtube", {}))
 
         if "engines" in search:
             search["engines"] = tuple(search["engines"])
@@ -294,6 +304,7 @@ class ForageConfig:
             browser=BrowserConfig(**browser),
             auth=AuthConfig(**auth),
             prompts=PromptsConfig(**prompts),
+            youtube=YouTubeConfig(**youtube),
             source_path=source_path,
         )
 
@@ -354,6 +365,12 @@ class ForageConfig:
                 raise ValueError(
                     f"domain_overrides[{override.pattern}]: engine must be trafilatura or readability"
                 )
+        if self.youtube.default_limit < 1:
+            raise ValueError(f"youtube.default_limit must be >= 1: {self.youtube.default_limit}")
+        if self.youtube.max_limit < self.youtube.default_limit:
+            raise ValueError(
+                f"youtube.max_limit ({self.youtube.max_limit}) must be >= youtube.default_limit ({self.youtube.default_limit})"
+            )
 
 
 def _filter_dataclass_dict(cls: Any, d: Dict[str, Any]) -> Dict[str, Any]:
@@ -503,6 +520,23 @@ def _apply_env_overrides(merged: Dict[str, Any]) -> Dict[str, Any]:
                     existing_cookies = reddit_entry.setdefault("cookies", {})
                     if isinstance(existing_cookies, dict):
                         existing_cookies.update(reddit_cookies)
+
+    # YouTube
+    if "FORAGE_YOUTUBE_ENABLED" in os.environ:
+        merged.setdefault("youtube", {})["enabled"] = _parse_bool(os.environ["FORAGE_YOUTUBE_ENABLED"])
+    yt_api_key = os.environ.get("FORAGE_YOUTUBE_API_KEY") or os.environ.get("YOUTUBE_API_KEY")
+    if yt_api_key is not None:
+        merged.setdefault("youtube", {})["api_key"] = _clean_val(yt_api_key)
+    if "FORAGE_YOUTUBE_DEFAULT_LIMIT" in os.environ:
+        try:
+            merged.setdefault("youtube", {})["default_limit"] = int(os.environ["FORAGE_YOUTUBE_DEFAULT_LIMIT"])
+        except ValueError:
+            pass
+    if "FORAGE_YOUTUBE_MAX_LIMIT" in os.environ:
+        try:
+            merged.setdefault("youtube", {})["max_limit"] = int(os.environ["FORAGE_YOUTUBE_MAX_LIMIT"])
+        except ValueError:
+            pass
 
     return merged
 

@@ -170,6 +170,13 @@ browser:
 auth:
   enabled: false           # when true, requires Authorization: Bearer <key>
 
+# --- YouTube Search (Native API / SearXNG Proxy) --------------
+youtube:
+  enabled: true            # enables dedicated youtube_search tool
+  api_key: ""              # optional: Google YouTube Data API v3 key (env FORAGE_YOUTUBE_API_KEY). If empty, proxies via SearXNG
+  default_limit: 20        # default results per search
+  max_limit: 50            # max allowed results per search
+
 # --- Prompts & Citation Guidelines ----------------------------
 # Prompts and citation rules are configured in prompts.yaml (auto-seeded in /etc/forage/prompts.yaml).
 # Edit prompts.yaml directly to customize tool descriptions and system instructions.
