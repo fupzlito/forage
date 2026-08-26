@@ -302,11 +302,8 @@ async def execute_tool_call(
             block_parts = [
                 f"[{r['position']}] {r['domain']}",
                 f"URL: {r['url']}",
+                f"TITLE: {r['title']}",
             ]
-            if r.get("video_title"):
-                block_parts.append(f"VIDEO TITLE: {r['video_title']}")
-            else:
-                block_parts.append(f"TITLE: {r['title']}")
             if r.get("channel"):
                 chan_str = r['channel']
                 if r.get("live_status"):

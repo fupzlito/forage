@@ -509,17 +509,29 @@ def search_searxng(
             or iframe_src
         )
 
+        # Channel name for video title composition
+        channel_label = chan_name or author or r.get("author") or r.get("channel")
+        if channel_label:
+            channel_clean_name = str(channel_label).strip()
+            if "(" in channel_clean_name:
+                channel_clean_name = channel_clean_name.split("(", 1)[0].strip()
+        else:
+            channel_clean_name = None
+
+        if is_video and channel_clean_name and not t.startswith(f"{channel_clean_name} |"):
+            composed_title = f"{channel_clean_name} | {t}"
+        else:
+            composed_title = t
+
         cit_style = getattr(config.search, "citation_style", "site_name")
-        cit_link = format_citation(t, dom, u, position=idx + 1, style=cit_style)
+        cit_link = format_citation(composed_title, dom, u, position=idx + 1, style=cit_style)
 
         item: Dict[str, Any] = {
             "position": idx + 1,
             "domain": dom,
             "url": u,
-            "title": t,
+            "title": composed_title,
         }
-        if is_video:
-            item["video_title"] = t
         if engine_name:
             item["engine"] = str(engine_name)
         if author:
