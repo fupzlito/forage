@@ -75,6 +75,8 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
         DEFAULT_EXTRACT_TOOL_DESCRIPTION,
         DEFAULT_SEARCH_PARAMS,
         DEFAULT_SEARCH_TOOL_DESCRIPTION,
+        DEFAULT_YOUTUBE_PARAMS,
+        DEFAULT_YOUTUBE_TOOL_DESCRIPTION,
         render_prompt,
     )
 
@@ -251,25 +253,41 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
     ]
 
     if getattr(config.youtube, "enabled", True):
+        youtube_template = config.prompts.youtube_tool_description if config.prompts.youtube_tool_description else DEFAULT_YOUTUBE_TOOL_DESCRIPTION
+        youtube_desc = render_prompt(youtube_template, context)
+        youtube_params = {**DEFAULT_YOUTUBE_PARAMS, **(config.prompts.youtube_params or {})}
+
         youtube_schema = {
             "type": "object",
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "Search keywords or topic (e.g. 'quantum mechanics', 'blind playthrough'). Optional if channel is specified.",
+                    "description": render_prompt(
+                        youtube_params.get("query", "Search keywords or topic (e.g. 'quantum mechanics', 'blind playthrough'). Optional if channel is specified."),
+                        context,
+                    ),
                 },
                 "channel": {
                     "type": "string",
-                    "description": "YouTube channel ID (e.g. 'UCC-0KKfcSG4BGpMeyUXhu0Q'), creator handle (e.g. '@aboutoliver'), or channel URL.",
+                    "description": render_prompt(
+                        youtube_params.get("channel", "YouTube channel handle (e.g. '@aboutoliver'), channel URL, or channel ID ('UCC-0KKfcSG4BGpMeyUXhu0Q')."),
+                        context,
+                    ),
                 },
                 "sort_by": {
                     "type": "string",
                     "enum": ["date", "popular", "relevance", "rating"],
-                    "description": "Sort order for results. Defaults to 'date' for channel listings and 'relevance' for keyword searches.",
+                    "description": render_prompt(
+                        youtube_params.get("sort_by", "Sort order: 'date' (newest uploads), 'popular' (highest views), 'rating', or 'relevance'."),
+                        context,
+                    ),
                 },
                 "limit": {
                     "type": "integer",
-                    "description": f"Maximum number of video results to return (1 to 50, default {config.youtube.default_limit}).",
+                    "description": render_prompt(
+                        youtube_params.get("limit", f"Number of video results to return (1 to 50, default {config.youtube.default_limit})."),
+                        context,
+                    ),
                     "default": config.youtube.default_limit,
                     "minimum": 1,
                     "maximum": config.youtube.max_limit,
@@ -278,7 +296,7 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
         }
         tools_list.append({
             "name": "youtube_search",
-            "description": "Search YouTube videos, discover channel uploads, or query videos inside a specific channel. Always use this instead of web scraping for YouTube.",
+            "description": youtube_desc,
             "inputSchema": youtube_schema,
             "parameters": youtube_schema,
         })

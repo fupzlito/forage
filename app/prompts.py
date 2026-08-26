@@ -49,6 +49,21 @@ DEFAULT_EXTRACT_PARAMS = {
     "formats": "Desired output format: ['markdown'] (default) or ['html'].",
 }
 
+DEFAULT_YOUTUBE_TOOL_DESCRIPTION = (
+    "Search YouTube videos, discover creator channel uploads, or query videos inside a specific channel. "
+    "Always use this tool for YouTube instead of web scraping or browser fetch. "
+    "Supports creator handles (e.g. '@aboutoliver'), channel URLs, or channel IDs ('UC...'). "
+    "Today is {now_date} (year {year}). "
+    "{citation_guidelines}"
+)
+
+DEFAULT_YOUTUBE_PARAMS = {
+    "query": "Search keywords or topic (e.g. 'quantum mechanics', 'blind playthrough'). Optional if channel is specified.",
+    "channel": "YouTube channel handle (e.g. '@aboutoliver'), channel URL (e.g. 'https://youtube.com/@aboutoliver'), or channel ID ('UCC-0KKfcSG4BGpMeyUXhu0Q').",
+    "sort_by": "Sort order: 'date' (newest uploads), 'popular' (highest views), 'rating', or 'relevance'. Defaults to 'date' for channel listings.",
+    "limit": "Number of video results to return (1 to 50, default {default_limit}).",
+}
+
 
 def render_prompt(template: str, context: Dict[str, Any]) -> str:
     """Render a prompt template replacing `{var}` placeholders with context values.

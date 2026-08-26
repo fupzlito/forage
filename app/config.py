@@ -242,8 +242,10 @@ class PromptsConfig:
     citation_guidelines: str = ""
     search_tool_description: str = ""
     extract_tool_description: str = ""
+    youtube_tool_description: str = ""
     search_params: Dict[str, str] = field(default_factory=dict)
     extract_params: Dict[str, str] = field(default_factory=dict)
+    youtube_params: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
