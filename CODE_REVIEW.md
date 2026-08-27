@@ -4,23 +4,23 @@
 **Generated:** 2026-08-25.  
 **Status:** Each item lists the issue, the evidence, the original fix proposal, and a "Fix implemented with" note describing the concrete change made. Items marked [FIXED] are verified against the current working tree. Items marked **Pending** remain open.  
 **Fork base:** `93920b3`  
-**Branch:** `codr-review` (local; `main` was the branch name in the original analysis)  
-**Committed locally:** `314a8a6` "fix(extract): correct native-markdown envelope and tidy Reddit/Tier-2 paths". **Not pushed.** Every issue below is solved by this single commit.
+**Branch:** `code-review` (local; `main` was the branch name in the original analysis)  
+**Committed locally:** Two commits on `code-review` (not pushed): `d0b5f90` "fix(extract): correct native-markdown envelope and tidy Reddit/Tier-2 paths" and `8e4157f` "refactor(mcp): extract shared `_extract_one` for all three extract call sites". Every issue below is solved by these commits.
 
-### Per-issue → commit mapping (local `codr-review`, commit `314a8a6`)
+### Per-issue → commit mapping (local `code-review`)
 
 | Issue | Solved by commit | Change |
 |---|---|---|
-| C-1 | `314a8a6` | Rewrote `extract.py` module docstring to the actual 7-step hybrid flow (lines 1–16). |
-| C-2 | `314a8a6` | Collapsed the broken 4×-duplicated native-markdown dict into one clean dict (envelope keys). |
-| C-2 / L-1 | `314a8a6` | Same dict fix — the duplicate keys were the runtime cause of missing envelope fields. |
-| C-3 | `314a8a6` | Added the clarifying comment to the POST `/mcp/sse` handler (line 583). Test still skipped. |
-| L-4 | `314a8a6` | Gave the Redlib Tier-2 mirror its own `mirror_headers` dict instead of reusing Tier 1's `Sec-Fetch-*` headers. |
-| L-5 | `314a8a6` | Computed the function dict once (`fn = body.get("function", {})`) in `v1_tools_call`. |
-| R-1 / L-2 | `314a8a6` | Deleted the dead `is_reddit and ".json" in url` strip after `normalize_reddit_url`. |
-| C-4 | `314a8a6` | README `youtube_search` rows (lines 31–33, 283–284) and `tools:` block (`youtube:` / `youtube_name:`). |
-| C-5 | `314a8a6` | `docker-compose.yml` commented `FORAGE_YOUTUBE_API_KEY` row under the reddit cookies. |
-| L-6 | `314a8a6` | README + docker-compose consistency for the YouTube feature (see C-4, C-5). |
+| C-1 | `d0b5f90` | Rewrote `extract.py` module docstring to the actual 7-step hybrid flow (lines 1–16). |
+| C-2 / L-1 | `d0b5f90` | Collapsed the broken 4×-duplicated native-markdown dict into one clean dict (envelope keys). |
+| L-4 | `d0b5f90` | Gave the Redlib Tier-2 mirror its own `mirror_headers` dict instead of reusing Tier 1's `Sec-Fetch-*` headers. |
+| R-1 / L-2 | `d0b5f90` | Deleted the dead `is_reddit and ".json" in url` strip after `normalize_reddit_url`. |
+| L-5 | `8e4157f` | Computed the function dict once (`fn = body.get("function", {})`) in `v1_tools_call`. |
+| R-2 | `8e4157f` | Extracted a shared `_extract_one` in `app/mcp.py` and wired all three extract call sites to it. |
+| C-4 | pre-existing | README `youtube_search` rows (lines 31–33, 283–284) and `tools:` block (`youtube:` / `youtube_name:`). |
+| C-5 | pre-existing | `docker-compose.yml` commented `FORAGE_YOUTUBE_API_KEY` row under the reddit cookies. |
+| L-6 | pre-existing | README + docker-compose consistency for the YouTube feature (see C-4, C-5). |
+| C-3 / L-3 | pre-existing | Clarifying comment at `mcp.py:583` present; test still skipped (no test covers the POST `/mcp/sse` path). |
 
 ---
 
@@ -28,7 +28,7 @@
 
 ### C-1 · `extract.py` — module docstring does not match actual flow [FIXED]
 
-**Location:** `app/extract.py`, lines 1–10 (module docstring), and `extract_url` (lines 782–1085).
+**Location:** `app/extract.py`, lines 1–16 (module docstring), and `extract_url` (lines ~790–1110).
 
 **Issue.** The docstring describes a five-step decision flow:
 
@@ -58,7 +58,7 @@ The actual `extract_url` function does **none** of those steps in that order. It
 
 ### C-2 · `extract.py` — native-markdown result is missing envelope fields [FIXED]
 
-**Location:** `app/extract.py`, lines 914–933 (native-markdown branch) vs. lines 1069–1085 (normal result).
+**Location:** `app/extract.py`, lines ~939–962 (native-markdown branch) vs. lines ~1097–1110 (normal result).
 
 **Issue.** When a server answers `text/markdown`, the returned dict is:
 
@@ -242,7 +242,7 @@ Already covered. Add the test.
 
 ### L-4 · `extract.py` — Tier 2 reuses Tier 1 headers on the Redlib mirror [FIXED]
 
-**Location:** `app/extract.py`, lines 668–677 (Tier 1 header build) vs. line 724 (Tier 2 mirror call).
+**Location:** `app/extract.py`, lines ~673–682 (Tier 1 header build) vs. lines ~726–739 (Tier 2 mirror call).
 
 **Issue.** The `headers` dict built for Tier 1 (lines 668–677) includes Chrome UA, `Sec-Fetch-Dest: document`, `Sec-Fetch-Mode: navigate`, `Sec-Fetch-Site: same-origin`, and `Sec-Fetch-User: ?1`. Those are the correct headers for hitting `www.reddit.com/.json` as a browser navigation. But Tier 2 (line 724) reuses the **same** `headers` dict to hit `safereddit.com`. A Redlib mirror does not need Chrome navigation headers; it just needs a normal browser UA. The shared variable is a loose end: Tier 2 inherits headers that don't make sense for the mirror and could (in principle) cause the mirror to reject or rate-limit differently than expected.
 
@@ -254,7 +254,7 @@ Already covered. Add the test.
 
 ### L-5 · `mcp.py` — redundant `isinstance` double-check on `body["function"]` [FIXED]
 
-**Location:** `app/mcp.py`, lines 703–712.
+**Location:** `app/mcp.py`, lines 740–744 (inside `v1_tools_call`, the OpenAI Function-Calling path).
 
 **Issue.**
 ```python
@@ -297,7 +297,7 @@ Already covered. The branch adds a real tool, two endpoints, a config dataclass,
 | C-4 | Coherence (docs) | `README.md` | 31–33, 283–284 | **FIXED (pre-existing)** |
 | C-5 | Coherence (docs) | `docker-compose.yml` | 18 (commented env row) | **FIXED (pre-existing)** |
 | L-6 | Loose end (docs) | `README.md`, `docker-compose.yml` | see C-4, C-5 | **FIXED (pre-existing)** |
-| R-2 | Redundancy | `app/mcp.py` vs `app/scripts/extract_helper.py` | helper exists, **not wired** | **Open** |
+| R-2 | Redundancy | `app/mcp.py` | `_extract_one` wired to all three sites | **FIXED** |
 | R-3 | Redundancy | `app/main.py` | delegates to `_extract_one` (line 362) | **Open (mcp.py side)** |
 
 ---
