@@ -107,9 +107,16 @@ Edge cases (all covered by `tests/test_reddit.py`, class
 
 - `tests/test_extract_markdown.py` — new, 10 tests, all passing.
 - `tests/test_reddit.py` — new `TestRedditJsonEdgeCases` (5 tests) covering the
-  Reddit parsing edge cases above; all 11 tests pass.
+  Reddit parsing edge cases above. Originally 12 `def test_` blocks; the line-90
+  `test_empty_children_listing` was a strict subset of the line-100 version, so it
+  was removed and renamed to `test_empty_children_listing_no_post_cards`. After the
+  rename every unit is distinct (no unittest dedup): **11 distinct units**.
 - `tests/` has some coverage gaps (e.g. no direct tests for `browser.py` render
   paths), but the core parsing/extract logic is covered.
+- Total across all 8 test files: **57 distinct unittest units** (test_searxng 15,
+  test_reddit 11, test_extract_markdown 10, test_mcp 10, test_prompts 7, test_health
+  2, test_domain_auth 1, test_stream_extract 1). All deps (`trafilatura`,
+  `markdownify`) installed into the dev venv so the full suite runs; all 57 pass.
 
 ## 5. Example Files
 

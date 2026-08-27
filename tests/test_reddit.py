@@ -87,17 +87,7 @@ class TestRedditJsonEdgeCases(unittest.TestCase):
         self.assertEqual(title, "No Comments Thread")
         self.assertNotIn("## Comments", content)
 
-    def test_empty_children_listing(self):
-        listing = {
-            "kind": "Listing",
-            "data": {"children": []},
-        }
-        content, title = parse_reddit_json(listing)
-        self.assertEqual(title, "Reddit Posts")
-        self.assertIn("# Reddit Posts", content)
-        self.assertIn("No posts found.", content)
-
-    def test_empty_children_listing(self):
+    def test_empty_children_listing_no_post_cards(self):
         # An empty listing (no children) cannot determine a subreddit, so the
         # title falls back to the generic "Reddit Posts" and the body says
         # "No posts found." (graceful, no crash).
