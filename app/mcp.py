@@ -118,11 +118,14 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
         DEFAULT_EXTRACT_TOOL_DESCRIPTION,
         DEFAULT_SEARCH_PARAMS,
         DEFAULT_SEARCH_TOOL_DESCRIPTION,
+        DEFAULT_YOUTUBE_PARAMS,
+        DEFAULT_YOUTUBE_TOOL_DESCRIPTION,
         render_prompt,
     )
 
     search_name = config.tools.search_name
     extract_name = config.tools.extract_name
+    youtube_name = getattr(config.tools, "youtube_name", "youtube_search")
     from .searxng import get_live_available_engines
     live_available = get_live_available_engines(config)
     default_engines_str = ", ".join(config.search.engines)
@@ -137,8 +140,10 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
         "year": year,
         "search_name": search_name,
         "extract_name": extract_name,
+        "youtube_name": youtube_name,
         "search_tool": search_name,
         "extract_tool": extract_name,
+        "youtube_tool": youtube_name,
         "default_engines": default_engines_str,
         "available_engines": available_engines_str,
         "default_limit": config.search.default_limit,
@@ -278,7 +283,7 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
         "required": ["urls", "max_chars"] if getattr(config.extract, "require_max_chars", False) else ["urls"],
     }
 
-    return [
+    tools_list = [
         {
             "name": search_name,
             "description": search_desc,
@@ -293,6 +298,57 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
         },
     ]
 
+    if getattr(config.youtube, "enabled", True):
+        youtube_template = config.prompts.youtube_tool_description if config.prompts.youtube_tool_description else DEFAULT_YOUTUBE_TOOL_DESCRIPTION
+        youtube_desc = render_prompt(youtube_template, context)
+        youtube_params = {**DEFAULT_YOUTUBE_PARAMS, **(config.prompts.youtube_params or {})}
+
+        youtube_schema = {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": render_prompt(
+                        youtube_params.get("query", "Search keywords or topic (e.g. 'quantum mechanics', 'blind playthrough'). Optional if channel is specified."),
+                        context,
+                    ),
+                },
+                "channel": {
+                    "type": "string",
+                    "description": render_prompt(
+                        youtube_params.get("channel", "YouTube channel handle (e.g. '@aboutoliver'), channel URL, or channel ID ('UCC-0KKfcSG4BGpMeyUXhu0Q')."),
+                        context,
+                    ),
+                },
+                "sort_by": {
+                    "type": "string",
+                    "enum": ["date", "popular", "relevance", "rating"],
+                    "description": render_prompt(
+                        youtube_params.get("sort_by", "Sort order: 'date' (newest uploads), 'popular' (highest views), 'rating', or 'relevance'."),
+                        context,
+                    ),
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": render_prompt(
+                        youtube_params.get("limit", f"Number of video results to return (1 to 50, default {config.youtube.default_limit})."),
+                        context,
+                    ),
+                    "default": config.youtube.default_limit,
+                    "minimum": 1,
+                    "maximum": config.youtube.max_limit,
+                },
+            },
+        }
+        tools_list.append({
+            "name": youtube_name,
+            "description": youtube_desc,
+            "inputSchema": youtube_schema,
+            "parameters": youtube_schema,
+        })
+
+    return tools_list
+
 
 async def execute_tool_call(
     name: str,
@@ -303,6 +359,7 @@ async def execute_tool_call(
     """Execute a tool call by name and return a structured response dictionary."""
     search_name = config.tools.search_name
     extract_name = config.tools.extract_name
+    youtube_name = getattr(config.tools, "youtube_name", "youtube_search")
 
     if name == search_name or name == "web_search":
         query = str(arguments.get("query", "")).strip()
@@ -345,11 +402,8 @@ async def execute_tool_call(
             block_parts = [
                 f"[{r['position']}] {r['domain']}",
                 f"URL: {r['url']}",
+                f"TITLE: {r['title']}",
             ]
-            if r.get("video_title"):
-                block_parts.append(f"VIDEO TITLE: {r['video_title']}")
-            else:
-                block_parts.append(f"TITLE: {r['title']}")
             if r.get("channel"):
                 chan_str = r['channel']
                 if r.get("live_status"):
@@ -504,8 +558,82 @@ async def execute_tool_call(
             "formatted_text": "\n\n---\n\n".join(formatted_blocks),
         }
 
+    elif name == youtube_name or name == "youtube_search":
+        from app.youtube import search_youtube
+
+        query = arguments.get("query")
+        channel = arguments.get("channel")
+        sort_by = arguments.get("sort_by")
+        raw_limit = arguments.get("limit")
+        default_lim = config.youtube.default_limit
+        max_lim = config.youtube.max_limit
+        if raw_limit is not None:
+            try:
+                limit = max(1, min(int(raw_limit), max_lim))
+            except (ValueError, TypeError):
+                limit = default_lim
+        else:
+            limit = default_lim
+
+        res = search_youtube(
+            config=config,
+            query=query,
+            channel=channel,
+            sort_by=sort_by,
+            limit=limit,
+        )
+        if not res.get("success"):
+            return {"error": res.get("error", "YouTube search failed")}
+
+        results = res.get("results", [])
+        warning = res.get("warning")
+
+        target_label = f'"{query}"' if query else ""
+        if channel:
+            target_label = f"Channel {channel} {target_label}".strip()
+
+        header_parts = [f'YOUTUBE SEARCH RESULTS for {target_label} | {res.get("searched_at", "")}']
+        formatted_lines = [" | ".join(header_parts), "---"]
+        for r in results:
+            block_parts = [
+                f"[{r['position']}] {r['domain']}",
+                f"URL: {r['url']}",
+                f"TITLE: {r['title']}",
+            ]
+            if r.get("channel"):
+                chan_str = r['channel']
+                if r.get("live_status"):
+                    chan_str += f" {r['live_status']}"
+                block_parts.append(f"CHANNEL: {chan_str}")
+            if r.get("duration"):
+                block_parts.append(f"DURATION: {r['duration']}")
+            if r.get("views") is not None:
+                block_parts.append(f"VIEWS: {r['views']}")
+            if r.get("published_date"):
+                block_parts.append(f"DATE: {r['published_date']}")
+            block_parts.extend([
+                f"SNIPPET: {r['snippet']}",
+                f"CITE AS: {r['citation']}",
+            ])
+            formatted_lines.append("\n".join(block_parts))
+
+        output_text = "\n\n".join(formatted_lines)
+        if warning:
+            output_text = f"⚠️ {warning}\n\n" + output_text
+
+        return {
+            "searched_at": res.get("searched_at"),
+            "results": results,
+            "warning": warning,
+            "formatted_text": output_text,
+        }
+
     else:
-        return {"error": f"Unknown tool: '{name}'. Available tools: '{search_name}', '{extract_name}'."}
+        available = [search_name, extract_name]
+        if getattr(config.youtube, "enabled", True):
+            available.append("youtube_search")
+        avail_str = "', '".join(available)
+        return {"error": f"Unknown tool: '{name}'. Available tools: '{avail_str}'."}
 
 
 async def process_mcp_rpc(
@@ -827,29 +955,44 @@ async def get_v1_models(
     config, _ = _get_config_and_pool(request)
     search_name = config.tools.search_name
     extract_name = config.tools.extract_name
+    youtube_name = getattr(config.tools, "youtube_name", "youtube_search")
+
+    models_data = [
+        {
+            "id": search_name,
+            "object": "model",
+            "created": 1700000000,
+            "owned_by": "forage",
+            "permission": [],
+            "root": search_name,
+            "parent": None,
+        },
+        {
+            "id": extract_name,
+            "object": "model",
+            "created": 1700000000,
+            "owned_by": "forage",
+            "permission": [],
+            "root": extract_name,
+            "parent": None,
+        },
+    ]
+
+    if getattr(config.youtube, "enabled", True):
+        models_data.append({
+            "id": youtube_name,
+            "object": "model",
+            "created": 1700000000,
+            "owned_by": "forage",
+            "permission": [],
+            "root": youtube_name,
+            "parent": None,
+        })
+
     return JSONResponse(
         content={
             "object": "list",
-            "data": [
-                {
-                    "id": search_name,
-                    "object": "model",
-                    "created": 1700000000,
-                    "owned_by": "forage",
-                    "permission": [],
-                    "root": search_name,
-                    "parent": None,
-                },
-                {
-                    "id": extract_name,
-                    "object": "model",
-                    "created": 1700000000,
-                    "owned_by": "forage",
-                    "permission": [],
-                    "root": extract_name,
-                    "parent": None,
-                },
-            ],
+            "data": models_data,
         }
     )
 

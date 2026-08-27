@@ -164,6 +164,27 @@ You can keep prompts outside `config.yaml` by pointing `prompts_path` at a stand
 
 ---
 
+## `youtube` section
+
+Dedicated YouTube search & channel discovery integration. Exposes the `youtube_search` MCP tool and `POST /v1/youtube/search` endpoint. Automatically resolves `@handles` to Channel IDs and provides instant (<40ms) video search.
+
+```yaml
+youtube:
+  enabled: true
+  api_key: ""              # Google YouTube Data API v3 key (optional; env FORAGE_YOUTUBE_API_KEY)
+  default_limit: 20        # default video results per query
+  max_limit: 50            # maximum allowed video results per query
+```
+
+| Key | Default | Description |
+|---|---|---|
+| `enabled` | `true` | When true, registers the dedicated `youtube_search` tool in MCP and OpenAPI schemas. |
+| `api_key` | `""` | Optional Google YouTube Data API v3 key. If omitted, queries are automatically proxied through SearXNG's `youtube-api` engine. |
+| `default_limit` | `20` | Default results returned when `limit` is omitted. |
+| `max_limit` | `50` | Maximum results allowed per request (1-50). |
+
+---
+
 ## Environment variables
 
 Environment variables provide the highest precedence in configuration resolution (`built-in defaults → config.yaml → external prompts.yaml → environment variables`). Any setting passed as an environment variable directly overrides the corresponding value in `config.yaml`.
@@ -187,6 +208,8 @@ Environment variables provide the highest precedence in configuration resolution
 | `FORAGE_REDDIT_SESSION` | `extract.domain_overrides` | Authenticated `reddit_session` cookie for Reddit JSON API (enclose in quotes `"..."`). |
 | `FORAGE_REDDIT_TOKEN_V2` | `extract.domain_overrides` | Authenticated `token_v2` cookie for Reddit JSON API (enclose in quotes `"..."`). |
 | `FORAGE_REDDIT_COOKIES` | `extract.domain_overrides` | Full raw Reddit cookie string (`k=v; k2=v2`, enclosed in quotes `"..."`) for Reddit extraction. |
+| `FORAGE_YOUTUBE_API_KEY` / `YOUTUBE_API_KEY` | `youtube.api_key` | Google YouTube Data API v3 key for direct YouTube video search & handle resolution. |
+| `FORAGE_YOUTUBE_ENABLED` | `youtube.enabled` | Enable or disable the dedicated `youtube_search` tool (`true`/`false`). |
 | `FORAGE_REQUIRE_MAX_CHARS` | `extract.require_max_chars` | Require LLMs to pass `max_chars` character budgets (`true`/`false`). |
 | `FORAGE_CACHE_ENABLED` | `cache.enabled` | Master in-memory cache toggle (`true`/`false`). |
 | `FORAGE_PORT` / `PORT` | `server.port` | Server HTTP port (default `3672`). |

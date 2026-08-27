@@ -20,20 +20,24 @@ class TestPrompts(unittest.TestCase):
     def test_default_tool_definitions_rendered(self):
         config = load_config()
         tools = get_tool_definitions(config)
-        self.assertEqual(len(tools), 2)
+        self.assertEqual(len(tools), 3)
         search_tool = next(t for t in tools if t["name"] == "web_search")
         extract_tool = next(t for t in tools if t["name"] == "web_extract")
+        youtube_tool = next(t for t in tools if t["name"] == "youtube_search")
 
         self.assertIn("Search the web via SearXNG", search_tool["description"])
         self.assertIn("year 2026", search_tool["description"])
         self.assertIn("CITATION RULES", search_tool["description"])
+        self.assertIn("Search YouTube videos", youtube_tool["description"])
+
     def test_empty_prompts_config_renders_full_defaults(self):
         # Empty prompts dictionary should still render rich default descriptions with citation rules
         config = ForageConfig.from_dict({}, source_path="test")
         tools = get_tool_definitions(config)
-        self.assertEqual(len(tools), 2)
+        self.assertEqual(len(tools), 3)
         search_tool = next(t for t in tools if t["name"] == "web_search")
         extract_tool = next(t for t in tools if t["name"] == "web_extract")
+        youtube_tool = next(t for t in tools if t["name"] == "youtube_search")
 
         self.assertIn("Search the web via SearXNG", search_tool["description"])
         self.assertIn("CITATION RULES", search_tool["description"])
@@ -45,12 +49,22 @@ class TestPrompts(unittest.TestCase):
             "prompts": {
                 "citation_guidelines": "Custom rules for testing.",
                 "search_tool_description": "Search custom: {citation_guidelines}",
+                "youtube_tool_description": "YouTube custom: {citation_guidelines}",
+                "youtube_params": {
+                    "query": "Custom youtube query description",
+                },
             }
         }
         config = ForageConfig.from_dict(raw_dict, source_path="test")
         tools = get_tool_definitions(config)
         search_tool = next(t for t in tools if t["name"] == "web_search")
+        youtube_tool = next(t for t in tools if t["name"] == "youtube_search")
         self.assertEqual(search_tool["description"], "Search custom: Custom rules for testing.")
+        self.assertEqual(youtube_tool["description"], "YouTube custom: Custom rules for testing.")
+        self.assertEqual(
+            youtube_tool["inputSchema"]["properties"]["query"]["description"],
+            "Custom youtube query description",
+        )
 
     def test_extract_max_chars_schema_and_require_toggle(self):
         # 1. Default config: max_chars optional, maximum bound to extract.max_content_chars

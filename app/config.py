@@ -36,6 +36,7 @@ DEFAULTS: Dict[str, Any] = {
     "tools": {
         "search_name": "web_search",
         "extract_name": "web_extract",
+        "youtube_name": "youtube_search",
         "include_favicon": False,
     },
     "search": {
@@ -90,8 +91,16 @@ DEFAULTS: Dict[str, Any] = {
         "citation_guidelines": None,
         "search_tool_description": None,
         "extract_tool_description": None,
+        "youtube_tool_description": None,
         "search_params": None,
         "extract_params": None,
+        "youtube_params": None,
+    },
+    "youtube": {
+        "enabled": True,
+        "api_key": None,
+        "default_limit": 20,
+        "max_limit": 50,
     },
 }
 
@@ -141,6 +150,7 @@ class CacheConfig:
 class ToolsConfig:
     search_name: str = "web_search"
     extract_name: str = "web_extract"
+    youtube_name: str = "youtube_search"
     include_favicon: bool = False
 
 
@@ -161,6 +171,14 @@ class SearchConfig:
     @property
     def default_engines(self) -> tuple:
         return self.engines
+
+
+@dataclass(frozen=True)
+class YouTubeConfig:
+    enabled: bool = True
+    api_key: Optional[str] = None
+    default_limit: int = 20
+    max_limit: int = 50
 
 
 @dataclass(frozen=True)
@@ -234,8 +252,10 @@ class PromptsConfig:
     citation_guidelines: str = ""
     search_tool_description: str = ""
     extract_tool_description: str = ""
+    youtube_tool_description: str = ""
     search_params: Dict[str, str] = field(default_factory=dict)
     extract_params: Dict[str, str] = field(default_factory=dict)
+    youtube_params: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -248,6 +268,7 @@ class ForageConfig:
     browser: BrowserConfig
     auth: AuthConfig
     prompts: PromptsConfig
+    youtube: YouTubeConfig
     source_path: str
 
     @classmethod
@@ -263,6 +284,7 @@ class ForageConfig:
         browser = _filter_dataclass_dict(BrowserConfig, data.get("browser", {}))
         auth = _filter_dataclass_dict(AuthConfig, data.get("auth", {}))
         prompts = _filter_dataclass_dict(PromptsConfig, data.get("prompts", {}))
+        youtube = _filter_dataclass_dict(YouTubeConfig, data.get("youtube", {}))
 
         if "engines" in search:
             search["engines"] = tuple(search["engines"])
@@ -294,6 +316,7 @@ class ForageConfig:
             browser=BrowserConfig(**browser),
             auth=AuthConfig(**auth),
             prompts=PromptsConfig(**prompts),
+            youtube=YouTubeConfig(**youtube),
             source_path=source_path,
         )
 
@@ -354,6 +377,12 @@ class ForageConfig:
                 raise ValueError(
                     f"domain_overrides[{override.pattern}]: engine must be trafilatura or readability"
                 )
+        if self.youtube.default_limit < 1:
+            raise ValueError(f"youtube.default_limit must be >= 1: {self.youtube.default_limit}")
+        if self.youtube.max_limit < self.youtube.default_limit:
+            raise ValueError(
+                f"youtube.max_limit ({self.youtube.max_limit}) must be >= youtube.default_limit ({self.youtube.default_limit})"
+            )
 
 
 def _filter_dataclass_dict(cls: Any, d: Dict[str, Any]) -> Dict[str, Any]:
@@ -454,6 +483,9 @@ def _apply_env_overrides(merged: Dict[str, Any]) -> Dict[str, Any]:
     extract_name = os.environ.get("FORAGE_EXTRACT_NAME") or os.environ.get("FORAGE_TOOL_EXTRACT_NAME") or os.environ.get("FORAGE_EXTRACT_TOOL_NAME")
     if extract_name:
         merged.setdefault("tools", {})["extract_name"] = extract_name.strip()
+    youtube_name = os.environ.get("FORAGE_YOUTUBE_NAME") or os.environ.get("FORAGE_TOOL_YOUTUBE_NAME") or os.environ.get("FORAGE_YOUTUBE_TOOL_NAME")
+    if youtube_name:
+        merged.setdefault("tools", {})["youtube_name"] = youtube_name.strip()
 
     # Reddit Cookies & Auth Overrides
     def _clean_val(v: str) -> str:
@@ -503,6 +535,23 @@ def _apply_env_overrides(merged: Dict[str, Any]) -> Dict[str, Any]:
                     existing_cookies = reddit_entry.setdefault("cookies", {})
                     if isinstance(existing_cookies, dict):
                         existing_cookies.update(reddit_cookies)
+
+    # YouTube
+    if "FORAGE_YOUTUBE_ENABLED" in os.environ:
+        merged.setdefault("youtube", {})["enabled"] = _parse_bool(os.environ["FORAGE_YOUTUBE_ENABLED"])
+    yt_api_key = os.environ.get("FORAGE_YOUTUBE_API_KEY") or os.environ.get("YOUTUBE_API_KEY")
+    if yt_api_key is not None:
+        merged.setdefault("youtube", {})["api_key"] = _clean_val(yt_api_key)
+    if "FORAGE_YOUTUBE_DEFAULT_LIMIT" in os.environ:
+        try:
+            merged.setdefault("youtube", {})["default_limit"] = int(os.environ["FORAGE_YOUTUBE_DEFAULT_LIMIT"])
+        except ValueError:
+            pass
+    if "FORAGE_YOUTUBE_MAX_LIMIT" in os.environ:
+        try:
+            merged.setdefault("youtube", {})["max_limit"] = int(os.environ["FORAGE_YOUTUBE_MAX_LIMIT"])
+        except ValueError:
+            pass
 
     return merged
 

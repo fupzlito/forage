@@ -111,6 +111,27 @@ class SearchRequest(BaseModel):
     )
 
 
+class YouTubeSearchRequest(BaseModel):
+    query: Optional[str] = Field(
+        default=None,
+        description="Search keywords or topic (e.g. 'quantum mechanics', 'blind playthrough'). Optional if channel is specified.",
+    )
+    channel: Optional[str] = Field(
+        default=None,
+        description="YouTube channel ID (e.g. 'UCC-0KKfcSG4BGpMeyUXhu0Q'), creator handle (e.g. '@aboutoliver'), or channel URL.",
+    )
+    sort_by: Optional[str] = Field(
+        default=None,
+        description="Sort order: 'date' (newest), 'popular' (views), 'rating', or 'relevance'.",
+    )
+    limit: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=50,
+        description=f"Maximum number of video results to return (1 to 50, default {config.youtube.default_limit}).",
+    )
+
+
 class ExtractRequest(BaseModel):
     urls: List[str] = Field(
         ...,
@@ -213,6 +234,21 @@ def custom_openapi():
                     if "description" in prop_spec:
                         schemas["ExtractRequest"]["properties"][prop_name]["description"] = prop_spec["description"]
 
+    youtube_name = getattr(config.tools, "youtube_name", "youtube_search")
+    youtube_def = next((t for t in tools_def if t["name"] in (youtube_name, "youtube_search")), None)
+
+    for yt_path in ("/v1/youtube/search", "/youtube/search"):
+        if yt_path in paths and "post" in paths[yt_path]:
+            paths[yt_path]["post"]["operationId"] = youtube_name
+            paths[yt_path]["post"]["summary"] = "YouTube Search"
+            if youtube_def:
+                paths[yt_path]["post"]["description"] = youtube_def["description"]
+            if youtube_def and "YouTubeSearchRequest" in schemas:
+                for prop_name, prop_spec in youtube_def["inputSchema"].get("properties", {}).items():
+                    if prop_name in schemas["YouTubeSearchRequest"].get("properties", {}):
+                        if "description" in prop_spec:
+                            schemas["YouTubeSearchRequest"]["properties"][prop_name]["description"] = prop_spec["description"]
+
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
@@ -224,11 +260,14 @@ app.openapi = custom_openapi
 @app.post("/")
 async def root() -> dict:
     """Root status probe for tool server and proxy compatibility."""
+    tools_list = [config.tools.search_name, config.tools.extract_name]
+    if getattr(config.youtube, "enabled", True):
+        tools_list.append(getattr(config.tools, "youtube_name", "youtube_search"))
     return {
         "status": "ok",
         "service": "forage",
         "version": __version__,
-        "tools": [config.tools.search_name, config.tools.extract_name],
+        "tools": tools_list,
     }
 
 
@@ -315,6 +354,26 @@ async def search(
 
     header = "miss" if cache_enabled else ("bypass" if bypass else "disabled")
     return JSONResponse(content=result, headers={"X-Forage-Cache": header})
+
+
+@app.post("/v1/youtube/search")
+@app.post("/youtube/search")
+async def youtube_search_endpoint(
+    req: YouTubeSearchRequest,
+    request: Request,
+    _auth: None = Depends(require_auth),
+) -> JSONResponse:
+    """Search YouTube videos, discover channel uploads, or query videos inside a specific channel."""
+    from .youtube import search_youtube
+
+    result = search_youtube(
+        config=config,
+        query=req.query,
+        channel=req.channel,
+        sort_by=req.sort_by,
+        limit=req.limit,
+    )
+    return JSONResponse(content=result)
 
 
 @app.post("/extract")
