@@ -27,6 +27,49 @@ logger = logging.getLogger("forage.mcp")
 
 mcp_router = APIRouter()
 
+
+async def _extract_one(
+    config: ForageConfig,
+    browser_pool: BrowserPool,
+    extract_url,
+    url: str,
+    *,
+    position: int = 1,
+    force_render: bool = False,
+    wait_for: Optional[str] = None,
+    output_format: str = "markdown",
+    only_main_content: bool = True,
+    timeout: Optional[int] = None,
+    engine: Optional[str] = None,
+    max_chars: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Fetch + clamp a single URL's extraction result in one place.
+
+    Shared by every extract call site (tool call, streaming tool events, OpenAI
+    chat stream) so the gather -> clamp -> error-handling pipeline cannot drift.
+    Error classification is left to the caller, since each front-end wraps the
+    result differently (plain dict vs. SSE chunk vs. error_type tagging)."""
+    result = await extract_url(
+        config,
+        browser_pool,
+        url,
+        position=position,
+        force_render=force_render,
+        wait_for=wait_for,
+        output_format=output_format,
+        only_main_content=only_main_content,
+        timeout=timeout,
+        engine=engine,
+    )
+    # Per-request max_chars truncation, applied identically everywhere.
+    if max_chars is not None and "content" in result:
+        full_len = len(result["content"])
+        if full_len > max_chars:
+            result["content"] = result["content"][:max_chars] + f"\n\n[TRUNCATED at {max_chars:,} of {full_len:,} chars]"
+            if "raw_content" in result:
+                result["raw_content"] = result["raw_content"][:max_chars]
+    return result
+
 # Active SSE sessions for MCP
 _sse_sessions: Dict[str, asyncio.Queue] = {}
 _bearer_scheme = HTTPBearer(auto_error=False)
@@ -387,9 +430,10 @@ async def execute_tool_call(
 
         async def _one(u: str, pos: int) -> Dict[str, Any]:
             try:
-                result = await extract_url(
+                return await _extract_one(
                     config,
                     browser_pool,
+                    extract_url,
                     u,
                     position=pos,
                     force_render=force_render,
@@ -398,15 +442,8 @@ async def execute_tool_call(
                     only_main_content=only_main_content,
                     timeout=timeout,
                     engine=engine,
+                    max_chars=max_chars,
                 )
-                # Apply per-request max_chars truncation
-                if max_chars and "content" in result:
-                    full_len = len(result["content"])
-                    if full_len > max_chars:
-                        result["content"] = result["content"][:max_chars] + f"\n\n[TRUNCATED at {max_chars:,} of {full_len:,} chars]"
-                        if "raw_content" in result:
-                            result["raw_content"] = result["raw_content"][:max_chars]
-                return result
             except Exception as exc:  # noqa: BLE001
                 error_msg = str(exc)
                 error_type = "network"
@@ -743,9 +780,10 @@ async def v1_tools_call(
 
                 async def _one(u: str, pos: int) -> Dict[str, Any]:
                     try:
-                        res = await extract_url(
+                        return await _extract_one(
                             config,
                             browser_pool,
+                            extract_url,
                             u,
                             position=pos,
                             force_render=force_render,
@@ -754,12 +792,8 @@ async def v1_tools_call(
                             only_main_content=only_main_content,
                             timeout=timeout,
                             engine=engine,
+                            max_chars=max_chars,
                         )
-                        if max_chars and "content" in res:
-                            fl = len(res["content"])
-                            if fl > max_chars:
-                                res["content"] = res["content"][:max_chars] + f"\n\n[TRUNCATED at {max_chars:,} of {fl:,} chars]"
-                        return res
                     except Exception as exc:  # noqa: BLE001
                         return {"url": u, "error": str(exc)}
 
@@ -894,9 +928,10 @@ async def _stream_openai_chat_completions(
 
         async def _one_stream(u: str, pos: int) -> Dict[str, Any]:
             try:
-                result = await extract_url(
+                return await _extract_one(
                     config,
                     browser_pool,
+                    extract_url,
                     u,
                     position=pos,
                     force_render=force_render,
@@ -905,12 +940,8 @@ async def _stream_openai_chat_completions(
                     only_main_content=only_main_content,
                     timeout=timeout,
                     engine=engine,
+                    max_chars=max_chars,
                 )
-                if max_chars and "content" in result:
-                    full_len = len(result["content"])
-                    if full_len > max_chars:
-                        result["content"] = result["content"][:max_chars] + f"\n\n[TRUNCATED at {max_chars:,} of {full_len:,} chars]"
-                return result
             except Exception as exc:  # noqa: BLE001
                 return {"url": u, "error": str(exc)}
 
