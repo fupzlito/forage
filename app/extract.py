@@ -1,12 +1,17 @@
 """Hybrid extraction: static HTTP first, browser fallback.
 
-Decision flow (config-driven):
-  1. domain override force_render | request force_render | wait_for -> browser
-  2. static fetch (httpx)
-  3. HTTP 403/429                                          -> browser
-  4. needs_browser_render(html, text): SPA markers | content density |
-     empty <main> | text < min_content_chars -> browser
-  5. otherwise deliver the static result
+Top-level flow of ``extract_url`` (config-driven):
+
+  1. Normalize the Reddit URL and resolve any domain override.
+  2. Document path (PDF/DOCX/XLSX/PPTX/RTF) if not force-rendered.
+  3. Reddit fast path: Tier 1 (official ``.json``) -> Tier 2 (Redlib mirror)
+     -> Tier 3 (browser fallback).
+  4. Static fetch with markdown negotiation.
+  5. Hybrid browser fallback when the static result is not enough:
+     SPA markers, content density, empty ``<main>``, or text below the
+     configured minimum.
+  6. Challenge detection -> solver retry.
+  7. Convert the result with ``_to_output``.
 """
 
 from __future__ import annotations
@@ -714,6 +719,16 @@ async def _try_reddit_extract(
             logger.debug("Reddit Tier 1 (.json) failed for %s: %s", url, exc)
 
     # --- Tier 2: Redlib Mirror (safereddit) ---
+    # The mirror is a plain static HTML endpoint. It does NOT need the Chrome
+    # navigation headers (Sec-Fetch-*) built for Tier 1's ``.json`` request;
+    # those navigation headers are meaningless against a non-origin mirror and
+    # only add a failure mode. Use a lean profile here instead.
+    mirror_headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.reddit.com/",
+    }
     clean_html_path = path.replace("/.json", "/").replace(".json", "")
     mirror_url = f"https://safereddit.com{clean_html_path}"
     if parsed.query:
@@ -721,7 +736,7 @@ async def _try_reddit_extract(
 
     try:
         await _throttle_reddit_request()
-        async with httpx.AsyncClient(timeout=min(timeout, 4), headers=headers, cookies=cookies, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=min(timeout, 4), headers=mirror_headers, cookies=cookies, follow_redirects=True) as client:
             mresp = await client.get(mirror_url)
             if mresp.status_code == 404:
                 return {
@@ -793,6 +808,19 @@ async def extract_url(
     engine: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Extract a single URL using the hybrid strategy. Hermes-envelope entry.
+
+    Top-level flow of ``extract_url`` (config-driven):
+
+      1. Normalize the Reddit URL and resolve any domain override.
+      2. Document path (PDF/DOCX/XLSX/PPTX/RTF) if not force-rendered.
+      3. Reddit fast path: Tier 1 (official ``.json``) -> Tier 2 (Redlib mirror)
+         -> Tier 3 (browser fallback).
+      4. Static fetch with markdown negotiation.
+      5. Hybrid browser fallback when the static result is not enough:
+         SPA markers, content density, empty ``<main>``, or text below the
+         configured minimum.
+      6. Challenge detection -> solver retry.
+      7. Convert the result with ``_to_output``.
 
     Domain overrides (``extract.domain_overrides``) are resolved on the
     original URL and may: rewrite the URL, force the browser, force the
@@ -871,9 +899,6 @@ async def extract_url(
         reddit_result["citation"] = f"[Source: {reddit_result['title']}]({original_url})"
         return reddit_result
 
-    if is_reddit and ".json" in url:
-        url = url.replace("/.json", "/").replace(".json", "")
-
     # The extract engine (trafilatura vs readability) applies ONLY to browser
     # renders. It must NOT force the browser: pages that extract fine with
     # plain HTTP + trafilatura stay on the static path. The browser is only
@@ -921,12 +946,16 @@ async def extract_url(
         raw_content = content if config.extract.raw_content_markdown else ""
         if not content:
             return {"url": original_url, "error": "No content extracted"}
+        domain = extract_domain(original_url)
         result: Dict[str, Any] = {
+            "position": position,
+            "domain": domain,
             "url": original_url,
             "title": "",
             "content": content,
             "raw_content": raw_content,
             "method": "markdown",
+            "extracted_at": datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z"),
         }
         if url != original_url:
             result["rewritten_url"] = url

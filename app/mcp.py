@@ -700,8 +700,11 @@ async def v1_tools_call(
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
-    name = body.get("name") or (body.get("function", {}) if isinstance(body.get("function"), dict) else {}).get("name")
-    arguments = body.get("arguments") or (body.get("function", {}) if isinstance(body.get("function"), dict) else {}).get("arguments")
+    fn = body.get("function", {})
+    if not isinstance(fn, dict):
+        fn = {}
+    name = body.get("name") or fn.get("name")
+    arguments = body.get("arguments") or fn.get("arguments")
 
     if isinstance(arguments, str):
         try:
