@@ -295,6 +295,26 @@ def _title_from_url(url: str) -> str:
     return parsed.netloc or url
 
 
+def _markdown_title(markdown: str, url: str) -> str:
+    """Derive a title from markdown: the first ``#`` heading, else the URL
+    path slug, else the host. Used for native ``text/markdown`` responses
+    (which have no HTML <title> to scrape)."""
+    for line in markdown.splitlines():
+        m = re.match(r"^\s*#\s+(.+)$", line)
+        if m:
+            return re.sub(r"\s+", " ", m.group(1)).strip()
+    slug = urlparse(url).path.rstrip("/").split("/")[-1]
+    if slug:
+        # Title-case each word (not .capitalize(), which lowercases the rest).
+        return re.sub(r"[-_]+", " ", slug).strip().title()
+    host = urlparse(url).netloc
+    if host:
+        # Strip a leading "www." (case-insensitive) then title-case the rest.
+        host = re.sub(r"^\*?www\.", "", host, flags=re.I).strip()
+        return host.capitalize()
+    return url
+
+
 async def _check_robots(client: httpx.AsyncClient, config: ForageConfig, url: str) -> Optional[str]:
     """Return an error string when robots.txt disallows the URL, else None."""
     if not config.extract.respect_robots:
@@ -946,15 +966,25 @@ async def extract_url(
         raw_content = content if config.extract.raw_content_markdown else ""
         if not content:
             return {"url": original_url, "error": "No content extracted"}
+        from .searxng import extract_domain, format_citation
         domain = extract_domain(original_url)
+        title = _markdown_title(md, original_url)
+        # Native markdown has no <title> to scrape, so use a source citation
+        # style ("[Source: <name>](url)"). If the title is empty, fall back to
+        # the domain so the citation is never an empty link.
+        label = title if title else domain
+        citation = f"[Source: {label}]({original_url})"
+        if url != original_url:
+            citation += f" ({url})"
         result: Dict[str, Any] = {
             "position": position,
             "domain": domain,
             "url": original_url,
-            "title": "",
+            "title": title,
             "content": content,
             "raw_content": raw_content,
             "method": "markdown",
+            "citation": citation,
             "extracted_at": datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z"),
         }
         if url != original_url:

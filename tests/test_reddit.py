@@ -6,6 +6,112 @@ import unittest
 from app.documents import parse_reddit_json
 
 
+class TestRedditJsonEdgeCases(unittest.TestCase):
+    """Boundary cases for parse_reddit_json: the < 2 element list, the
+    comments-must-be-a-dict contract, and the empty-children listing."""
+
+    def test_single_element_list_omits_comments(self):
+        # A list with only the post (no comments block) -> post-only output,
+        # no crash, no Link line (url is a www.reddit.com link).
+        raw = [{
+            "kind": "t3",
+            "data": {
+                "children": [{
+                    "kind": "t3",
+                    "data": {
+                        "title": "Solo Post",
+                        "subreddit_name_prefixed": "r/solo",
+                        "author": "alice",
+                        "score": 42,
+                        "created_utc": 1723048291.0,
+                        "selftext": "body",
+                        "url": "https://www.reddit.com/r/solo/comments/abc/solo/",
+                    },
+                }],
+            },
+        }]
+        content, title = parse_reddit_json(raw)
+        self.assertEqual(title, "Solo Post")
+        self.assertIn("# Solo Post", content)
+        self.assertIn("body", content)
+        self.assertNotIn("## Comments", content)
+        self.assertNotIn("**Link**:", content)
+
+    def test_empty_list_raises(self):
+        with self.assertRaises(ValueError):
+            parse_reddit_json([])
+
+    def test_non_dict_second_element_drops_comments(self):
+        # raw_json[1] must be a dict to parse comments. If it is anything else
+        # (e.g. a list), comments are dropped silently, not crash.
+        raw = [{
+            "kind": "t3",
+            "data": {
+                "children": [{
+                    "kind": "t3",
+                    "data": {
+                        "title": "Thread",
+                        "subreddit_name_prefixed": "r/thread",
+                        "author": "bob",
+                        "score": 1,
+                        "created_utc": 1723048291.0,
+                        "url": "https://www.reddit.com/r/thread/comments/def/thread/",
+                    },
+                }],
+            },
+        }, [1, 2, 3]]  # comments block is a list, not a dict
+        content, title = parse_reddit_json(raw)
+        self.assertEqual(title, "Thread")
+        self.assertIn("# Thread", content)
+        self.assertNotIn("## Comments", content)
+
+    def test_dict_second_without_data(self):
+        # comments dict with no data.children -> no comments, no crash.
+        raw = [{
+            "kind": "t3",
+            "data": {
+                "children": [{
+                    "kind": "t3",
+                    "data": {
+                        "title": "No Comments Thread",
+                        "subreddit_name_prefixed": "r/x",
+                        "author": "carol",
+                        "score": 1,
+                        "created_utc": 1723048291.0,
+                        "url": "https://www.reddit.com/r/x/comments/ghi/thread/",
+                    },
+                }],
+            },
+        }, {"data": {"children": []}}]
+        content, title = parse_reddit_json(raw)
+        self.assertEqual(title, "No Comments Thread")
+        self.assertNotIn("## Comments", content)
+
+    def test_empty_children_listing(self):
+        listing = {
+            "kind": "Listing",
+            "data": {"children": []},
+        }
+        content, title = parse_reddit_json(listing)
+        self.assertEqual(title, "Reddit Posts")
+        self.assertIn("# Reddit Posts", content)
+        self.assertIn("No posts found.", content)
+
+    def test_empty_children_listing(self):
+        # An empty listing (no children) cannot determine a subreddit, so the
+        # title falls back to the generic "Reddit Posts" and the body says
+        # "No posts found." (graceful, no crash).
+        listing = {
+            "kind": "Listing",
+            "data": {"children": []},
+        }
+        content, title = parse_reddit_json(listing)
+        self.assertEqual(title, "Reddit Posts")
+        self.assertIn("# Reddit Posts", content)
+        self.assertIn("No posts found.", content)
+        self.assertNotIn("### [", content)  # no post cards
+
+
 class TestRedditJSON(unittest.TestCase):
     def test_parse_reddit_json(self):
         sample_data = [
