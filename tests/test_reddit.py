@@ -283,13 +283,16 @@ class TestRedditJSON(unittest.TestCase):
 
     def test_reddit_cooldown_and_throttle(self):
         import asyncio
+        import app.extract
         from app.extract import _throttle_reddit_request, _is_reddit_json_on_cooldown, _set_reddit_json_cooldown
 
         async def _run():
+            app.extract._reddit_json_cooldown_until = 0.0
             self.assertFalse(_is_reddit_json_on_cooldown())
             await _throttle_reddit_request(min_interval=0.01)
             _set_reddit_json_cooldown(5.0)
             self.assertTrue(_is_reddit_json_on_cooldown())
+            app.extract._reddit_json_cooldown_until = 0.0
 
         asyncio.run(_run())
 
@@ -320,6 +323,93 @@ class TestRedditJSON(unittest.TestCase):
             self.assertEqual(reddit_ov_raw.cookies.get("reddit_session"), "sess1")
             self.assertEqual(reddit_ov_raw.cookies.get("token_v2"), "tok2")
             self.assertEqual(reddit_ov_raw.cookies.get("custom_cookie"), "val3")
+
+    def test_reddit_private_and_not_found_handling(self):
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from app.extract import _try_reddit_extract
+        from app.config import load_config
+
+        cfg = load_config()
+
+        async def _test():
+            # 1. Private subreddit JSON response
+            mock_client = AsyncMock()
+            mock_resp_priv = MagicMock()
+            mock_resp_priv.status_code = 403
+            mock_resp_priv.text = '{"reason": "private", "message": "Forbidden", "error": 403}'
+            mock_resp_priv.json.return_value = {"reason": "private", "message": "Forbidden", "error": 403}
+
+            with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=mock_resp_priv)):
+                res = await _try_reddit_extract(cfg, "https://www.reddit.com/r/locallama/top/?t=week", timeout=10)
+                self.assertIsNotNone(res)
+                self.assertEqual(res["method"], "reddit+forbidden")
+                self.assertIn("Private Community", res["title"])
+                self.assertIn("is a private community", res["content"])
+
+            # 3. Deleted/Removed post handling
+            deleted_post_json = [
+                {
+                    "kind": "Listing",
+                    "data": {
+                        "children": [
+                            {
+                                "kind": "t3",
+                                "data": {
+                                    "title": "Deleted Test Post",
+                                    "subreddit_name_prefixed": "r/test",
+                                    "author": "[deleted]",
+                                    "selftext": "[deleted]",
+                                    "score": 5,
+                                    "num_comments": 1,
+                                    "created_utc": 1723048291.0,
+                                },
+                            }
+                        ]
+                    },
+                },
+                {"kind": "Listing", "data": {"children": []}},
+            ]
+            content_del, title_del = parse_reddit_json(deleted_post_json)
+            self.assertIn("This post was deleted by the author", content_del)
+
+            removed_post_json = [
+                {
+                    "kind": "Listing",
+                    "data": {
+                        "children": [
+                            {
+                                "kind": "t3",
+                                "data": {
+                                    "title": "Removed Test Post",
+                                    "subreddit_name_prefixed": "r/test",
+                                    "author": "spammer",
+                                    "selftext": "[removed]",
+                                    "removed_by_category": "moderator",
+                                    "score": 0,
+                                    "num_comments": 0,
+                                    "created_utc": 1723048291.0,
+                                },
+                            }
+                        ]
+                    },
+                },
+                {"kind": "Listing", "data": {"children": []}},
+            ]
+            content_rem, title_rem = parse_reddit_json(removed_post_json)
+            self.assertIn("This post was removed by Reddit moderators", content_rem)
+            self.assertIn("moderator", content_rem)
+
+            # 4. Non-existent post thread (empty children array in post listing)
+            empty_post_json = [
+                {"kind": "Listing", "data": {"children": []}},
+                {"kind": "Listing", "data": {"children": []}},
+            ]
+            content_empty_p, title_empty_p = parse_reddit_json(empty_post_json)
+            self.assertIn("Post Not Found", title_empty_p)
+            self.assertIn("deleted or does not exist", content_empty_p)
+
+        asyncio.run(_test())
 
 
 if __name__ == "__main__":
