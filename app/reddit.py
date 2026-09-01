@@ -111,7 +111,11 @@ def parse_reddit_json(raw_json: Any) -> Tuple[str, str]:
     if not isinstance(raw_json, list) or not raw_json:
         raise ValueError("Invalid Reddit JSON response format")
 
-    post_data = raw_json[0].get("data", {}).get("children", [{}])[0].get("data", {})
+    post_children = raw_json[0].get("data", {}).get("children", [])
+    if not post_children:
+        return "The requested Reddit post was deleted or does not exist (404 Not Found).", "Reddit - Post Not Found"
+
+    post_data = post_children[0].get("data", {})
     title = post_data.get("title", "Reddit Post")
     subreddit = post_data.get("subreddit_name_prefixed", post_data.get("subreddit", ""))
     author = post_data.get("author", "[deleted]")
@@ -120,6 +124,7 @@ def parse_reddit_json(raw_json: Any) -> Tuple[str, str]:
     created_str = _format_timestamp(post_data.get("created_utc"))
     selftext = post_data.get("selftext", "")
     url = post_data.get("url", "")
+    removed_by_category = post_data.get("removed_by_category")
 
     header_parts = [f"**Subreddit**: {subreddit}", f"**Author**: u/{author}"]
     if created_str:
@@ -127,11 +132,19 @@ def parse_reddit_json(raw_json: Any) -> Tuple[str, str]:
     header_parts.extend([f"**Score**: {score}", f"**Comments**: {num_comments}"])
 
     header = f"# {title}\n\n" + " | ".join(header_parts) + "\n"
+
+    # Status notice for deleted/removed posts
+    if selftext == "[deleted]" or (author == "[deleted]" and not selftext):
+        header += "\n> ⚠️ *This post was deleted by the author.*\n"
+    elif selftext == "[removed]" or removed_by_category:
+        reason_label = f" ({removed_by_category})" if removed_by_category else ""
+        header += f"\n> ⚠️ *This post was removed by Reddit moderators or filters{reason_label}.*\n"
+
     if url and not url.startswith("https://www.reddit.com") and not url.startswith("https://reddit.com"):
         header += f"\n**Link**: [{url}]({url})\n"
 
     body_parts = [header]
-    if selftext:
+    if selftext and selftext not in ("[deleted]", "[removed]"):
         body_parts.append(f"\n{selftext}\n")
 
     if len(raw_json) > 1 and isinstance(raw_json[1], dict):

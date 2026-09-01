@@ -54,11 +54,124 @@ def _readability_eval() -> str:
     """Return a JS IIFE that parses the current document and returns a JSON
     string with the article title and HTML (or null when Readability finds no
     article)."""
+    dom_prep = (
+        "try {\n"
+        "  if (window.location.hostname.includes('reddit.com')) {\n"
+        "    document.querySelectorAll('div[slot=\"commentAvatar\"], img[alt*=\"avatar\"], reddit-header-large, reddit-sidebar-nav, nav, header').forEach(function(el) { el.remove(); });\n"
+        "    document.querySelectorAll('shreddit-comment').forEach(function(el) {\n"
+        "      var author = el.getAttribute('author') || 'deleted';\n"
+        "      var score = el.getAttribute('score') || '0';\n"
+        "      var depth = parseInt(el.getAttribute('depth') || '0', 10);\n"
+        "      var isOp = el.getAttribute('is-author') === 'true' || el.getAttribute('is_op') === 'true';\n"
+        "      var ts = el.getAttribute('created-timestamp') || el.getAttribute('timestamp') || el.getAttribute('data-timestamp');\n"
+        "      if (!ts) {\n"
+        "        var timeEl = el.querySelector('time');\n"
+        "        if (timeEl) ts = timeEl.getAttribute('datetime') || timeEl.getAttribute('title') || timeEl.textContent.trim();\n"
+        "      }\n"
+        "      if (!ts) {\n"
+        "        var fpt = el.querySelector('faceplate-time-ago');\n"
+        "        if (fpt) ts = fpt.getAttribute('ts') || fpt.getAttribute('timestamp') || fpt.textContent.trim();\n"
+        "      }\n"
+        "      var timeStr = '';\n"
+        "      if (ts) {\n"
+        "        try {\n"
+        "          if (/^\\d+$/.test(ts)) {\n"
+        "            var num = parseFloat(ts);\n"
+        "            if (num < 1e11) num *= 1000;\n"
+        "            timeStr = new Date(num).toISOString().replace('T', ' ').substring(0, 16) + ' UTC';\n"
+        "          } else if (ts.includes('T') || ts.includes('-')) {\n"
+        "            var d = new Date(ts);\n"
+        "            if (!isNaN(d.getTime())) {\n"
+        "              timeStr = d.toISOString().replace('T', ' ').substring(0, 16) + ' UTC';\n"
+        "            } else { timeStr = ts; }\n"
+        "          } else { timeStr = ts; }\n"
+        "        } catch(e) {}\n"
+        "      }\n"
+        "      var meta = ['Score: ' + score];\n"
+        "      if (timeStr) meta.push(timeStr);\n"
+        "      var opStr = isOp ? ' [OP]' : '';\n"
+        "      var hTag = 'h' + Math.min(6, 3 + depth);\n"
+        "      var header = document.createElement(hTag);\n"
+        "      header.innerHTML = '<strong>u/' + author + '</strong>' + opStr + ' (' + meta.join(' | ') + ')';\n"
+        "      el.prepend(header);\n"
+        "      el.querySelectorAll('div[slot=\"creditBar\"], div[slot=\"actions\"], div[slot=\"action-row\"], [slot=\"actionRow\"], shreddit-comment-action-row, faceplate-number, shreddit-overflow-menu, [slot=\"comment-menu\"]').forEach(function(x) { x.remove(); });\n"
+        "    });\n"
+        "    document.querySelectorAll('div[slot=\"creditBar\"], shreddit-comment-action-row').forEach(function(el) { el.remove(); });\n"
+        "    document.querySelectorAll('shreddit-post').forEach(function(post) {\n"
+        "      var title = post.getAttribute('post-title') || post.getAttribute('title') || '';\n"
+        "      var author = post.getAttribute('author') || '';\n"
+        "      var score = post.getAttribute('score') || '';\n"
+        "      var postHeader = document.createElement('header');\n"
+        "      if (title) {\n"
+        "        var h1 = document.createElement('h1');\n"
+        "        h1.textContent = title;\n"
+        "        postHeader.appendChild(h1);\n"
+        "      }\n"
+        "      if (author) {\n"
+        "        var metaP = document.createElement('p');\n"
+        "        metaP.innerHTML = '<strong>Posted by u/' + author + '</strong>' + (score ? ' (Score: ' + score + ')' : '');\n"
+        "        postHeader.appendChild(metaP);\n"
+        "      }\n"
+        "      post.prepend(postHeader);\n"
+        "    });\n"
+        "    var isThread = window.location.pathname.includes('/comments/');\n"
+        "    if (isThread) {\n"
+        "      var postEl = document.querySelector('shreddit-post, div[data-testid=\"post-container\"], div[id^=\"t3_\"]');\n"
+        "      var treeEl = document.querySelector('shreddit-comment-tree, #comment-tree, div[slot=\"comments\"], [slot=\"comments\"], shreddit-async-loader[bundlename=\"comment_tree\"]');\n"
+        "      var comments = document.querySelectorAll('shreddit-comment');\n"
+        "      if (postEl && (treeEl || comments.length > 0) && postEl.parentNode) {\n"
+        "        var wrapper = document.createElement('article');\n"
+        "        wrapper.id = 'forage-reddit-thread';\n"
+        "        postEl.parentNode.insertBefore(wrapper, postEl);\n"
+        "        wrapper.appendChild(postEl);\n"
+        "        var heading = document.createElement('h2');\n"
+        "        heading.textContent = 'Comments';\n"
+        "        wrapper.appendChild(heading);\n"
+        "        if (treeEl) {\n"
+        "          wrapper.appendChild(treeEl);\n"
+        "        } else {\n"
+        "          var commentContainer = document.createElement('div');\n"
+        "          comments.forEach(function(c) { commentContainer.appendChild(c); });\n"
+        "          wrapper.appendChild(commentContainer);\n"
+        "        }\n"
+        "      }\n"
+        "    } else {\n"
+        "      var posts = document.querySelectorAll('shreddit-post');\n"
+        "      if (posts.length > 0 && posts[0].parentNode) {\n"
+        "        var feedWrapper = document.createElement('article');\n"
+        "        feedWrapper.id = 'forage-reddit-feed';\n"
+        "        posts[0].parentNode.insertBefore(feedWrapper, posts[0]);\n"
+        "        posts.forEach(function(p) {\n"
+        "          var item = document.createElement('section');\n"
+        "          item.appendChild(p);\n"
+        "          feedWrapper.appendChild(item);\n"
+        "        });\n"
+        "      }\n"
+        "    }\n"
+        "  }\n"
+        "} catch(e) {}\n"
+    )
     return (
         "(function() {\n"
+        + dom_prep
+        + "\n"
         + _READABILITY_JS
-        + "\nvar _r = new Readability(document).parse();"
-        "\nreturn _r ? JSON.stringify({title: _r.title || '', content: _r.content}) : null;\n})()"
+        + "\nvar _r = null;\n"
+        "try { _r = new Readability(document).parse(); } catch(e) {}\n"
+        "if (_r && _r.content) {\n"
+        "  return JSON.stringify({title: _r.title || '', content: _r.content});\n"
+        "}\n"
+        "if (window.location.hostname.includes('reddit.com')) {\n"
+        "  var threadWrapper = document.getElementById('forage-reddit-thread');\n"
+        "  var feedWrapper = document.getElementById('forage-reddit-feed');\n"
+        "  var post = document.querySelector('shreddit-post, div[data-testid=\"post-container\"], div[id^=\"t3_\"]');\n"
+        "  var target = threadWrapper || feedWrapper || post;\n"
+        "  if (target) {\n"
+        "    var title = document.title || (post ? (post.getAttribute('post-title') || post.getAttribute('title')) : '') || '';\n"
+        "    return JSON.stringify({title: title, content: target.outerHTML || target.innerHTML});\n"
+        "  }\n"
+        "}\n"
+        "return null;\n})()"
     )
 
 
@@ -78,21 +191,28 @@ def _parse_readability(raw: Optional[str]) -> Optional[dict]:
 def _is_dead_browser(exc: BaseException) -> bool:
     """True when the scrapling browser died (session must be recreated)."""
     msg = str(exc).lower()
-    return "has been closed" in msg or "target page" in msg or "browser has been closed" in msg
+    # Is the Playwright/CDP signal for "the browser/session target died"?
+    return (
+        "has been closed" in msg
+        or "target page" in msg
+        or "target crashed" in msg
+        or "crashed" in msg
+        or "browser has been closed" in msg
+    )
 
 
 class BrowserPool:
     """In-process browser pool for Forage.
 
     Supports four engines:
-      - playwright (default): vanilla Playwright Chromium with light stealth
-      - patchright: undetected Playwright fork (same API)
-      - scrapling: StealthyFetcher from the Scrapling framework, which
+      - scrapling (default): StealthyFetcher from the Scrapling framework, which
         impersonates real browser fingerprints and can solve Cloudflare
         Turnstile/Interstitial out of the box. A single AsyncStealthySession
         is kept alive and its internal tab pool (max_pages) handles
         concurrency; networkidle and scrolling are replicated inside a
         page_action so behaviour matches the Playwright path.
+      - playwright: vanilla Playwright Chromium with light stealth
+      - patchright: undetected Playwright fork (same API)
       - obscura: external CDP server (the Obscura Rust/V8 browser). The
         pool connects via Playwright connect_over_cdp to browser.cdp_url
         instead of launching Chromium locally. Concurrency is capped by
@@ -122,8 +242,11 @@ class BrowserPool:
         self._cdp_browser: Optional[Any] = None  # engine=obscura: connected CDP browser
         self._scrapling_session: Optional[Any] = None
         self._solver_session: Optional[Any] = None  # lazy; scrapling session with solve_cloudflare=True (last-resort retry)
-        self._solver_lock = asyncio.Lock()  # guards lazy solver session creation (any engine)
-        self._session_lock = asyncio.Lock()  # guards scrapling session recreation when it dies
+        # Locks are created lazily (see _get_solver_lock / _get_session_lock):
+        # constructing asyncio.Lock() in __init__ calls get_event_loop(), which
+        # raises RuntimeError on Python 3.9 when there is no running loop.
+        self._solver_lock: Optional[asyncio.Lock] = None  # guards lazy solver session creation (any engine)
+        self._session_lock: Optional[asyncio.Lock] = None  # guards scrapling session recreation when it dies
         self._cleanup_task: Optional[asyncio.Task] = None
         self._started = False
 
@@ -272,6 +395,8 @@ class BrowserPool:
         network_idle_timeout: Optional[int] = None,
         challenge_timeout: Optional[int] = None,
         readability: bool = False,
+        extra_headers: Optional[Dict[str, str]] = None,
+        cookies: Optional[Dict[str, str]] = None,
     ) -> Union[str, Dict[str, str]]:
         """Render a URL with the configured engine and return the final DOM HTML.
 
@@ -288,13 +413,19 @@ class BrowserPool:
         idle_cap = self.network_idle_timeout if network_idle_timeout is None else network_idle_timeout
         chal_cap = self.challenge_timeout if challenge_timeout is None else challenge_timeout
         if self.engine == "scrapling":
-            return await self._scrapling_render(url, wait_for, timeout, steps, idle_cap, chal_cap, readability)
+            return await self._scrapling_render(url, wait_for, timeout, steps, idle_cap, chal_cap, readability, extra_headers, cookies)
         if self.engine == "obscura":
-            return await self._cdp_render(url, wait_for, timeout, steps, idle_cap, readability)
+            return await self._cdp_render(url, wait_for, timeout, steps, idle_cap, readability, extra_headers, cookies)
         browser = await self.acquire()
         page = None
         try:
-            context = await browser.new_context(user_agent=self.user_agent)
+            context = await browser.new_context(
+                user_agent=self.user_agent,
+                extra_http_headers=extra_headers or {},
+            )
+            if cookies:
+                cookie_list = [{"name": k, "value": v, "url": url} for k, v in cookies.items()]
+                await context.add_cookies(cookie_list)
             page = await context.new_page()
             if self.stealth:
                 await page.add_init_script(STEALTH_INIT_SCRIPT)
@@ -305,7 +436,7 @@ class BrowserPool:
             )
             if wait_for:
                 await page.wait_for_selector(wait_for, timeout=timeout * 1000)
-            else:
+            elif idle_cap > 0 and not any(d in url.lower() for d in ("reddit.com", "x.com", "twitter.com")):
                 try:
                     await page.wait_for_load_state(
                         "networkidle",
@@ -315,6 +446,17 @@ class BrowserPool:
                     pass
             if steps > 0:
                 await self._scroll_to_bottom(page, steps)
+            if readability and "reddit.com" in url.lower():
+                if "/comments/" in url.lower():
+                    try:
+                        await page.wait_for_selector("shreddit-comment, shreddit-comment-tree, #comment-tree, div[slot='comments'], shreddit-async-loader", timeout=5000)
+                    except Exception:  # noqa: BLE001
+                        pass
+                else:
+                    try:
+                        await page.wait_for_selector("shreddit-post, shreddit-feed, article, [data-testid='post-container']", timeout=3000)
+                    except Exception:  # noqa: BLE001
+                        pass
             if readability:
                 article = _parse_readability(await page.evaluate(_readability_eval()))
                 if article:
@@ -337,6 +479,8 @@ class BrowserPool:
         scroll_steps: int = 0,
         network_idle_timeout: Optional[int] = None,
         readability: bool = False,
+        extra_headers: Optional[Dict[str, str]] = None,
+        cookies: Optional[Dict[str, str]] = None,
     ) -> Union[str, Dict[str, str]]:
         """Render via an external Obscura CDP server (engine=obscura).
 
@@ -356,7 +500,11 @@ class BrowserPool:
             context = await self._cdp_browser.new_context(
                 user_agent=self.user_agent,
                 viewport={"width": 1280, "height": 800},
+                extra_http_headers=extra_headers or {},
             )
+            if cookies:
+                cookie_list = [{"name": k, "value": v, "url": url} for k, v in cookies.items()]
+                await context.add_cookies(cookie_list)
             page = await context.new_page()
             if self.stealth:
                 await page.add_init_script(STEALTH_INIT_SCRIPT)
@@ -367,7 +515,7 @@ class BrowserPool:
             )
             if wait_for:
                 await page.wait_for_selector(wait_for, timeout=timeout * 1000)
-            else:
+            elif idle_cap > 0 and not any(d in url.lower() for d in ("reddit.com", "x.com", "twitter.com")):
                 try:
                     await page.wait_for_load_state(
                         "networkidle",
@@ -377,6 +525,17 @@ class BrowserPool:
                     pass
             if scroll_steps > 0:
                 await self._scroll_to_bottom(page, scroll_steps)
+            if readability and "reddit.com" in url.lower():
+                if "/comments/" in url.lower():
+                    try:
+                        await page.wait_for_selector("shreddit-comment, shreddit-comment-tree, #comment-tree, div[slot='comments'], shreddit-async-loader", timeout=5000)
+                    except Exception:  # noqa: BLE001
+                        pass
+                else:
+                    try:
+                        await page.wait_for_selector("shreddit-post, shreddit-feed, article, [data-testid='post-container']", timeout=3000)
+                    except Exception:  # noqa: BLE001
+                        pass
             if readability:
                 article = _parse_readability(await page.evaluate(_readability_eval()))
                 if article:
@@ -396,6 +555,18 @@ class BrowserPool:
                     pass
             self._semaphore.release()
 
+    def _get_solver_lock(self) -> asyncio.Lock:
+        """Lazily create the solver lock (created inside a running event loop)."""
+        if self._solver_lock is None:
+            self._solver_lock = asyncio.Lock()
+        return self._solver_lock
+
+    def _get_session_lock(self) -> asyncio.Lock:
+        """Lazily create the session lock (created inside a running event loop)."""
+        if self._session_lock is None:
+            self._session_lock = asyncio.Lock()
+        return self._session_lock
+
     async def _restart_scrapling_session(self) -> None:
         """Recreate the scrapling session after its browser died.
 
@@ -404,7 +575,7 @@ class BrowserPool:
         with "Target page, context or browser has been closed". Recreate the
         session once (serialized) so the pool heals itself.
         """
-        async with self._session_lock:
+        async with self._get_session_lock():
             if self._scrapling_session is not None:
                 try:
                     await self._scrapling_session.close()
@@ -433,6 +604,8 @@ class BrowserPool:
         network_idle_timeout: Optional[int] = None,
         challenge_timeout: Optional[int] = None,
         readability: bool = False,
+        extra_headers: Optional[Dict[str, str]] = None,
+        cookies: Optional[Dict[str, str]] = None,
     ) -> Union[str, Dict[str, str]]:
         """Render via Scrapling StealthyFetcher (single shared session).
 
@@ -448,6 +621,17 @@ class BrowserPool:
         result: dict = {}
 
         async def _page_action(page: Any) -> None:
+            if extra_headers:
+                try:
+                    await page.set_extra_http_headers(extra_headers)
+                except Exception:  # noqa: BLE001
+                    pass
+            if cookies:
+                try:
+                    cookie_list = [{"name": k, "value": v, "url": url} for k, v in cookies.items()]
+                    await page.context.add_cookies(cookie_list)
+                except Exception:  # noqa: BLE001
+                    pass
             # Cloudflare Turnstile non-interactive challenges auto-validate a
             # few seconds after load. The StealthyFetcher's solver runs before
             # page_action and can miss a challenge that is still booting, so
@@ -458,7 +642,7 @@ class BrowserPool:
                 if not any(c in title for c in CHALLENGE_TITLES):
                     break
                 await page.wait_for_timeout(1000)
-            if idle_cap > 0:
+            if idle_cap > 0 and not any(d in url.lower() for d in ("reddit.com", "x.com", "twitter.com")):
                 try:
                     await page.wait_for_load_state(
                         "networkidle",
@@ -468,6 +652,17 @@ class BrowserPool:
                     pass
             if scroll_steps > 0:
                 await self._scroll_to_bottom(page, scroll_steps)
+            if readability and "reddit.com" in url.lower():
+                if "/comments/" in url.lower():
+                    try:
+                        await page.wait_for_selector("shreddit-comment, shreddit-comment-tree, #comment-tree, div[slot='comments'], shreddit-async-loader", timeout=5000)
+                    except Exception:  # noqa: BLE001
+                        pass
+                else:
+                    try:
+                        await page.wait_for_selector("shreddit-post, shreddit-feed, article, [data-testid='post-container']", timeout=3000)
+                    except Exception:  # noqa: BLE001
+                        pass
             if readability:
                 try:
                     result["article"] = _parse_readability(
@@ -476,28 +671,35 @@ class BrowserPool:
                 except Exception:  # noqa: BLE001
                     result["article"] = None
 
+        merged_headers = dict(extra_headers) if extra_headers else {}
+        if cookies and "Cookie" not in merged_headers and "cookie" not in merged_headers:
+            merged_headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items())
+
         await self._semaphore.acquire()
         try:
-            try:
-                resp = await self._scrapling_session.fetch(
-                    url,
-                    timeout=timeout * 1000,
-                    wait_selector=wait_for or None,
-                    page_action=_page_action,
-                )
-            except Exception as exc:  # noqa: BLE001
-                if _is_dead_browser(exc):
-                    # The session's browser died (heavy load). Recreate the
-                    # session and retry once instead of failing the request.
-                    await self._restart_scrapling_session()
-                    resp = await self._scrapling_session.fetch(
-                        url,
-                        timeout=timeout * 1000,
-                        wait_selector=wait_for or None,
-                        page_action=_page_action,
+            # Dead-browser heal: up to two restarts with a short backoff, so the
+            # pool recovers even when the first restart itself dies (launch
+            # timeout / memory pressure during a burst).
+            for attempt in range(3):
+                try:
+                    resp = await asyncio.wait_for(
+                        self._scrapling_session.fetch(
+                            url,
+                            timeout=timeout * 1000,
+                            wait_selector=wait_for or None,
+                            extra_headers=merged_headers or None,
+                            page_action=_page_action,
+                        ),
+                        timeout=timeout + 5.0,
                     )
-                else:
-                    raise
+                    break
+                except Exception as exc:  # noqa: BLE001
+                    if (_is_dead_browser(exc) or isinstance(exc, asyncio.TimeoutError)) and attempt < 2:
+                        await self._restart_scrapling_session()
+                        if attempt == 1:
+                            await asyncio.sleep(0.5)
+                    else:
+                        raise
             if readability and result.get("article"):
                 return result["article"]
             if resp is None or not resp.body:
@@ -513,7 +715,7 @@ class BrowserPool:
         # session but not finished start() yet; returning it early would call
         # fetch() on a session that is not alive ("Context manager has been
         # closed").
-        async with self._solver_lock:
+        async with self._get_solver_lock():
             if self._solver_session is None:
                 from scrapling.fetchers import AsyncStealthySession
 
@@ -536,6 +738,8 @@ class BrowserPool:
         timeout: int = 30,
         scroll_steps: Optional[int] = None,
         network_idle_timeout: Optional[int] = None,
+        extra_headers: Optional[Dict[str, str]] = None,
+        cookies: Optional[Dict[str, str]] = None,
     ) -> str:
         """Render with the scrapling session that has solve_cloudflare=True.
 
@@ -550,7 +754,18 @@ class BrowserPool:
         idle_cap = self.network_idle_timeout if network_idle_timeout is None else network_idle_timeout
 
         async def _page_action(page: Any) -> None:
-            if idle_cap > 0:
+            if extra_headers:
+                try:
+                    await page.set_extra_http_headers(extra_headers)
+                except Exception:  # noqa: BLE001
+                    pass
+            if cookies:
+                try:
+                    cookie_list = [{"name": k, "value": v, "url": url} for k, v in cookies.items()]
+                    await page.context.add_cookies(cookie_list)
+                except Exception:  # noqa: BLE001
+                    pass
+            if idle_cap > 0 and not any(d in url.lower() for d in ("reddit.com", "x.com", "twitter.com")):
                 try:
                     await page.wait_for_load_state(
                         "networkidle",
@@ -561,13 +776,21 @@ class BrowserPool:
             if steps > 0:
                 await self._scroll_to_bottom(page, steps)
 
+        merged_headers = dict(extra_headers) if extra_headers else {}
+        if cookies and "Cookie" not in merged_headers and "cookie" not in merged_headers:
+            merged_headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items())
+
         await self._semaphore.acquire()
         try:
-            resp = await session.fetch(
-                url,
-                timeout=timeout * 1000,
-                wait_selector=wait_for or None,
-                page_action=_page_action,
+            resp = await asyncio.wait_for(
+                session.fetch(
+                    url,
+                    timeout=timeout * 1000,
+                    wait_selector=wait_for or None,
+                    extra_headers=merged_headers or None,
+                    page_action=_page_action,
+                ),
+                timeout=timeout + 5.0,
             )
             if resp is None or not resp.body:
                 raise RuntimeError(f"Empty response for {url}")

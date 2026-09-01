@@ -1,12 +1,17 @@
 """Hybrid extraction: static HTTP first, browser fallback.
 
-Decision flow (config-driven):
-  1. domain override force_render | request force_render | wait_for -> browser
-  2. static fetch (httpx)
-  3. HTTP 403/429                                          -> browser
-  4. needs_browser_render(html, text): SPA markers | content density |
-     empty <main> | text < min_content_chars -> browser
-  5. otherwise deliver the static result
+Top-level flow of ``extract_url`` (config-driven):
+
+  1. Normalize the Reddit URL and resolve any domain override.
+  2. Document path (PDF/DOCX/XLSX/PPTX/RTF) if not force-rendered.
+  3. Reddit fast path: Tier 1 (official ``.json``) -> Tier 2 (Redlib mirror)
+     -> Tier 3 (browser fallback).
+  4. Static fetch with markdown negotiation.
+  5. Hybrid browser fallback when the static result is not enough:
+     SPA markers, content density, empty ``<main>``, or text below the
+     configured minimum.
+  6. Challenge detection -> solver retry.
+  7. Convert the result with ``_to_output``.
 """
 
 from __future__ import annotations
@@ -15,6 +20,8 @@ import asyncio
 import fnmatch
 import logging
 import re
+import time
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import urlparse
 
@@ -25,8 +32,26 @@ from markdownify import markdownify as _markdownify
 from .browser import BrowserPool
 from .config import ForageConfig
 from .documents import extract_document_bytes, looks_like_document
+from .reddit import parse_reddit_json
 
 logger = logging.getLogger(__name__)
+
+
+def clamp_output(res: Dict[str, Any], max_chars: Optional[int]) -> Dict[str, Any]:
+    """Apply a per-request ``max_chars`` truncation.
+
+    Pure operator: never mutates the input, and returns the original dict
+    untouched when no clamp applies (safe to call on cached results)."""
+    if not max_chars or "content" not in res:
+        return res
+    full_len = len(res["content"])
+    if full_len <= max_chars:
+        return res
+    truncated = dict(res)
+    truncated["content"] = res["content"][:max_chars] + f"\n\n[TRUNCATED at {max_chars:,} of {full_len:,} chars]"
+    if "raw_content" in res:
+        truncated["raw_content"] = res["raw_content"][:max_chars]
+    return truncated
 
 # One short retry for transient server-side errors (rate limit / 5xx blips).
 # Static-only: the hybrid flow already falls back to the browser on 403/429,
@@ -174,8 +199,7 @@ def _find_override(url: str, overrides: Tuple[Any, ...]) -> Optional[Any]:
 
     Specificity: pattern length (a ``reddit.com/r/`` pattern beats
     ``reddit.com``), then declaration order. Patterns are matched on the
-    original URL BEFORE any rewrite is applied.
-    """
+    original URL BEFORE any rewrite is applied."""
     best = None
     best_len = -1
     for override in overrides:
@@ -236,6 +260,10 @@ CHALLENGE_TITLES = [
     "attention required",
     "just a moment",
     "checking your browser",
+    "verifying your browser",
+    "verify you are human",
+    "security check",
+    "robot or human",
     "access denied",
     "ddos-guard",
     "sucuri",
@@ -249,6 +277,8 @@ CHALLENGE_MARKERS = [
     "cf-challenge",
     "cf-browser-verification",
     "cf-error-details",
+    "protected by anubis",
+    "anubis uses a proof-of-work",
 ]
 
 
@@ -271,6 +301,36 @@ def _extract_title(html: str) -> str:
     if match:
         return re.sub(r"\s+", " ", match.group(1)).strip()
     return ""
+
+
+def _title_from_url(url: str) -> str:
+    """Derive a human-readable title fallback from a URL path."""
+    parsed = urlparse(url)
+    slug = parsed.path.rstrip("/").split("/")[-1]
+    if slug:
+        slug = re.sub(r"[-_]+", " ", slug).strip().capitalize()
+        return slug
+    return parsed.netloc or url
+
+
+def _markdown_title(markdown: str, url: str) -> str:
+    """Derive a title from markdown: the first ``#`` heading, else the URL
+    path slug, else the host. Used for native ``text/markdown`` responses
+    (which have no HTML <title> to scrape)."""
+    for line in markdown.splitlines():
+        m = re.match(r"^\s*#\s+(.+)$", line)
+        if m:
+            return re.sub(r"\s+", " ", m.group(1)).strip()
+    slug = urlparse(url).path.rstrip("/").split("/")[-1]
+    if slug:
+        # Title-case each word (not .capitalize(), which lowercases the rest).
+        return re.sub(r"[-_]+", " ", slug).strip().title()
+    host = urlparse(url).netloc
+    if host:
+        # Strip a leading "www." (case-insensitive) then title-case the rest.
+        host = re.sub(r"^\*?www\.", "", host, flags=re.I).strip()
+        return host.capitalize()
+    return url
 
 
 async def _check_robots(client: httpx.AsyncClient, config: ForageConfig, url: str) -> Optional[str]:
@@ -317,8 +377,7 @@ async def _extract_document(
 
     Returns the Hermes envelope entry when the URL yields a parseable
     document; None when it is not a document or parsing fails, so the
-    caller falls through to the normal hybrid flow.
-    """
+    caller falls through to the normal hybrid flow."""
     headers = {
         "User-Agent": config.extract.user_agent,
         "Accept": "*/*",
@@ -361,6 +420,8 @@ async def _extract_document(
 async def fetch_static(
     config: ForageConfig,
     url: str,
+    extra_headers: Optional[Dict[str, str]] = None,
+    cookies: Optional[Dict[str, str]] = None,
 ) -> Tuple[Optional[str], int, str, str]:
     """Fetch URL with plain HTTP. Returns (html, status, final_url, content_type).
 
@@ -369,8 +430,7 @@ async def fetch_static(
     negotiation (e.g. via .htaccess / Vary: Accept) answers with
     ``text/markdown``; the caller then uses the body directly as markdown
     without running trafilatura. Servers without negotiation ignore the
-    Accept and return ``text/html``, so the normal hybrid flow continues.
-    """
+    Accept and return ``text/html``, so the normal hybrid flow continues."""
     accept = (
         "text/markdown,text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
         if config.extract.prefer_markdown
@@ -380,7 +440,17 @@ async def fetch_static(
         "User-Agent": config.extract.user_agent,
         "Accept": accept,
     }
-    async with httpx.AsyncClient(follow_redirects=True, timeout=config.extract.timeout) as client:
+    if extra_headers:
+        headers.update(extra_headers)
+
+    client_kwargs: Dict[str, Any] = {
+        "follow_redirects": True,
+        "timeout": config.extract.timeout,
+    }
+    if cookies:
+        client_kwargs["cookies"] = cookies
+
+    async with httpx.AsyncClient(**client_kwargs) as client:
         robots_error = await _check_robots(client, config, url)
         if robots_error:
             return None, 0, url, ""  # caller treats 0 as blocked-by-robots
@@ -428,6 +498,89 @@ def _extract_text(html: str, only_main_content: bool, max_chars: int) -> str:
     return text[:max_chars]
 
 
+def _strip_reddit_ads_from_html(html: str) -> str:
+    """Strip Reddit ad web-components and preserve timestamp elements prior to extraction."""
+    if not html:
+        return html
+    # Remove <shreddit-ad-post>...</shreddit-ad-post>
+    html = re.sub(r"<shreddit-ad-post[^>]*>.*?</shreddit-ad-post>", "", html, flags=re.DOTALL | re.IGNORECASE)
+    # Remove <shreddit-comments-page-ad>...</shreddit-comments-page-ad>
+    html = re.sub(r"<shreddit-comments-page-ad[^>]*>.*?</shreddit-comments-page-ad>", "", html, flags=re.DOTALL | re.IGNORECASE)
+    # Remove promoted links (<div class="...promotedlink...">...</div>)
+    html = re.sub(r'<div[^>]*class="[^"]*promotedlink[^"]*"[^>]*>.*?</div>', "", html, flags=re.DOTALL | re.IGNORECASE)
+    # Remove tracking ad links (<a href="...alb.reddit.com...">...</a>)
+    html = re.sub(r'<a[^>]*href="[^"]*alb\.reddit\.com[^"]*"[^>]*>.*?</a>', "", html, flags=re.DOTALL | re.IGNORECASE)
+
+    # Convert <faceplate-time-ago ts="..."> or <time datetime="..."> into visible timestamp text
+    def _render_ts(match: re.Match) -> str:
+        ts_val = match.group(1)
+        try:
+            val = float(ts_val)
+            if val > 1e11:  # ms
+                val /= 1000.0
+            dt = datetime.fromtimestamp(val, timezone.utc)
+            return f" [{dt.strftime('%Y-%m-%d %H:%M UTC')}] "
+        except Exception:
+            return match.group(0)
+
+    html = re.sub(r'<faceplate-time-ago[^>]*ts="(\d+)"[^>]*>.*?</faceplate-time-ago>', _render_ts, html, flags=re.DOTALL | re.IGNORECASE)
+    return html
+
+
+def _clean_reddit_markdown(text: str) -> str:
+    """Clean up Reddit markdown: strip avatars, community icons, navigation remnants, floating numbers, duplicate links, and excessive blank lines."""
+    if not text:
+        return text
+    # Strip community icon embeds and avatars
+    text = re.sub(r'\[!\[[^\]]*\]\([^)]*(?:communityIcon|redditmedia\.com|thumbs\.redditmedia\.com)[^)]*\)\s*', '[', text, flags=re.IGNORECASE)
+    text = re.sub(r'!\[[^\]]*\]\([^)]*(?:communityIcon|emoji\.redditmedia\.com|styles\.redditmedia\.com)[^)]*\)', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\[!\[[^\]]*avatar\]\([^)]+\)\]\([^)]+\)', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'!\[[^\]]*avatar[^\]]*\]\([^)]+\)', '', text, flags=re.IGNORECASE)
+
+    # Strip Reddit navigation and web UI boilerplate
+    boilerplate = [
+        r"Skip to main content\s*",
+        r"Open menu\s*",
+        r"Advertise on Reddit\s*",
+        r"Open chat\s*",
+        r"Create post\s*",
+        r"Open inbox\s*",
+        r"Expand user menu\s*",
+        r"Open profile menu\s*",
+        r"Get your post the attention it deserves\s*",
+        r"Close Repost Nudge Dialog\s*",
+        r"Repost into other communities and help your post get seen by more people\.?\s*",
+        r"Submit a report\s*",
+        r"Report Submitted\s*",
+        r"Open sort options\s*",
+        r"Change post view\s*",
+        r"Open navigation\s*",
+        r"Go to Reddit Home\s*",
+        r"\[Sign Up\]\([^\)]+\)Sign up for Reddit\s*",
+        r"\[Log In\]\([^\)]+\)Log in to Reddit\s*",
+        r"Open settings menu\s*",
+        r"View more comments\s*",
+        r"Card Compact Community highlights\s*",
+        r"Top Best Hot New Top Rising Today Now Today This Week This Month This Year All Time\s*",
+        r"\b\d+\s*votes\s*•\s*\d+\s*comments\b",
+    ]
+    for b in boilerplate:
+        text = re.sub(b, '', text, flags=re.IGNORECASE)
+
+    # Strip lone floating numbers on their own lines (leftover upvote buttons)
+    text = re.sub(r'(?<=\n)\s*\d+(?:\.\d+)?(?:k|K)?\s*(?=\n|\Z)', '', text)
+
+    # Remove duplicate consecutive links produced by card headers + titles
+    text = re.sub(r'(\[[^\]]+\]\([^)]+\))\s*\n+(?:---\s*\n+)?(?:\s*\[r/[^\]]+\]\([^)]+\)\s*\n+)?\1', r'\1', text)
+
+    lines = text.splitlines()
+    header = lines[0] if lines and lines[0].startswith("#") else ""
+    rest = "\n".join(lines[1:]) if header else text
+    rest = re.sub(r"^(?:\s*---\s*\n)+", "", rest)
+    rest = re.sub(r"\n{3,}", "\n\n", rest).strip()
+    return f"{header}\n\n{rest}" if header else rest
+
+
 def _to_output(
     html: str,
     fmt: str,
@@ -442,8 +595,7 @@ def _to_output(
     - readability engine: the article HTML (already main-content filtered by
       Readability.js in the browser) is converted to markdown with markdownify.
     - default engine: trafilatura markdown (only_main_content) or plain text
-      (full_text override).
-    """
+      (full_text override)."""
     if fmt == "html":
         return html, html[:max_chars]
     if readability:
@@ -458,11 +610,280 @@ def _scroll_steps_for(config: ForageConfig, scroll: bool) -> int:
 
     The domain override ``scroll: true`` forces at least one round even when
     the global ``browser.scroll_steps`` is 0 (the default), so lazy content
-    (Reddit/YouTube comments) gets a chance to mount.
-    """
+    (Reddit/YouTube comments) gets a chance to mount."""
     if not scroll:
         return 0
     return max(config.browser.scroll_steps, 1)
+
+
+def normalize_reddit_url(url: str) -> str:
+    """Normalize Reddit URLs (old.reddit, sh.reddit, new.reddit, direct .json endpoints)
+    to canonical https://www.reddit.com/... web URLs."""
+    if not url:
+        return url
+    try:
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
+        if host in ("reddit.com", "www.reddit.com", "old.reddit.com", "new.reddit.com", "sh.reddit.com", "safereddit.com"):
+            path = parsed.path or "/"
+            if path.endswith(".json"):
+                path = path[:-5]
+            canonical = f"https://www.reddit.com{path}"
+            if parsed.query:
+                canonical += f"?{parsed.query}"
+            return canonical
+    except Exception:
+        pass
+    return url
+
+
+_reddit_req_lock = asyncio.Lock()
+_reddit_last_req_time = 0.0
+_reddit_json_cooldown_until = 0.0
+
+
+async def _throttle_reddit_request(min_interval: float = 0.75) -> None:
+    """Stagger concurrent Reddit HTTP requests to prevent burst rate-limiting."""
+    global _reddit_last_req_time
+    async with _reddit_req_lock:
+        now = time.monotonic()
+        elapsed = now - _reddit_last_req_time
+        if elapsed < min_interval:
+            await asyncio.sleep(min_interval - elapsed)
+        _reddit_last_req_time = time.monotonic()
+
+
+def _is_reddit_json_on_cooldown() -> bool:
+    """Check if Reddit .json API is currently in a rate-limit cooldown window."""
+    return time.monotonic() < _reddit_json_cooldown_until
+
+
+def _set_reddit_json_cooldown(cooldown_seconds: float = 30.0) -> None:
+    """Trigger a cooldown window after receiving a 403 or 429 from Reddit .json."""
+    global _reddit_json_cooldown_until
+    _reddit_json_cooldown_until = max(_reddit_json_cooldown_until, time.monotonic() + cooldown_seconds)
+    logger.info("Reddit .json API rate-limited (403/429); entering %.1fs cooldown", cooldown_seconds)
+
+
+async def _try_reddit_extract(
+    config: ForageConfig,
+    url: str,
+    timeout: int,
+    extra_headers: Optional[Dict[str, str]] = None,
+    cookies: Optional[Dict[str, str]] = None,
+) -> Optional[Dict[str, Any]]:
+    """3-tier extraction for Reddit: 1) .json API, 2) Redlib mirror, 3) None (fallback to browser)."""
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if host not in ("reddit.com", "www.reddit.com"):
+        return None
+    path = parsed.path or ""
+    # Support subreddit listings (/r/...), comments threads, user pages (/user/), searches (/search)
+    if not (
+        path.startswith("/r/")
+        or path.startswith("/user/")
+        or path.startswith("/u/")
+        or path.startswith("/search")
+        or path.startswith("/top")
+        or path.startswith("/hot")
+        or path.startswith("/new")
+        or "/comments/" in path
+    ):
+        return None
+
+    # --- Tier 1: Official Reddit .json endpoint ---
+    if not _is_reddit_json_on_cooldown():
+        clean_path = path.rstrip("/")
+        if not clean_path.endswith(".json"):
+            clean_path += ".json"
+        if "/comments/" in clean_path:
+            json_url = f"https://www.reddit.com{clean_path}?raw_json=1&limit=100&depth=10"
+        elif "search" in clean_path:
+            q_part = f"{parsed.query}&raw_json=1" if parsed.query else "raw_json=1"
+            if "type=" not in q_part:
+                q_part += "&type=link"
+            json_url = f"https://www.reddit.com{clean_path}?{q_part}"
+        elif parsed.query:
+            json_url = f"https://www.reddit.com{clean_path}?{parsed.query}&raw_json=1"
+        else:
+            json_url = f"https://www.reddit.com{clean_path}?raw_json=1"
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://www.reddit.com/",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-User": "?1",
+        }
+        if extra_headers:
+            headers.update(extra_headers)
+
+        try:
+            await _throttle_reddit_request()
+            async with httpx.AsyncClient(timeout=min(timeout, 8), headers=headers, cookies=cookies, follow_redirects=True) as client:
+                resp = await client.get(json_url)
+                if resp.status_code in (403, 404, 200) and resp.text:
+                    try:
+                        data = resp.json()
+                        if isinstance(data, dict):
+                            err = data.get("error")
+                            reason = str(data.get("reason", "")).lower()
+                            msg = data.get("message")
+                            # Handle explicit private/banned/quarantined/gold subreddits
+                            if reason in ("private", "banned", "quarantined", "gold_only") or err in (403, "403"):
+                                sub_name = f"r/{path.split('/')[2]}" if path.startswith("/r/") and len(path.split("/")) > 2 else "Reddit Community"
+                                if reason == "private":
+                                    desc = f"{sub_name} is a private community. You must be invited or approved by its moderators to view its content."
+                                    title = f"{sub_name} - Private Community"
+                                elif reason == "banned":
+                                    desc = f"{sub_name} has been banned from Reddit."
+                                    title = f"{sub_name} - Community Banned"
+                                else:
+                                    desc = f"Access to {sub_name} is restricted ({msg or reason or 'Forbidden'})."
+                                    title = f"{sub_name} - Access Restricted"
+                                return {
+                                    "title": title,
+                                    "content": f"# {title}\n\n{desc}",
+                                    "raw_content": f"# {title}\n\n{desc}",
+                                    "method": "reddit+forbidden",
+                                }
+                            # Handle not found error objects
+                            if err in (404, "404", "Not Found") or reason == "not_found":
+                                return {
+                                    "title": "Reddit - Not Found",
+                                    "content": msg or "The requested Reddit community, post, or user does not exist (404 Not Found).",
+                                    "raw_content": msg or "The requested Reddit community, post, or user does not exist (404 Not Found).",
+                                    "method": "reddit+not_found",
+                                }
+                            # If Reddit returned an empty listing for a specific subreddit (non-existent / search redirect)
+                            is_sub_path = path.startswith("/r/") and len(path.split("/")) > 2
+                            final_url = str(resp.url).lower() if hasattr(resp, "url") else ""
+                            is_search_redirect = "search" in final_url or "subreddits" in final_url
+                            orig_sub = f"r/{path.split('/')[2]}" if is_sub_path else "community"
+
+                            if data.get("kind") == "Listing" and not data.get("data", {}).get("children"):
+                                if is_sub_path or is_search_redirect:
+                                    return {
+                                        "title": f"{orig_sub} - Community Not Found",
+                                        "content": f"# {orig_sub} - Community Not Found\n\nThe subreddit `{orig_sub}` does not exist.",
+                                        "raw_content": f"# {orig_sub} - Community Not Found\n\nThe subreddit `{orig_sub}` does not exist.",
+                                        "method": "reddit+not_found",
+                                    }
+
+                            # Normal listing/thread
+                            markdown_content, title = parse_reddit_json(data)
+
+                            # If a specific subreddit was requested but Reddit redirected to a search listing with other subreddits/results
+                            if is_sub_path and is_search_redirect:
+                                warning_notice = f"> ⚠️ **Note**: The subreddit `{orig_sub}` was not found. Showing automatic Reddit search results instead.\n\n"
+                                markdown_content = warning_notice + markdown_content
+
+                            return {
+                                "title": title,
+                                "content": markdown_content,
+                                "raw_content": markdown_content,
+                                "method": "reddit+json",
+                            }
+                        elif isinstance(data, list):
+                            markdown_content, title = parse_reddit_json(data)
+                            return {
+                                "title": title,
+                                "content": markdown_content,
+                                "raw_content": markdown_content,
+                                "method": "reddit+json",
+                            }
+                    except Exception as parse_err:  # noqa: BLE001
+                        logger.debug("Reddit JSON parse failed: %s", parse_err)
+
+                if resp.status_code in (403, 429):
+                    _set_reddit_json_cooldown(30.0)
+                elif resp.status_code == 404:
+                    return {
+                        "title": "Reddit - Not Found",
+                        "content": "The requested Reddit post, subreddit, or user does not exist (404 Not Found).",
+                        "raw_content": "The requested Reddit post, subreddit, or user does not exist (404 Not Found).",
+                        "method": "reddit+not_found",
+                    }
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Reddit Tier 1 (.json) failed for %s: %s", url, exc)
+
+    # --- Tier 2: Redlib Mirror (safereddit) ---
+    # The mirror is a plain static HTML endpoint. It does NOT need the Chrome
+    # navigation headers (Sec-Fetch-*) built for Tier 1's ``.json`` request;
+    # those navigation headers are meaningless against a non-origin mirror and
+    # only add a failure mode. Use a lean profile here instead.
+    mirror_headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.reddit.com/",
+    }
+    clean_html_path = path.replace("/.json", "/").replace(".json", "")
+    mirror_url = f"https://safereddit.com{clean_html_path}"
+    if parsed.query:
+        mirror_url += f"?{parsed.query}"
+
+    try:
+        await _throttle_reddit_request()
+        async with httpx.AsyncClient(timeout=min(timeout, 4), headers=mirror_headers, cookies=cookies, follow_redirects=True) as client:
+            mresp = await client.get(mirror_url)
+            if mresp.status_code == 404:
+                return {
+                    "title": "Reddit - Not Found",
+                    "content": "The requested Reddit post, subreddit, or user was not found.",
+                    "raw_content": "The requested Reddit post, subreddit, or user was not found.",
+                    "method": "reddit+not_found",
+                }
+            if mresp.status_code == 200 and mresp.text:
+                html = mresp.text
+                title = _extract_title(html)
+                lower_html = html.lower()
+                not_found_markers = (
+                    "subreddit not found",
+                    "community not found",
+                    "user not found",
+                    "page not found",
+                    "this community does not exist",
+                    "this community doesn't exist",
+                )
+                if any(m in lower_html for m in not_found_markers):
+                    return {
+                        "title": title or "Reddit - Not Found",
+                        "content": "The requested Reddit post, subreddit, or user was not found.",
+                        "raw_content": "The requested Reddit post, subreddit, or user was not found.",
+                        "method": "reddit+not_found",
+                    }
+                content, raw_content = _to_output(
+                    html,
+                    "markdown",
+                    readability=False,
+                    main=False,
+                    max_chars=config.extract.max_content_chars,
+                    raw_md=config.extract.raw_content_markdown,
+                )
+                if (
+                    content
+                    and not looks_like_challenge(html, title)
+                    and "welcome to reddit" not in title.lower()
+                    and "log in to use old reddit" not in content.lower()
+                    and "verifying your browser" not in title.lower()
+                    and "anubis" not in html.lower()
+                    and len(content) > 100
+                ):
+                    return {
+                        "title": title or _title_from_url(url),
+                        "content": content,
+                        "raw_content": raw_content,
+                        "method": "reddit+mirror",
+                    }
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Reddit Tier 2 (mirror) failed for %s: %s", url, exc)
+
+    # --- Tier 3: None (caller falls back to browser render) ---
+    return None
 
 
 async def extract_url(
@@ -470,6 +891,7 @@ async def extract_url(
     pool: BrowserPool,
     url: str,
     *,
+    position: int = 1,
     force_render: bool = False,
     wait_for: Optional[str] = None,
     output_format: str = "markdown",
@@ -479,16 +901,16 @@ async def extract_url(
 ) -> Dict[str, Any]:
     """Extract a single URL using the hybrid strategy. Hermes-envelope entry.
 
-    Domain overrides (``extract.domain_overrides``) are resolved on the
-    original URL and may: rewrite the URL, force the browser, force the
-    whole-page text path, set a default wait_for selector, or enable
-    scrolling. Request-level parameters are absolute: when the caller passes
-    ``force_render`` or ``wait_for`` explicitly, they override the domain
-    override.
-    """
+    See the module docstring for the full config-driven flow. Domain overrides
+    (``extract.domain_overrides``) are resolved on the original URL and may
+    rewrite the URL, force the browser, force the whole-page text path, set a
+    default wait_for selector, or enable scrolling. Request-level parameters
+    are absolute: when the caller passes ``force_render`` or ``wait_for``
+    explicitly, they override the domain override."""
     method = "static"
 
     original_url = url
+    url = normalize_reddit_url(url)
 
     # Resolve the domain override on the ORIGINAL URL (before any rewrite).
     override = _find_override(url, config.extract.domain_overrides)
@@ -503,10 +925,13 @@ async def extract_url(
     effective_main = only_main_content and not bool(override and override.full_text)
     effective_scroll = bool(override and override.scroll)
     # Extract engine: request-level is absolute; then the domain override;
+    # then Reddit default ("readability", required for custom <shreddit-comment> components);
     # then the global default ("trafilatura").
+    is_reddit = "reddit.com" in url.lower() or "safereddit.com" in url.lower()
     effective_engine = (
         engine
         or (override.engine if override is not None else None)
+        or ("readability" if is_reddit else None)
         or config.extract.engine
     )
     effective_readability = effective_engine == "readability"
@@ -527,6 +952,9 @@ async def extract_url(
         logger.info("%s -> URL rewritten to %s", url, rewritten)
         url = rewritten
 
+    override_headers = override.headers if override else {}
+    override_cookies = override.cookies if override else {}
+
     # Documents (pdf/docx/xlsx/pptx/rtf) are extracted from raw bytes -
     # never through the browser (Chromium renders PDFs poorly). Falls back
     # to the hybrid flow when the URL is not actually a document.
@@ -535,6 +963,20 @@ async def extract_url(
         if doc_result is not None:
             doc_result["url"] = original_url
             return doc_result
+
+    # Reddit fast path: Tier 1 (.json) -> Tier 2 (Redlib mirror) -> Tier 3 (browser fallback).
+    # Always attempt the lightweight Reddit pipeline before launching a heavy browser session.
+    reddit_result = await _try_reddit_extract(
+        config,
+        url,
+        effective_timeout,
+        extra_headers=override_headers,
+        cookies=override_cookies,
+    )
+    if reddit_result is not None:
+        reddit_result["url"] = original_url
+        reddit_result["citation"] = f"[Source: {reddit_result['title']}]({original_url})"
+        return reddit_result
 
     # The extract engine (trafilatura vs readability) applies ONLY to browser
     # renders. It must NOT force the browser: pages that extract fine with
@@ -550,7 +992,12 @@ async def extract_url(
     readability_rendered = False
 
     if not want_browser:
-        html, status, _, content_type = await fetch_static(config, url)
+        html, status, _, content_type = await fetch_static(
+            config,
+            url,
+            extra_headers=override_headers,
+            cookies=override_cookies,
+        )
         if status == 0:
             # network error or robots-blocked; browser rarely helps, fail clean
             return {"url": original_url, "error": "Failed to fetch URL (network error or robots.txt)"}
@@ -578,12 +1025,26 @@ async def extract_url(
         raw_content = content if config.extract.raw_content_markdown else ""
         if not content:
             return {"url": original_url, "error": "No content extracted"}
+        from .searxng import extract_domain, format_citation
+        domain = extract_domain(original_url)
+        title = _markdown_title(md, original_url)
+        # Native markdown has no <title> to scrape, so use a source citation
+        # style ("[Source: <name>](url)"). If the title is empty, fall back to
+        # the domain so the citation is never an empty link.
+        label = title if title else domain
+        citation = f"[Source: {label}]({original_url})"
+        if url != original_url:
+            citation += f" ({url})"
         result: Dict[str, Any] = {
+            "position": position,
+            "domain": domain,
             "url": original_url,
-            "title": "",
+            "title": title,
             "content": content,
             "raw_content": raw_content,
             "method": "markdown",
+            "citation": citation,
+            "extracted_at": datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z"),
         }
         if url != original_url:
             result["rewritten_url"] = url
@@ -599,6 +1060,8 @@ async def extract_url(
                 network_idle_timeout=effective_idle,
                 challenge_timeout=effective_challenge,
                 readability=effective_readability,
+                extra_headers=override_headers,
+                cookies=override_cookies,
             )
             method = "browser"
             if effective_readability and isinstance(html, dict):
@@ -633,6 +1096,8 @@ async def extract_url(
                     network_idle_timeout=effective_idle,
                     challenge_timeout=effective_challenge,
                     readability=effective_readability,
+                    extra_headers=override_headers,
+                    cookies=override_cookies,
                 )
                 method = "browser"
                 if effective_readability and isinstance(html, dict):
@@ -641,6 +1106,9 @@ async def extract_url(
                     html = html.get("content") or ""
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Browser render failed for %s: %s", url, exc)
+
+    if isinstance(html, str) and ("reddit.com" in original_url.lower() or "safereddit.com" in original_url.lower()):
+        html = _strip_reddit_ads_from_html(html)
 
     content, raw_content = _to_output(
         html,
@@ -668,12 +1136,14 @@ async def extract_url(
                     timeout=effective_timeout,
                     scroll_steps=_scroll_steps_for(config, effective_scroll),
                     network_idle_timeout=effective_idle,
+                    extra_headers=override_headers,
+                    cookies=override_cookies,
                 )
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Solver retry failed for %s: %s", url, exc)
                 solver_html = None
             if solver_html:
-                html = solver_html
+                html = _strip_reddit_ads_from_html(solver_html) if ("reddit.com" in original_url.lower() or "safereddit.com" in original_url.lower()) else solver_html
                 method = "browser+solver"
                 title = _extract_title(html)
                 content, raw_content = _to_output(
@@ -698,13 +1168,36 @@ async def extract_url(
     if readability_rendered and method == "browser":
         method = "browser+readability"
 
+    if "reddit.com" in original_url.lower() or "safereddit.com" in original_url.lower():
+        if title and not content.startswith("# "):
+            content = f"# {title}\n\n" + content
+            raw_content = f"# {title}\n\n" + raw_content
+        content = _clean_reddit_markdown(content)
+        raw_content = _clean_reddit_markdown(raw_content)
+
+    from .searxng import extract_domain, get_favicon_url, format_citation
+
+    domain = extract_domain(original_url)
+    include_fav = config.extract.include_favicon if getattr(config.extract, "include_favicon", None) is not None else getattr(config.tools, "include_favicon", False)
+    favicon = get_favicon_url(domain) if include_fav else None
+    extracted_at = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+    cit_style = getattr(config.extract, "citation_style", "site_name")
+    citation_markdown = format_citation(title, domain, original_url, position=position, style=cit_style)
+
     result: Dict[str, Any] = {
+        "position": position,
+        "domain": domain,
         "url": original_url,
         "title": title,
         "content": content,
-        "raw_content": raw_content,
+        "citation": citation_markdown,
         "method": method,
+        "extracted_at": extracted_at,
     }
+    if include_fav and favicon:
+        result["favicon"] = favicon
+    if raw_content and raw_content != content:
+        result["raw_content"] = raw_content
     if url != original_url:
         result["rewritten_url"] = url
     return result
