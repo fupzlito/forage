@@ -32,7 +32,7 @@ from markdownify import markdownify as _markdownify
 from .browser import BrowserPool
 from .config import ForageConfig
 from .documents import extract_document_bytes, looks_like_document
-from .reddit import parse_reddit_json
+from .reddit import make_reddit_status_result, parse_reddit_json
 
 logger = logging.getLogger(__name__)
 
@@ -732,53 +732,31 @@ async def _try_reddit_extract(
                             err = data.get("error")
                             reason = str(data.get("reason", "")).lower()
                             msg = data.get("message")
+                            sub_name = f"r/{path.split('/')[2]}" if path.startswith("/r/") and len(path.split("/")) > 2 else "Reddit Community"
+
                             # Handle explicit private/banned/quarantined/gold subreddits
                             if reason in ("private", "banned", "quarantined", "gold_only") or err in (403, "403"):
-                                sub_name = f"r/{path.split('/')[2]}" if path.startswith("/r/") and len(path.split("/")) > 2 else "Reddit Community"
-                                if reason == "private":
-                                    desc = f"{sub_name} is a private community. You must be invited or approved by its moderators to view its content."
-                                    title = f"{sub_name} - Private Community"
-                                elif reason == "banned":
-                                    desc = f"{sub_name} has been banned from Reddit."
-                                    title = f"{sub_name} - Community Banned"
-                                else:
-                                    desc = f"Access to {sub_name} is restricted ({msg or reason or 'Forbidden'})."
-                                    title = f"{sub_name} - Access Restricted"
-                                return {
-                                    "title": title,
-                                    "content": f"# {title}\n\n{desc}",
-                                    "raw_content": f"# {title}\n\n{desc}",
-                                    "method": "reddit+forbidden",
-                                }
+                                return make_reddit_status_result(sub_name, reason if reason in ("private", "banned") else "restricted", details=msg, method="reddit+forbidden")
+
                             # Handle not found error objects
                             if err in (404, "404", "Not Found") or reason == "not_found":
-                                return {
-                                    "title": "Reddit - Not Found",
-                                    "content": msg or "The requested Reddit community, post, or user does not exist (404 Not Found).",
-                                    "raw_content": msg or "The requested Reddit community, post, or user does not exist (404 Not Found).",
-                                    "method": "reddit+not_found",
-                                }
+                                return make_reddit_status_result(sub_name, "not_found", details=msg, method="reddit+not_found")
+
                             # If Reddit returned an empty listing for a specific subreddit (non-existent / search redirect)
                             is_sub_path = path.startswith("/r/") and len(path.split("/")) > 2
                             final_url = str(resp.url).lower() if hasattr(resp, "url") else ""
                             is_search_redirect = "search" in final_url or "subreddits" in final_url
-                            orig_sub = f"r/{path.split('/')[2]}" if is_sub_path else "community"
 
                             if data.get("kind") == "Listing" and not data.get("data", {}).get("children"):
                                 if is_sub_path or is_search_redirect:
-                                    return {
-                                        "title": f"{orig_sub} - Community Not Found",
-                                        "content": f"# {orig_sub} - Community Not Found\n\nThe subreddit `{orig_sub}` does not exist.",
-                                        "raw_content": f"# {orig_sub} - Community Not Found\n\nThe subreddit `{orig_sub}` does not exist.",
-                                        "method": "reddit+not_found",
-                                    }
+                                    return make_reddit_status_result(sub_name, "not_found", method="reddit+not_found")
 
                             # Normal listing/thread
                             markdown_content, title = parse_reddit_json(data)
 
                             # If a specific subreddit was requested but Reddit redirected to a search listing with other subreddits/results
                             if is_sub_path and is_search_redirect:
-                                warning_notice = f"> ⚠️ **Note**: The subreddit `{orig_sub}` was not found. Showing automatic Reddit search results instead.\n\n"
+                                warning_notice = f"> ⚠️ **Note**: The subreddit `{sub_name}` was not found. Showing automatic Reddit search results instead.\n\n"
                                 markdown_content = warning_notice + markdown_content
 
                             return {
@@ -801,12 +779,8 @@ async def _try_reddit_extract(
                 if resp.status_code in (403, 429):
                     _set_reddit_json_cooldown(30.0)
                 elif resp.status_code == 404:
-                    return {
-                        "title": "Reddit - Not Found",
-                        "content": "The requested Reddit post, subreddit, or user does not exist (404 Not Found).",
-                        "raw_content": "The requested Reddit post, subreddit, or user does not exist (404 Not Found).",
-                        "method": "reddit+not_found",
-                    }
+                    sub_name = f"r/{path.split('/')[2]}" if path.startswith("/r/") and len(path.split("/")) > 2 else "Reddit Community"
+                    return make_reddit_status_result(sub_name, "not_found", method="reddit+not_found")
         except Exception as exc:  # noqa: BLE001
             logger.debug("Reddit Tier 1 (.json) failed for %s: %s", url, exc)
 
@@ -830,17 +804,22 @@ async def _try_reddit_extract(
         await _throttle_reddit_request()
         async with httpx.AsyncClient(timeout=min(timeout, 4), headers=mirror_headers, cookies=cookies, follow_redirects=True) as client:
             mresp = await client.get(mirror_url)
+            sub_name = f"r/{path.split('/')[2]}" if path.startswith("/r/") and len(path.split("/")) > 2 else "Reddit Community"
             if mresp.status_code == 404:
-                return {
-                    "title": "Reddit - Not Found",
-                    "content": "The requested Reddit post, subreddit, or user was not found.",
-                    "raw_content": "The requested Reddit post, subreddit, or user was not found.",
-                    "method": "reddit+not_found",
-                }
+                return make_reddit_status_result(sub_name, "not_found", method="reddit+not_found")
+            if mresp.status_code == 403:
+                return make_reddit_status_result(sub_name, "private", method="reddit+forbidden")
             if mresp.status_code == 200 and mresp.text:
                 html = mresp.text
                 title = _extract_title(html)
                 lower_html = html.lower()
+                m_final_url = str(mresp.url).lower() if hasattr(mresp, "url") else ""
+
+                if "private community" in lower_html or "this community is private" in lower_html:
+                    return make_reddit_status_result(sub_name, "private", method="reddit+forbidden")
+                if "community has been banned" in lower_html or "subreddit is banned" in lower_html:
+                    return make_reddit_status_result(sub_name, "banned", method="reddit+forbidden")
+
                 not_found_markers = (
                     "subreddit not found",
                     "community not found",
@@ -848,14 +827,10 @@ async def _try_reddit_extract(
                     "page not found",
                     "this community does not exist",
                     "this community doesn't exist",
+                    "post not found",
                 )
                 if any(m in lower_html for m in not_found_markers):
-                    return {
-                        "title": title or "Reddit - Not Found",
-                        "content": "The requested Reddit post, subreddit, or user was not found.",
-                        "raw_content": "The requested Reddit post, subreddit, or user was not found.",
-                        "method": "reddit+not_found",
-                    }
+                    return make_reddit_status_result(sub_name, "not_found", method="reddit+not_found")
                 content, raw_content = _to_output(
                     html,
                     "markdown",
@@ -1169,11 +1144,36 @@ async def extract_url(
         method = "browser+readability"
 
     if "reddit.com" in original_url.lower() or "safereddit.com" in original_url.lower():
-        if title and not content.startswith("# "):
-            content = f"# {title}\n\n" + content
-            raw_content = f"# {title}\n\n" + raw_content
-        content = _clean_reddit_markdown(content)
-        raw_content = _clean_reddit_markdown(raw_content)
+        parsed_orig = urlparse(original_url)
+        path_orig = parsed_orig.path or ""
+        sub_name = f"r/{path_orig.split('/')[2]}" if path_orig.startswith("/r/") and len(path_orig.split("/")) > 2 else "Reddit Community"
+        lower_content = content.lower()
+        lower_title = title.lower()
+
+        if "this community is private" in lower_content or "private community" in lower_content:
+            res = make_reddit_status_result(sub_name, "private", method=method)
+            content, raw_content = res["content"], res["raw_content"]
+            title = res["title"]
+        elif "this community has been banned" in lower_content or "community has been banned" in lower_content:
+            res = make_reddit_status_result(sub_name, "banned", method=method)
+            content, raw_content = res["content"], res["raw_content"]
+            title = res["title"]
+        elif (
+            "this community does not exist" in lower_content
+            or "community not found" in lower_content
+            or "page not found" in lower_content
+            or "page not found" in lower_title
+            or "the heart of the internet" in lower_title and len(content.strip()) < 150
+        ):
+            res = make_reddit_status_result(sub_name, "not_found", method=method)
+            content, raw_content = res["content"], res["raw_content"]
+            title = res["title"]
+        else:
+            if title and not content.startswith("# "):
+                content = f"# {title}\n\n" + content
+                raw_content = f"# {title}\n\n" + raw_content
+            content = _clean_reddit_markdown(content)
+            raw_content = _clean_reddit_markdown(raw_content)
 
     from .searxng import extract_domain, get_favicon_url, format_citation
 

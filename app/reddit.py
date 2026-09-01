@@ -12,6 +12,38 @@ from datetime import datetime, timezone
 from typing import Any, Tuple
 
 
+def make_reddit_status_result(sub_or_label: str, status_type: str, details: str = "", method: str = "reddit+json") -> dict:
+    """Generate a clean, unified structured markdown result for Reddit status errors."""
+    clean_sub = sub_or_label.strip() if sub_or_label else "Reddit Community"
+    if status_type == "private":
+        title = f"{clean_sub} - Private Community"
+        desc = f"{clean_sub} is a private community. You must be invited or approved by its moderators to view its content."
+        if details and details.lower() not in ("forbidden", "private", "error"):
+            desc += f" ({details})"
+    elif status_type == "banned":
+        title = f"{clean_sub} - Community Banned"
+        desc = f"{clean_sub} has been banned from Reddit."
+        if details and details.lower() not in ("forbidden", "banned", "error"):
+            desc += f" ({details})"
+    elif status_type == "not_found":
+        title = f"{clean_sub} - Community Not Found"
+        desc = details or f"The subreddit `{clean_sub}` does not exist."
+    elif status_type == "post_not_found":
+        title = "Reddit - Post Not Found"
+        desc = details or "The requested Reddit post was deleted or does not exist (404 Not Found)."
+    else:
+        title = f"{clean_sub} - Access Restricted"
+        desc = details or f"Access to {clean_sub} is restricted."
+
+    content = f"# {title}\n\n{desc}"
+    return {
+        "title": title,
+        "content": content,
+        "raw_content": content,
+        "method": method,
+    }
+
+
 def _format_timestamp(ts: Any) -> str:
     """Format Unix epoch timestamp to a clean date/time string."""
     if not ts:
