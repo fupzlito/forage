@@ -1,0 +1,67 @@
+# ============================================================
+# Forage Prompts & Citation Guidelines Template
+# Auto-seeded to /etc/forage/prompts.yaml when mounting a config directory.
+# Deleting prompts.yaml regenerates a fresh default copy on next restart.
+# Supported placeholders: {now_date}, {year}, {default_engines},
+# {available_engines}, {default_limit}, {citation_guidelines}
+# ============================================================
+
+# Reusable citation guidelines block (kept short for token efficiency)
+citation_guidelines: >
+  CITATION RULES: Always link-cite sources inline next to claims, quotes, articles, repositories, or posts.
+  Cite as markdown links using site names, short titles, usernames, or repository names as link text:
+  'per [CNBC](url)', '[Reddit](url)', 'the [docs](url)', or '[org/repo](url)'.
+  Results provide a ready-to-use 'citation' markdown link.
+  Never put prepositions inside brackets: '[per CNBC](url)' is WRONG.
+  Place periods before citation links: 'Shares fell 4%. [CNBC](url)'.
+  List any remaining uncited sources under a 'Sources' heading at the bottom.
+  Never duplicate a source that was already cited inline.
+
+# Web search tool description template
+# Supports placeholders: {now_date}, {year}, {default_engines}, {available_engines}, {citation_guidelines}
+search_tool_description: >
+  Search the web via SearXNG to find relevant links and sources. Today is {now_date} (year {year}).
+  Do not add dates or years to queries unless time-specific or directly relevant.
+  Prioritize relevant sources based on snippet and domain before fetching full pages.
+  To specifically search Reddit or subreddits, ONLY use the {extract_name} tool directly on Reddit search URLs (e.g. 'https://www.reddit.com/search/?q=keywords' or 'https://www.reddit.com/r/subreddit/search/?q=keywords').
+  {citation_guidelines}
+
+# Web extract tool description template
+# Supports placeholders: {now_date}, {year}, {max_chars_requirement}, {citation_guidelines}
+extract_tool_description: >
+  Fetch and extract clean markdown content from web URLs. Supports rich forum threads, articles, documentation, and e-commerce.
+  Has a special Reddit pipeline and direct search URLs (e.g. 'https://www.reddit.com/search/?q=QUERY' or 'https://www.reddit.com/r/SUBREDDIT/search/?q=QUERY').
+  {max_chars_requirement}: set max_chars per URL to budget context. Today is {now_date} (year {year}).
+  {citation_guidelines}
+
+# YouTube search tool description template
+# Supports placeholders: {now_date}, {year}, {citation_guidelines}
+youtube_tool_description: >
+  Search YouTube videos, discover creator channel uploads, or query videos inside a specific channel.
+  Always use this tool for YouTube instead of web scraping or browser fetch.
+  Supports creator handles (e.g. '@aboutoliver'), channel URLs, or channel IDs ('UC...').
+  Today is {now_date} (year {year}).
+  {citation_guidelines}
+
+# Parameter descriptions for OpenAPI & MCP schemas
+search_params:
+  query: "Search query terms. Keep queries focused on essential keywords. Do not add date/year unless directly relevant."
+  limit: "Number of search results to return (1 to 50, default {default_limit}). Set higher (e.g. 10-15) for broad topics instead of making multiple separate search calls."
+  engines: "Optional list of specific engines to query. Default engines: [{default_engines}]. Available: [{available_engines}]. Do NOT specify engines unless targeting a specific engine."
+  language: "Optional language code for search results (e.g. 'en-US', 'pt-BR', 'es', 'de')."
+
+extract_params:
+  urls: "List of HTTP/HTTPS URLs to fetch and extract content from (1 to 20 URLs). Supports direct Reddit search and subreddit feed URLs."
+  force_render: "Force full headless browser rendering (Chromium) for JavaScript SPAs or dynamic sites."
+  only_main_content: "If true (default), strips headers, footers, ads, and navigation. Set to false for full page text including comments and sidebars."
+  wait_for: "Optional CSS selector or delay in seconds to wait for before extracting (browser mode only)."
+  engine: "Extraction engine: 'trafilatura' (default) or 'readability' (Mozilla Readability.js, better for e-commerce and forums)."
+  timeout: "Maximum extraction timeout per URL in seconds (1 to 120)."
+  max_chars: "{max_chars_requirement} maximum characters to return (applied per URL) (500 to {max_content_chars}). Truncates long pages to save context."
+  formats: "Desired output format: ['markdown'] (default) or ['html']."
+
+youtube_params:
+  query: "Search keywords or topic (e.g. 'quantum mechanics', 'blind playthrough'). Optional if channel is specified."
+  channel: "YouTube channel handle (e.g. '@aboutoliver'), channel URL (e.g. 'https://youtube.com/@aboutoliver'), or channel ID ('UCC-0KKfcSG4BGpMeyUXhu0Q')."
+  sort_by: "Sort order: 'date' (newest uploads), 'popular' (highest views), 'rating', or 'relevance'. Defaults to 'date' for channel listings."
+  limit: "Number of video results to return (1 to 50, default {default_limit})."
