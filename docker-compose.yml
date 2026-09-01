@@ -1,18 +1,29 @@
 services:
   forage:
     build: .
-    image: forage:0.9.0
+    image: fupzlito/forage:latest
     container_name: forage
     restart: always
     ports:
-      - "127.0.0.1:3672:3672"   # host-only bind: nothing external reaches it
-    volumes:
-      - ./config.yaml:/etc/forage/config.yaml:ro   # bind mount, read-only
-    env_file: .env
+      - "3672:3672"            # expose port 3672 (or use "127.0.0.1:3672:3672" for localhost-only)
+    environment:
+      - TZ=America/New_York
+      - FORAGE_AUTH_ENABLED=false              # set to true to require Bearer API keys
+      - FORAGE_API_KEYS=your_api_key_here      # comma-separated keys when auth is enabled
+      - FORAGE_REQUIRE_MAX_CHARS=false         # require LLMs to budget token limits per URL
+      - FORAGE_SEARXNG_URL=http://searxng:8080 # SearXNG metasearch instance
+      - FORAGE_DEFAULT_ENGINES=google-cse,brave,bing,duckduckgo,startpage # default engines queried when search engine(s) omitted by LLMs
+#     - FORAGE_REDDIT_SESSION="your_session_cookie_here"     # optional: logged-in reddit session (quote string to escape special characters)
+#     - FORAGE_REDDIT_TOKEN_V2="your_token_v2_cookie_here"   # optional: reddit token_v2 cookie (quote string to escape special characters)
+#     - FORAGE_YOUTUBE_API_KEY="your_youtube_key_here"      # enables youtube_search (YouTube Data API v3)
+#   volumes:
+#     # Uncomment if detailed config/prompt overrides are desired.
+#     # Stores config.yaml and prompts.yaml (auto-seeded on first run if directory is empty):
+#     # - ./config:/etc/forage
     networks:
       - searxng_default          # talk to SearXNG by service name (searxng:8080)
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:3672/health', timeout=3).status==200 else 1)"]
+      test: ["CMD", "curl", "-sf", "http://localhost:3672/health"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -20,7 +31,7 @@ services:
 
 # SearXNG must run on this shared network so Forage can call it as searxng:8080.
 # See docs/SEARXNG.md. If your SearXNG compose uses another project name,
-# adjust the network name (and search.searxng_url in config.yaml) accordingly.
+# adjust the network name (and FORAGE_SEARXNG_URL) accordingly.
 networks:
   searxng_default:
     external: true
