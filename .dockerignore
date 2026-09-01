@@ -1,7 +1,6 @@
 .git
 .gitignore
 .env
-.env.example
 config.yaml
 docs
 plugins
