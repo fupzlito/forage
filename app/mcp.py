@@ -454,6 +454,16 @@ async def execute_tool_call(
         wait_for = arguments.get("wait_for")
         timeout = arguments.get("timeout")
         engine = arguments.get("engine")
+        # Validate timeout (1-120s), engine (trafilatura|readability), wait_for (<=200 chars)
+        if timeout is not None:
+            try:
+                timeout = max(1, min(int(timeout), 120))
+            except (ValueError, TypeError):
+                timeout = None
+        if engine is not None and engine not in ("trafilatura", "readability"):
+            engine = None
+        if wait_for is not None:
+            wait_for = str(wait_for)[:200]
         max_chars = arguments.get("max_chars")
         formats = arguments.get("formats")
         fmt = "markdown"
