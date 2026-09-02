@@ -412,22 +412,28 @@ async def _extract_document(
     }
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
-            resp = await client.get(url, headers=headers)
+            async with client.stream("GET", url, headers=headers) as resp:
+                if resp.status_code != 200:
+                    logger.info("%s -> HTTP %d, falling back to hybrid", url, resp.status_code)
+                    return None
+                content_type = resp.headers.get("content-type", "")
+                if not looks_like_document(url, content_type):
+                    return None
+                # Check Content-Length before reading the body.
+                cl = resp.headers.get("content-length")
+                if cl and int(cl) > config.extract.max_document_bytes:
+                    logger.info("%s -> document too large (%s bytes > %d), skipping", url, cl, config.extract.max_document_bytes)
+                    return None
+                data = await resp.aread()
     except httpx.RequestError as exc:
         logger.warning("Document download failed for %s: %s", url, exc)
         return None
-    if resp.status_code != 200:
-        logger.info("%s -> HTTP %d, falling back to hybrid", url, resp.status_code)
-        return None
-    content_type = resp.headers.get("content-type", "")
-    if not looks_like_document(url, content_type):
-        return None
-    if len(resp.content) > config.extract.max_document_bytes:
-        logger.info("%s -> document too large (%d bytes > %d), skipping", url, len(resp.content), config.extract.max_document_bytes)
+    if len(data) > config.extract.max_document_bytes:
+        logger.info("%s -> document too large (%d bytes > %d), skipping", url, len(data), config.extract.max_document_bytes)
         return None
     try:
         text, title, method_label = extract_document_bytes(
-            resp.content,
+            data,
             url,
             content_type=content_type,
             max_chars=config.extract.max_content_chars,
@@ -496,6 +502,11 @@ async def fetch_static(
                     await asyncio.sleep(RETRY_DELAY)
                     continue
                 content_type = resp.headers.get("content-type", "").split(";")[0].strip().lower()
+                # Reject oversized responses before reading the body into memory.
+                cl = resp.headers.get("content-length")
+                if cl and int(cl) > 50_000_000:
+                    logger.info("%s -> response too large (%s bytes), skipping", url, cl)
+                    return None, resp.status_code, str(resp.url), content_type
                 return resp.text, resp.status_code, str(resp.url), content_type
             except httpx.RequestError as exc:
                 if attempt < RETRY_ATTEMPTS - 1:
