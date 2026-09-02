@@ -8,7 +8,7 @@ A high-performance, single-container drop-in alternative to heavy multi-containe
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED.svg)](#quick-start)
-[![Python](https://img.shields.io/badge/Python-3.12-3776AB.svg)](app/)
+[![Python](https://img.shields.io/badge/Python-3.13-3776AB.svg)](app/)
 [![MCP](https://img.shields.io/badge/MCP-2024--11--05-green.svg)](#5-openwebui--mcp-integration)
 
 </div>
