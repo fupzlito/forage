@@ -207,6 +207,7 @@ Environment variables provide the highest precedence in configuration resolution
 | `FORAGE_BROWSER_CDP_URL` | `browser.cdp_url` | Obscura CDP endpoint URL when `engine=obscura` (e.g. `http://obscura:9223`). |
 | `FORAGE_BROWSER_HEADLESS` | `browser.headless` | Run browser in headless mode (`true`/`false`). |
 | `FORAGE_EXTRACT_ENGINE` | `extract.engine` | Extraction engine: `trafilatura` or `readability`. |
+| `FORAGE_EXTRACT_ALLOW_PRIVATE_IPS` | `extract.allow_private_ips` | Allow extraction of URLs resolving to private, loopback, or link-local IPs (`true`/`false`). Default `false` blocks all private/reserved addresses. |
 | `FORAGE_SEARCH_NAME` | `tools.search_name` | Custom tool name exposed to LLMs for web search (default `web_search`). |
 | `FORAGE_EXTRACT_NAME` | `tools.extract_name` | Custom tool name exposed to LLMs for web extraction (default `web_extract`). |
 | `FORAGE_REDDIT_SESSION` | `extract.domain_overrides` | Authenticated `reddit_session` cookie for Reddit JSON API (enclose in quotes `"..."`). |
