@@ -539,52 +539,6 @@ def _extract_text(html: str, only_main_content: bool, max_chars: int) -> str:
         text = _plain_text(html)
     return text[:max_chars]
 
-
-
-    # Strip Reddit navigation and web UI boilerplate
-    boilerplate = [
-        r"Skip to main content\s*",
-        r"Open menu\s*",
-        r"Advertise on Reddit\s*",
-        r"Open chat\s*",
-        r"Create post\s*",
-        r"Open inbox\s*",
-        r"Expand user menu\s*",
-        r"Open profile menu\s*",
-        r"Get your post the attention it deserves\s*",
-        r"Close Repost Nudge Dialog\s*",
-        r"Repost into other communities and help your post get seen by more people\.?\s*",
-        r"Submit a report\s*",
-        r"Report Submitted\s*",
-        r"Open sort options\s*",
-        r"Change post view\s*",
-        r"Open navigation\s*",
-        r"Go to Reddit Home\s*",
-        r"\[Sign Up\]\([^\)]+\)Sign up for Reddit\s*",
-        r"\[Log In\]\([^\)]+\)Log in to Reddit\s*",
-        r"Open settings menu\s*",
-        r"View more comments\s*",
-        r"Card Compact Community highlights\s*",
-        r"Top Best Hot New Top Rising Today Now Today This Week This Month This Year All Time\s*",
-        r"\b\d+\s*votes\s*•\s*\d+\s*comments\b",
-    ]
-    for b in boilerplate:
-        text = re.sub(b, '', text, flags=re.IGNORECASE)
-
-    # Strip lone floating numbers on their own lines (leftover upvote buttons)
-    text = re.sub(r'(?<=\n)\s*\d+(?:\.\d+)?(?:k|K)?\s*(?=\n|\Z)', '', text)
-
-    # Remove duplicate consecutive links produced by card headers + titles
-    text = re.sub(r'(\[[^\]]+\]\([^)]+\))\s*\n+(?:---\s*\n+)?(?:\s*\[r/[^\]]+\]\([^)]+\)\s*\n+)?\1', r'\1', text)
-
-    lines = text.splitlines()
-    header = lines[0] if lines and lines[0].startswith("#") else ""
-    rest = "\n".join(lines[1:]) if header else text
-    rest = re.sub(r"^(?:\s*---\s*\n)+", "", rest)
-    rest = re.sub(r"\n{3,}", "\n\n", rest).strip()
-    return f"{header}\n\n{rest}" if header else rest
-
-
 def _to_output(
     html: str,
     fmt: str,
