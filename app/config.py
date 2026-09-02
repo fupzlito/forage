@@ -71,6 +71,7 @@ DEFAULTS: Dict[str, Any] = {
         "require_max_chars": False,
         "allow_private_ips": False,
         "max_document_bytes": 150_000_000,
+        "max_response_bytes": 50_000_000,
     },
     "browser": {
         "engine": "scrapling",
@@ -213,6 +214,7 @@ class ExtractConfig:
     require_max_chars: bool = False
     allow_private_ips: bool = False
     max_document_bytes: int = 150_000_000  # 150 MB cap for document downloads
+    max_response_bytes: int = 50_000_000  # 50 MB cap for static HTML responses
 
 
 @dataclass(frozen=True)
@@ -471,6 +473,11 @@ def _apply_env_overrides(merged: Dict[str, Any]) -> Dict[str, Any]:
     if "FORAGE_EXTRACT_MAX_DOCUMENT_BYTES" in os.environ:
         try:
             merged.setdefault("extract", {})["max_document_bytes"] = int(os.environ["FORAGE_EXTRACT_MAX_DOCUMENT_BYTES"])
+        except ValueError:
+            pass
+    if "FORAGE_EXTRACT_MAX_RESPONSE_BYTES" in os.environ:
+        try:
+            merged.setdefault("extract", {})["max_response_bytes"] = int(os.environ["FORAGE_EXTRACT_MAX_RESPONSE_BYTES"])
         except ValueError:
             pass
 

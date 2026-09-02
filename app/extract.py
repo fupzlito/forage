@@ -504,7 +504,7 @@ async def fetch_static(
                 content_type = resp.headers.get("content-type", "").split(";")[0].strip().lower()
                 # Reject oversized responses before reading the body into memory.
                 cl = resp.headers.get("content-length")
-                if cl and int(cl) > 50_000_000:
+                if cl and int(cl) > config.extract.max_response_bytes:
                     logger.info("%s -> response too large (%s bytes), skipping", url, cl)
                     return None, resp.status_code, str(resp.url), content_type
                 return resp.text, resp.status_code, str(resp.url), content_type
