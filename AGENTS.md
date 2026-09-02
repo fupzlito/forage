@@ -31,7 +31,7 @@ Single Python service (FastAPI + uvicorn), one container. Modules in `app/`:
 | `extract.py` | Hybrid extraction heuristic (static -> browser), Reddit 3-tier pipeline, document path |
 | `browser.py` | In-process Chromium pool (playwright/patchright) OR single Scrapling session; semaphore, cleanup, page_action |
 | `documents.py` | PDF/docx/xlsx/pptx/rtf extraction from raw bytes (never through the browser) |
-| `reddit.py` | Reddit JSON parsing + comment-tree rendering (Tier-1 of the Reddit pipeline) |
+| `reddit.py` | Reddit JSON parsing, comment-tree rendering, URL normalization, and markdown/ad cleaning |
 | `auth.py` | Bearer API keys (env `FORAGE_API_KEYS`), constant-time comparison |
 
 API: `GET /health`, `POST /search`, `POST /extract`, `POST /v1/youtube/search` (alias `/youtube/search`), `GET /v1/tools`, `POST /v1/tools/call`, `POST /v1/chat/completions`, `GET /v1/models`, `POST /mcp`, `GET /mcp/sse`, `POST /admin/cache/purge`.
