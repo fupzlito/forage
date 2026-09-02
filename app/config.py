@@ -70,6 +70,7 @@ DEFAULTS: Dict[str, Any] = {
         "include_favicon": None,
         "require_max_chars": False,
         "allow_private_ips": False,
+        "max_document_bytes": 150_000_000,
     },
     "browser": {
         "engine": "scrapling",
@@ -211,6 +212,7 @@ class ExtractConfig:
     include_favicon: Optional[bool] = None
     require_max_chars: bool = False
     allow_private_ips: bool = False
+    max_document_bytes: int = 150_000_000  # 150 MB cap for document downloads
 
 
 @dataclass(frozen=True)
@@ -466,6 +468,11 @@ def _apply_env_overrides(merged: Dict[str, Any]) -> Dict[str, Any]:
         merged.setdefault("extract", {})["require_max_chars"] = _parse_bool(os.environ["FORAGE_REQUIRE_MAX_CHARS"])
     if "FORAGE_EXTRACT_ALLOW_PRIVATE_IPS" in os.environ:
         merged.setdefault("extract", {})["allow_private_ips"] = _parse_bool(os.environ["FORAGE_EXTRACT_ALLOW_PRIVATE_IPS"])
+    if "FORAGE_EXTRACT_MAX_DOCUMENT_BYTES" in os.environ:
+        try:
+            merged.setdefault("extract", {})["max_document_bytes"] = int(os.environ["FORAGE_EXTRACT_MAX_DOCUMENT_BYTES"])
+        except ValueError:
+            pass
 
     # Cache
     if "FORAGE_CACHE_ENABLED" in os.environ:

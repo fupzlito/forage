@@ -138,6 +138,7 @@ services:
       - FORAGE_API_KEYS=your_api_key_here      # comma-separated keys when auth is enabled
       - FORAGE_REQUIRE_MAX_CHARS=false         # require LLMs to pass character budget per URL
 #     - FORAGE_EXTRACT_ALLOW_PRIVATE_IPS=false   # allow private/reserved IP extraction (SSRF guard bypass)
+#     - FORAGE_EXTRACT_MAX_DOCUMENT_BYTES=150000000  # max bytes for document downloads (150 MB)
 #     - FORAGE_YOUTUBE_API_KEY="your_youtube_key_here"   # enables youtube_search (YouTube Data API v3)
 #   volumes:
 #     # Uncomment if detailed config/prompt overrides are desired.
@@ -179,6 +180,8 @@ For developers, contributors, or users who want to modify browser dependencies, 
 git clone https://github.com/fupzlito/forage.git
 cd forage
 ```
+
+> **Pinned dependencies.** `requirements.txt` pins every package to an exact version (`==`). To bump a dependency, edit the `==` line, rebuild, and run the test suite. See the header comment in `requirements.txt` for the full workflow.
 
 #### 2. Optional: Custom configuration
 ```bash
@@ -346,6 +349,7 @@ All settings can be dynamically overridden via Docker environment variables with
 | `FORAGE_YOUTUBE_DEFAULT_LIMIT` | Default YouTube results per search | `20` |
 | `FORAGE_YOUTUBE_MAX_LIMIT` | Max YouTube results per search | `50` |
 | `FORAGE_REQUIRE_MAX_CHARS` | Require LLMs to specify character budgets (`true`/`false`) | `false` |
+| `FORAGE_EXTRACT_MAX_DOCUMENT_BYTES` | Max bytes for document downloads (PDF/DOCX/XLSX/PPTX/RTF) | `150000000` |
 | `FORAGE_EXTRACT_ALLOW_PRIVATE_IPS` | Allow extraction of URLs resolving to private/reserved IPs (`true`/`false`) | `false` |
 | `FORAGE_AUTH_ENABLED` | Enable Bearer API authentication (`true`/`false`) | `false` |
 | `FORAGE_API_KEYS` | Comma-separated API keys (when auth is enabled) | `""` |

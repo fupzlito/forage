@@ -84,6 +84,7 @@ Forage handles search engine reliability on multiple levels:
 | `include_favicon` | `null` | Optional override for `tools.include_favicon` specifically for extract responses. |
 | `require_max_chars` | `false` | If `true`, marks `max_chars` as a required parameter in the `web_extract` tool schema, prompting LLMs to always supply a character budget per call. |
 | `allow_private_ips` | `false` | When `true`, disables the SSRF guard, allowing extraction of URLs that resolve to private, loopback, or link-local IP addresses (e.g. internal wikis, dashboards, cloud metadata). |
+| `max_document_bytes` | `150000000` | Max bytes for document downloads (PDF/DOCX/XLSX/PPTX/RTF). Documents larger than this are skipped (falls through to the hybrid flow). 150 MB default. |
 | `domain_overrides` | `{}` | Per-pattern extraction overrides. The YAML key is a pattern (www-insensitive, case-insensitive): `x.com` matches the host or any subdomain; `.x.com` is the same with an explicit leading dot; `amazon.*` is a wildcard on a host label (fnmatch) that matches the host and any subdomain suffix; `reddit.com/r/` requires an exact host plus a path prefix. Supported keys per override: `force_render` (bool), `full_text` (bool), `engine` (str: `trafilatura` or `readability`), `wait_for` (str), `url_rewrite` (str, format `host[/path]`), `scroll` (bool), `timeout` (int 1-120), `network_idle_timeout` (int 0-60), `challenge_timeout` (int 0-120), `headers` (map of custom request headers), `cookies` (map of custom session cookies). Request-level `force_render`/`wait_for`/`timeout`/`engine` are absolute and override the domain override. |
 
 Example: pass authenticated cookies to Reddit for high-throughput sub-second `.json` pulls, and keep the Amazon buybox via `readability`:
@@ -207,6 +208,7 @@ Environment variables provide the highest precedence in configuration resolution
 | `FORAGE_BROWSER_CDP_URL` | `browser.cdp_url` | Obscura CDP endpoint URL when `engine=obscura` (e.g. `http://obscura:9223`). |
 | `FORAGE_BROWSER_HEADLESS` | `browser.headless` | Run browser in headless mode (`true`/`false`). |
 | `FORAGE_EXTRACT_ENGINE` | `extract.engine` | Extraction engine: `trafilatura` or `readability`. |
+| `FORAGE_EXTRACT_MAX_DOCUMENT_BYTES` | `extract.max_document_bytes` | Max bytes for document downloads (default `150000000` = 150 MB). Documents larger than this are skipped. |
 | `FORAGE_EXTRACT_ALLOW_PRIVATE_IPS` | `extract.allow_private_ips` | Allow extraction of URLs resolving to private, loopback, or link-local IPs (`true`/`false`). Default `false` blocks all private/reserved addresses. |
 | `FORAGE_SEARCH_NAME` | `tools.search_name` | Custom tool name exposed to LLMs for web search (default `web_search`). |
 | `FORAGE_EXTRACT_NAME` | `tools.extract_name` | Custom tool name exposed to LLMs for web extraction (default `web_extract`). |

@@ -422,6 +422,9 @@ async def _extract_document(
     content_type = resp.headers.get("content-type", "")
     if not looks_like_document(url, content_type):
         return None
+    if len(resp.content) > config.extract.max_document_bytes:
+        logger.info("%s -> document too large (%d bytes > %d), skipping", url, len(resp.content), config.extract.max_document_bytes)
+        return None
     try:
         text, title, method_label = extract_document_bytes(
             resp.content,
