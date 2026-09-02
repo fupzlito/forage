@@ -146,8 +146,8 @@ def format_citation(
     elif style == "bracket_title":
         return f"[Source: {site_name}]({url})"
 DEFAULT_AVAILABLE_ENGINES = (
-    "google", "qwant", "qwant news", "brave", "bing", "startpage", "duckduckgo", "reddit",
-    "wikipedia", "youtube", "github", "searxng", "yahoo", "wikidata"
+    "google", "qwant", "qwant news", "brave", "bing", "startpage", "duckduckgo",
+    "wikipedia", "github", "searxng", "yahoo", "wikidata"
 )
 # Suffixes for sub-engine scrapers (e.g. image/audio banks) to keep text prompt concise
 NON_TEXT_SUFFIXES = (".images", ".audio", ".files", " images", " audio")
