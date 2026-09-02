@@ -259,7 +259,7 @@ class TestRedditJSON(unittest.TestCase):
         self.assertIn("**Subreddit**: r/wallstreetbets", markdown)
 
     def test_clean_reddit_markdown(self):
-        from app.extract import _clean_reddit_markdown
+        from app.reddit import clean_reddit_markdown
         raw = (
             "# r/Baking\n\n"
             "Skip to main content LocalLlama Open menu Advertise on Reddit Open chat Create post "
@@ -271,7 +271,7 @@ class TestRedditJSON(unittest.TestCase):
             "r/Baking](https://www.reddit.com/r/Baking/)\n\n"
             "[Cake](https://reddit.com/r/Baking/comments/123/cake/)\n"
         )
-        cleaned = _clean_reddit_markdown(raw)
+        cleaned = clean_reddit_markdown(raw)
         self.assertNotIn("Skip to main content", cleaned)
         self.assertNotIn("Open menu", cleaned)
         self.assertNotIn("Advertise on Reddit", cleaned)

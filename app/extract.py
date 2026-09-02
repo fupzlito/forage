@@ -32,7 +32,13 @@ from markdownify import markdownify as _markdownify
 from .browser import BrowserPool
 from .config import ForageConfig
 from .documents import extract_document_bytes, looks_like_document
-from .reddit import make_reddit_status_result, parse_reddit_json
+from .reddit import (
+    clean_reddit_markdown,
+    make_reddit_status_result,
+    normalize_reddit_url,
+    parse_reddit_json,
+    strip_reddit_ads_from_html,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -498,44 +504,6 @@ def _extract_text(html: str, only_main_content: bool, max_chars: int) -> str:
     return text[:max_chars]
 
 
-def _strip_reddit_ads_from_html(html: str) -> str:
-    """Strip Reddit ad web-components and preserve timestamp elements prior to extraction."""
-    if not html:
-        return html
-    # Remove <shreddit-ad-post>...</shreddit-ad-post>
-    html = re.sub(r"<shreddit-ad-post[^>]*>.*?</shreddit-ad-post>", "", html, flags=re.DOTALL | re.IGNORECASE)
-    # Remove <shreddit-comments-page-ad>...</shreddit-comments-page-ad>
-    html = re.sub(r"<shreddit-comments-page-ad[^>]*>.*?</shreddit-comments-page-ad>", "", html, flags=re.DOTALL | re.IGNORECASE)
-    # Remove promoted links (<div class="...promotedlink...">...</div>)
-    html = re.sub(r'<div[^>]*class="[^"]*promotedlink[^"]*"[^>]*>.*?</div>', "", html, flags=re.DOTALL | re.IGNORECASE)
-    # Remove tracking ad links (<a href="...alb.reddit.com...">...</a>)
-    html = re.sub(r'<a[^>]*href="[^"]*alb\.reddit\.com[^"]*"[^>]*>.*?</a>', "", html, flags=re.DOTALL | re.IGNORECASE)
-
-    # Convert <faceplate-time-ago ts="..."> or <time datetime="..."> into visible timestamp text
-    def _render_ts(match: re.Match) -> str:
-        ts_val = match.group(1)
-        try:
-            val = float(ts_val)
-            if val > 1e11:  # ms
-                val /= 1000.0
-            dt = datetime.fromtimestamp(val, timezone.utc)
-            return f" [{dt.strftime('%Y-%m-%d %H:%M UTC')}] "
-        except Exception:
-            return match.group(0)
-
-    html = re.sub(r'<faceplate-time-ago[^>]*ts="(\d+)"[^>]*>.*?</faceplate-time-ago>', _render_ts, html, flags=re.DOTALL | re.IGNORECASE)
-    return html
-
-
-def _clean_reddit_markdown(text: str) -> str:
-    """Clean up Reddit markdown: strip avatars, community icons, navigation remnants, floating numbers, duplicate links, and excessive blank lines."""
-    if not text:
-        return text
-    # Strip community icon embeds and avatars
-    text = re.sub(r'\[!\[[^\]]*\]\([^)]*(?:communityIcon|redditmedia\.com|thumbs\.redditmedia\.com)[^)]*\)\s*', '[', text, flags=re.IGNORECASE)
-    text = re.sub(r'!\[[^\]]*\]\([^)]*(?:communityIcon|emoji\.redditmedia\.com|styles\.redditmedia\.com)[^)]*\)', '', text, flags=re.IGNORECASE)
-    text = re.sub(r'\[!\[[^\]]*avatar\]\([^)]+\)\]\([^)]+\)', '', text, flags=re.IGNORECASE)
-    text = re.sub(r'!\[[^\]]*avatar[^\]]*\]\([^)]+\)', '', text, flags=re.IGNORECASE)
 
     # Strip Reddit navigation and web UI boilerplate
     boilerplate = [
@@ -615,26 +583,6 @@ def _scroll_steps_for(config: ForageConfig, scroll: bool) -> int:
         return 0
     return max(config.browser.scroll_steps, 1)
 
-
-def normalize_reddit_url(url: str) -> str:
-    """Normalize Reddit URLs (old.reddit, sh.reddit, new.reddit, direct .json endpoints)
-    to canonical https://www.reddit.com/... web URLs."""
-    if not url:
-        return url
-    try:
-        parsed = urlparse(url)
-        host = (parsed.hostname or "").lower()
-        if host in ("reddit.com", "www.reddit.com", "old.reddit.com", "new.reddit.com", "sh.reddit.com", "safereddit.com"):
-            path = parsed.path or "/"
-            if path.endswith(".json"):
-                path = path[:-5]
-            canonical = f"https://www.reddit.com{path}"
-            if parsed.query:
-                canonical += f"?{parsed.query}"
-            return canonical
-    except Exception:
-        pass
-    return url
 
 
 _reddit_req_lock = asyncio.Lock()
@@ -1083,7 +1031,7 @@ async def extract_url(
                 logger.warning("Browser render failed for %s: %s", url, exc)
 
     if isinstance(html, str) and ("reddit.com" in original_url.lower() or "safereddit.com" in original_url.lower()):
-        html = _strip_reddit_ads_from_html(html)
+        html = strip_reddit_ads_from_html(html)
 
     content, raw_content = _to_output(
         html,
@@ -1118,7 +1066,7 @@ async def extract_url(
                 logger.warning("Solver retry failed for %s: %s", url, exc)
                 solver_html = None
             if solver_html:
-                html = _strip_reddit_ads_from_html(solver_html) if ("reddit.com" in original_url.lower() or "safereddit.com" in original_url.lower()) else solver_html
+                html = strip_reddit_ads_from_html(solver_html) if ("reddit.com" in original_url.lower() or "safereddit.com" in original_url.lower()) else solver_html
                 method = "browser+solver"
                 title = _extract_title(html)
                 content, raw_content = _to_output(
@@ -1172,8 +1120,8 @@ async def extract_url(
             if title and not content.startswith("# "):
                 content = f"# {title}\n\n" + content
                 raw_content = f"# {title}\n\n" + raw_content
-            content = _clean_reddit_markdown(content)
-            raw_content = _clean_reddit_markdown(raw_content)
+            content = clean_reddit_markdown(content)
+            raw_content = clean_reddit_markdown(raw_content)
 
     from .searxng import extract_domain, get_favicon_url, format_citation
 

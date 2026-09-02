@@ -1,15 +1,19 @@
-"""Reddit JSON parsing and comment-tree rendering for Forage.
+"""Reddit JSON parsing and string utilities for Forage.
 
-Tier-1 of the Reddit 3-tier pipeline (``app/extract.py``): parse the official
-``.json`` responses (thread + comments listing, subreddit/multireddit listings)
-into clean markdown with OP/MOD/ADMIN badges, threaded indentation, and
-browser-nav-header-safe formatting.
+Includes:
+- JSON & Comment Tree Parsing (`parse_reddit_json`, `format_reddit_comments`)
+- Status Notice Generation (`make_reddit_status_result`)
+- Markdown Cleaning & Boilerplate Stripping (`clean_reddit_markdown`)
+- HTML Ad & Timestamp Pre-processing (`strip_reddit_ads_from_html`)
+- Canonical URL Normalization (`normalize_reddit_url`)
 """
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import Any, Tuple
+from urllib.parse import urlparse
 
 
 def make_reddit_status_result(sub_or_label: str, status_type: str, details: str = "", method: str = "reddit+json") -> dict:
@@ -187,3 +191,107 @@ def parse_reddit_json(raw_json: Any) -> Tuple[str, str]:
 
     markdown_text = "\n".join(body_parts)
     return markdown_text, title
+
+
+def strip_reddit_ads_from_html(html: str) -> str:
+    """Strip Reddit ad web-components and preserve timestamp elements prior to extraction."""
+    if not html:
+        return html
+    # Remove <shreddit-ad-post>...</shreddit-ad-post>
+    html = re.sub(r"<shreddit-ad-post[^>]*>.*?</shreddit-ad-post>", "", html, flags=re.DOTALL | re.IGNORECASE)
+    # Remove <shreddit-comments-page-ad>...</shreddit-comments-page-ad>
+    html = re.sub(r"<shreddit-comments-page-ad[^>]*>.*?</shreddit-comments-page-ad>", "", html, flags=re.DOTALL | re.IGNORECASE)
+    # Remove promoted links (<div class="...promotedlink...">...</div>)
+    html = re.sub(r'<div[^>]*class="[^"]*promotedlink[^"]*"[^>]*>.*?</div>', "", html, flags=re.DOTALL | re.IGNORECASE)
+    # Remove tracking ad links (<a href="...alb.reddit.com...">...</a>)
+    html = re.sub(r'<a[^>]*href="[^"]*alb\.reddit\.com[^"]*"[^>]*>.*?</a>', "", html, flags=re.DOTALL | re.IGNORECASE)
+
+    # Convert <faceplate-time-ago ts="..."> or <time datetime="..."> into visible timestamp text
+    def _render_ts(match: re.Match) -> str:
+        ts_val = match.group(1)
+        try:
+            val = float(ts_val)
+            if val > 1e11:  # ms
+                val /= 1000.0
+            dt = datetime.fromtimestamp(val, timezone.utc)
+            return f" [{dt.strftime('%Y-%m-%d %H:%M UTC')}] "
+        except Exception:
+            return match.group(0)
+
+    html = re.sub(r'<faceplate-time-ago[^>]*ts="(\d+)"[^>]*>.*?</faceplate-time-ago>', _render_ts, html, flags=re.DOTALL | re.IGNORECASE)
+    return html
+
+
+def clean_reddit_markdown(text: str) -> str:
+    """Clean up Reddit markdown: strip avatars, community icons, navigation remnants, floating numbers, duplicate links, and excessive blank lines."""
+    if not text:
+        return text
+    # Strip community icon embeds and avatars
+    text = re.sub(r'\[!\[[^\]]*\]\([^\)]*(?:communityIcon|redditmedia\.com|thumbs\.redditmedia\.com)[^)]*\)\s*', '[', text, flags=re.IGNORECASE)
+    text = re.sub(r'!\[[^\]]*\]\([^\)]*(?:communityIcon|emoji\.redditmedia\.com|styles\.redditmedia\.com)[^)]*\)', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\[!\[[^\]]*avatar\]\([^\)]+\)\]\([^\)]+\)', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'!\[[^\]]*avatar[^\]]*\]\([^\)]+\)', '', text, flags=re.IGNORECASE)
+
+    # Strip Reddit navigation and web UI boilerplate
+    boilerplate = [
+        r"Skip to main content\s*",
+        r"Open menu\s*",
+        r"Advertise on Reddit\s*",
+        r"Open chat\s*",
+        r"Create post\s*",
+        r"Open inbox\s*",
+        r"Expand user menu\s*",
+        r"Open profile menu\s*",
+        r"Get your post the attention it deserves\s*",
+        r"Close Repost Nudge Dialog\s*",
+        r"Repost into other communities and help your post get seen by more people\.?\s*",
+        r"Submit a report\s*",
+        r"Report Submitted\s*",
+        r"Open sort options\s*",
+        r"Change post view\s*",
+        r"Open navigation\s*",
+        r"Go to Reddit Home\s*",
+        r"\[Sign Up\]\([^\)]+\)Sign up for Reddit\s*",
+        r"\[Log In\]\([^\)]+\)Log in to Reddit\s*",
+        r"Open settings menu\s*",
+        r"View more comments\s*",
+        r"Card Compact Community highlights\s*",
+        r"Top Best Hot New Top Rising Today Now Today This Week This Month This Year All Time\s*",
+        r"\b\d+\s*votes\s*•\s*\d+\s*comments\b",
+    ]
+    for b in boilerplate:
+        text = re.sub(b, '', text, flags=re.IGNORECASE)
+
+    # Strip lone floating numbers on their own lines (leftover upvote buttons)
+    text = re.sub(r'(?<=\n)\s*\d+(?:\.\d+)?(?:k|K)?\s*(?=\n|\Z)', '', text)
+
+    # Remove duplicate consecutive links produced by card headers + titles
+    text = re.sub(r'(\[[^\]]+\]\([^)]+\))\s*\n+(?:---\s*\n+)?(?:\s*\[r/[^\]]+\]\([^)]+\)\s*\n+)?\1', r'\1', text)
+
+    lines = text.splitlines()
+    header = lines[0] if lines and lines[0].startswith("#") else ""
+    rest = "\n".join(lines[1:]) if header else text
+    rest = re.sub(r"^(?:\s*---\s*\n)+", "", rest)
+    rest = re.sub(r"\n{3,}", "\n\n", rest).strip()
+    return f"{header}\n\n{rest}" if header else rest
+
+
+def normalize_reddit_url(url: str) -> str:
+    """Normalize Reddit URLs (old.reddit, sh.reddit, new.reddit, direct .json endpoints)
+    to canonical https://www.reddit.com/... web URLs."""
+    if not url:
+        return url
+    try:
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
+        if host in ("reddit.com", "www.reddit.com", "old.reddit.com", "new.reddit.com", "sh.reddit.com", "safereddit.com"):
+            path = parsed.path or "/"
+            if path.endswith(".json"):
+                path = path[:-5]
+            canonical = f"https://www.reddit.com{path}"
+            if parsed.query:
+                canonical += f"?{parsed.query}"
+            return canonical
+    except Exception:
+        pass
+    return url
