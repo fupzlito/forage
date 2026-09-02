@@ -106,23 +106,6 @@ DEFAULTS: Dict[str, Any] = {
 logger = logging.getLogger(__name__)
 
 
-def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
-    """Recursively merge ``override`` into ``base`` (new dict)."""
-    merged = dict(base)
-    for key, value in override.items():
-        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
-            merged[key] = deep_merge(merged[key], value)
-        else:
-            merged[key] = value
-    return merged
-
-
-def _filter_dataclass_dict(cls: type, data: Dict[str, Any]) -> Dict[str, Any]:
-    """Filter dict keys to only include valid fields defined on the dataclass."""
-    valid_fields = {f.name for f in fields(cls)}
-    return {k: v for k, v in data.items() if k in valid_fields}
-
-
 @dataclass(frozen=True)
 class ServerConfig:
     host: str = "0.0.0.0"
