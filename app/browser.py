@@ -380,7 +380,6 @@ class BrowserPool:
                     return browser
             browser = await self._launch_new()
             if browser is None:
-                self._semaphore.release()
                 raise RuntimeError("Could not launch Chromium")
             return browser
         except Exception:
@@ -427,6 +426,7 @@ class BrowserPool:
             return await self._cdp_render(url, wait_for, timeout, steps, idle_cap, readability, extra_headers, cookies)
         browser = await self.acquire()
         page = None
+        context = None
         try:
             context = await browser.new_context(
                 user_agent=self.user_agent,
@@ -476,6 +476,11 @@ class BrowserPool:
             if page is not None:
                 try:
                     await page.close()
+                except Exception:  # noqa: BLE001
+                    pass
+            if context is not None:
+                try:
+                    await context.close()
                 except Exception:  # noqa: BLE001
                     pass
             self.release(browser)
