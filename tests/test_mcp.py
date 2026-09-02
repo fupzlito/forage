@@ -101,7 +101,7 @@ class TestMCPAndOpenAIEndpoints(unittest.TestCase):
             post_req.query_params = {"session_id": sid}
             post_req.json = AsyncMock(return_value=payload)
             resp2 = await mcp_messages(post_req)
-            item = _sse_sessions[sid].get_nowait()
+            item = _sse_sessions[sid][0].get_nowait()
             return resp2, item
 
         resp2, item = asyncio.run(_flow())
@@ -135,7 +135,7 @@ class TestMCPAndOpenAIEndpoints(unittest.TestCase):
             post_req.query_params = {"session_id": sid}
             post_req.json = AsyncMock(return_value=payload)
             resp2 = await mcp_post(post_req)
-            item = _sse_sessions[sid].get_nowait()
+            item = _sse_sessions[sid][0].get_nowait()
             return resp2, item
 
         resp2, item = asyncio.run(_flow())
