@@ -1,19 +1,31 @@
-fastapi>=0.115
-uvicorn[standard]>=0.30
-PyYAML>=6.0
-httpx>=0.27
-trafilatura>=1.8
-lxml_html_clean>=0.1
-markdownify>=1.0   # markdown converter for the "readability" extract engine
-playwright>=1.45
-# patchright>=1.45      # optional engine (uncomment to enable browser.engine: patchright)
-scrapling[fetchers]>=0.2  # anti-bot fetcher (Cloudflare Turnstile)
-curl_cffi>=0.7        # required by scrapling engine
-msgspec>=0.18         # required by scrapling engine
-browserforge>=1.2.1   # required by scrapling stealth engine
-tldextract            # required by scrapling engine
-pymupdf>=1.24        # PDF text-layer extraction
-python-docx>=1.1     # .docx
-openpyxl>=3.1        # .xlsx
-python-pptx>=0.6.23  # .pptx
-striprtf>=0.0.28     # .rtf
+# Forage pinned dependencies
+#
+# Bumping versions:
+#   1. pip install -r requirements.txt   (in a venv)
+#   2. pip freeze | grep -iE "<pkg>"     (find the new version)
+#   3. Edit the == pin below
+#   4. docker build (or pip install -r requirements.txt in your venv)
+#   5. Run tests: .venv/bin/python -m pytest tests/ -q
+#
+# All pins are exact (==) for reproducible builds.
+# To bump a single package: change its == line, rebuild, test.
+
+fastapi==0.128.8
+uvicorn[standard]==0.39.0
+PyYAML==6.0.3
+httpx==0.28.1
+trafilatura==2.0.0
+lxml_html_clean==0.4.5
+markdownify==1.2.3
+playwright==1.60.0
+# patchright==1.60.0      # optional engine (uncomment to enable browser.engine: patchright)
+scrapling[fetchers]==0.2.99
+curl_cffi==0.13.0
+msgspec==0.20.0
+browserforge==1.2.4
+tldextract==5.3.0
+pymupdf==1.26.5
+python-docx==1.2.0
+openpyxl==3.1.5
+python-pptx==1.0.2
+striprtf==0.0.33
