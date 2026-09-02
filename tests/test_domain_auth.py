@@ -8,7 +8,9 @@ from app.extract import extract_url
 
 class TestDomainAuth(unittest.TestCase):
     @patch("app.extract.fetch_static", new_callable=AsyncMock)
-    async def _async_test(self, mock_fetch):
+    @patch("app.extract._is_ssrf_safe", new_callable=AsyncMock)
+    async def _async_test(self, mock_ssrf, mock_fetch):
+        mock_ssrf.return_value = True
         raw_dict = {
             "extract": {
                 "domain_overrides": {
@@ -32,7 +34,9 @@ class TestDomainAuth(unittest.TestCase):
         self.assertEqual(kwargs["cookies"], {"session": "abc-123"})
 
     @patch("app.extract._try_reddit_extract", new_callable=AsyncMock)
-    async def _async_reddit_test(self, mock_reddit_extract):
+    @patch("app.extract._is_ssrf_safe", new_callable=AsyncMock)
+    async def _async_reddit_test(self, mock_ssrf, mock_reddit_extract):
+        mock_ssrf.return_value = True
         raw_dict = {
             "extract": {
                 "domain_overrides": {
@@ -60,7 +64,9 @@ class TestDomainAuth(unittest.TestCase):
         self.assertEqual(kwargs["cookies"], {"reddit_session": "secret_token_123"})
 
     @patch("app.browser.BrowserPool.render", new_callable=AsyncMock)
-    async def _async_browser_test(self, mock_browser_render):
+    @patch("app.extract._is_ssrf_safe", new_callable=AsyncMock)
+    async def _async_browser_test(self, mock_ssrf, mock_browser_render):
+        mock_ssrf.return_value = True
         raw_dict = {
             "extract": {
                 "domain_overrides": {

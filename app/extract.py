@@ -21,6 +21,8 @@ import fnmatch
 import logging
 import re
 import time
+import ipaddress
+import socket
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import urlparse
@@ -65,6 +67,26 @@ def clamp_output(res: Dict[str, Any], max_chars: Optional[int]) -> Dict[str, Any
 RETRY_STATUS = {429, 500, 502, 503, 504}
 RETRY_DELAY = 0.5
 RETRY_ATTEMPTS = 2  # total attempts: 1 initial + 1 retry
+async def _is_ssrf_safe(url: str) -> bool:
+    """Reject URLs whose hostname resolves to a private, loopback, link-local,
+    or reserved IP address (SSRF guard)."""
+    host = (urlparse(url).hostname or "").lower()
+    if not host:
+        return False
+    try:
+        ip = ipaddress.ip_address(host)
+        return not (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_unspecified)
+    except ValueError:
+        pass
+    try:
+        infos = await asyncio.to_thread(socket.getaddrinfo, host, None)
+        for addr in infos:
+            ip = ipaddress.ip_address(addr[4][0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_unspecified:
+                return False
+        return True
+    except socket.gaierror:
+        return False
 
 SPA_MARKERS = [
     'id="root"',
@@ -874,6 +896,8 @@ async def extract_url(
     if rewritten != url:
         logger.info("%s -> URL rewritten to %s", url, rewritten)
         url = rewritten
+    if not config.extract.allow_private_ips and not await _is_ssrf_safe(url):
+        return {"url": original_url, "error": "Blocked: URL resolves to a private or reserved address"}
 
     override_headers = override.headers if override else {}
     override_cookies = override.cookies if override else {}

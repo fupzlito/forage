@@ -61,6 +61,7 @@ extract:
   raw_content_markdown: true # true: raw_content mirrors clean markdown; false: raw HTML
   prefer_markdown: true    # negotiate Accept: text/markdown with servers
   require_max_chars: false # require LLMs to pass character budget per URL
+  allow_private_ips: false   # allow URLs resolving to private/internal IPs (SSRF guard bypass)
 
   # Domain-specific overrides (override patterns match host and subdomains)
   domain_overrides:

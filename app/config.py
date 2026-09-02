@@ -69,6 +69,7 @@ DEFAULTS: Dict[str, Any] = {
         "citation_style": "site_name",
         "include_favicon": None,
         "require_max_chars": False,
+        "allow_private_ips": False,
     },
     "browser": {
         "engine": "scrapling",
@@ -209,6 +210,7 @@ class ExtractConfig:
     citation_style: str = "site_name"
     include_favicon: Optional[bool] = None
     require_max_chars: bool = False
+    allow_private_ips: bool = False
 
 
 @dataclass(frozen=True)
@@ -462,6 +464,8 @@ def _apply_env_overrides(merged: Dict[str, Any]) -> Dict[str, Any]:
         merged.setdefault("extract", {})["engine"] = os.environ["FORAGE_EXTRACT_ENGINE"].lower()
     if "FORAGE_REQUIRE_MAX_CHARS" in os.environ:
         merged.setdefault("extract", {})["require_max_chars"] = _parse_bool(os.environ["FORAGE_REQUIRE_MAX_CHARS"])
+    if "FORAGE_EXTRACT_ALLOW_PRIVATE_IPS" in os.environ:
+        merged.setdefault("extract", {})["allow_private_ips"] = _parse_bool(os.environ["FORAGE_EXTRACT_ALLOW_PRIVATE_IPS"])
 
     # Cache
     if "FORAGE_CACHE_ENABLED" in os.environ:
