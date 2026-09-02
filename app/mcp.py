@@ -545,6 +545,13 @@ async def execute_tool_call(
                 block += f"\n\n{c}"
                 formatted_blocks.append(block)
 
+        if ok_count == 0:
+            err_summary = f"ERROR: All {len(urls)} URLs failed to extract."
+            return {
+                "error": "All URLs failed to extract",
+                "results": list(extracted),
+                "formatted_text": f"{err_summary}\n\n" + "\n\n---\n\n".join(formatted_blocks[1:]),
+            }
         return {
             "results": list(extracted),
             "sources": sources,
@@ -934,7 +941,12 @@ async def v1_tools_call(
         )
 
     result = await execute_tool_call(name, arguments, config, browser_pool)
-    return JSONResponse(content={"success": "error" not in result, "result": result})
+    if "error" in result:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": result["error"], "result": result},
+        )
+    return JSONResponse(content={"success": True, "result": result})
 
 
 @mcp_router.get("/v1/models")

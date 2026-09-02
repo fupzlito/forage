@@ -444,14 +444,14 @@ async def extract(
             return JSONResponse(content={"success": True, "data": truncated_data}, headers={"X-Forage-Cache": "hit"})
 
     full_results = await asyncio.gather(*(_extract_one_full(u, idx + 1) for idx, u in enumerate(req.urls)))
+    all_ok = all("error" not in r for r in full_results)
 
-    if cache_enabled:
-        all_ok = all("error" not in r for r in full_results)
-        if all_ok:
-            extract_cache.set(key, {"success": True, "data": full_results}, ttl=config.cache.extract.ttl)
+    if cache_enabled and all_ok:
+        extract_cache.set(key, {"success": True, "data": full_results}, ttl=config.cache.extract.ttl)
 
     truncated_data = [clamp_output(r, req.max_chars) for r in full_results]
-    payload = {"success": True, "data": truncated_data}
+    has_success = any("error" not in r for r in full_results)
+    payload = {"success": has_success, "data": truncated_data}
     header = "miss" if cache_enabled else ("bypass" if bypass else "disabled")
     return JSONResponse(content=payload, headers={"X-Forage-Cache": header})
 
