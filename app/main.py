@@ -453,7 +453,11 @@ async def extract(
     has_success = any("error" not in r for r in full_results)
     payload = {"success": has_success, "data": truncated_data}
     header = "miss" if cache_enabled else ("bypass" if bypass else "disabled")
-    return JSONResponse(content=payload, headers={"X-Forage-Cache": header})
+    return JSONResponse(
+        content=payload,
+        status_code=200 if has_success else 400,
+        headers={"X-Forage-Cache": header},
+    )
 
 
 @app.post("/admin/cache/purge")
