@@ -901,7 +901,8 @@ async def v1_tools_call(
             extract_name = config.tools.extract_name
             if name == extract_name or name == "web_extract":
                 raw_urls = arguments.get("urls", [])
-                urls = [u.strip() for u in raw_urls.split(",") if u.strip()] if isinstance(raw_urls, str) else list(raw_urls)
+                urls = [str(u).strip() for u in raw_urls.split(",") if str(u).strip()] if isinstance(raw_urls, str) else [str(u).strip() for u in raw_urls if str(u).strip()]
+                urls = urls[:20]
                 max_chars = arguments.get("max_chars")
                 if max_chars is not None:
                     try:
@@ -912,9 +913,18 @@ async def v1_tools_call(
                 fmt = "html" if (formats and ("html" in formats or "raw_html" in formats)) else "markdown"
                 force_render = bool(arguments.get("force_render", False))
                 wait_for = arguments.get("wait_for")
+                if wait_for is not None:
+                    wait_for = str(wait_for)[:200]
                 only_main_content = bool(arguments.get("only_main_content", True))
-                timeout = int(arguments.get("timeout", 30))
+                timeout = arguments.get("timeout")
+                if timeout is not None:
+                    try:
+                        timeout = max(1, min(int(timeout), 120))
+                    except (ValueError, TypeError):
+                        timeout = None
                 engine = arguments.get("engine")
+                if engine is not None and engine not in ("trafilatura", "readability"):
+                    engine = None
 
                 async def _one(u: str, pos: int) -> Dict[str, Any]:
                     try:
@@ -1051,10 +1061,8 @@ async def _stream_openai_chat_completions(
 
     if tool_name == extract_name or tool_name == "web_extract":
         raw_urls = args.get("urls", [])
-        if isinstance(raw_urls, str):
-            urls = [u.strip() for u in raw_urls.split(",") if u.strip()]
-        else:
-            urls = list(raw_urls)
+        urls = [str(u).strip() for u in raw_urls.split(",") if str(u).strip()] if isinstance(raw_urls, str) else [str(u).strip() for u in raw_urls if str(u).strip()]
+        urls = urls[:20]
 
         if not urls:
             yield _chunk(content="Error: Missing required parameter 'urls'")
@@ -1064,9 +1072,18 @@ async def _stream_openai_chat_completions(
 
         force_render = bool(args.get("force_render", False))
         wait_for = args.get("wait_for")
+        if wait_for is not None:
+            wait_for = str(wait_for)[:200]
         only_main_content = bool(args.get("only_main_content", True))
-        timeout = int(args.get("timeout", 30))
+        timeout = args.get("timeout")
+        if timeout is not None:
+            try:
+                timeout = max(1, min(int(timeout), 120))
+            except (ValueError, TypeError):
+                timeout = None
         engine = args.get("engine")
+        if engine is not None and engine not in ("trafilatura", "readability"):
+            engine = None
         max_chars = args.get("max_chars")
         formats = args.get("formats")
         fmt = "html" if (formats and ("html" in formats or "raw_html" in formats)) else "markdown"
