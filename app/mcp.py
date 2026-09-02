@@ -64,9 +64,19 @@ async def _extract_one(
     # clamp_output is pure (no mutation), so cached dicts stay untouched.
     return clamp_output(result, max_chars)
 
-# Active SSE sessions for MCP
-_sse_sessions: Dict[str, asyncio.Queue] = {}
+# Active SSE sessions for MCP: {session_id: (queue, created_at)}
+_sse_sessions: Dict[str, tuple[asyncio.Queue, float]] = {}
+_SSE_SESSION_TTL = 1800.0  # 30 minutes
 _bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def _evict_stale_sessions() -> None:
+    """Remove SSE sessions older than _SSE_SESSION_TTL (30 min)."""
+    import time
+    now = time.monotonic()
+    stale = [sid for sid, (_, ts) in _sse_sessions.items() if now - ts > _SSE_SESSION_TTL]
+    for sid in stale:
+        _sse_sessions.pop(sid, None)
 
 
 def _get_config_and_pool(request: Request):
@@ -759,7 +769,7 @@ async def mcp_post(
     if sid and sid in _sse_sessions:
         resp = await process_mcp_rpc(body, config, browser_pool)
         if resp:
-            await _sse_sessions[sid].put(resp)
+            await _sse_sessions[sid][0].put(resp)
         return JSONResponse(content={"status": "accepted"})
 
     if isinstance(body, list):
@@ -786,8 +796,10 @@ async def mcp_sse(
     """SSE endpoint for OpenWebUI MCP connection (or direct JSON-RPC discovery on GET)."""
     accept = request.headers.get("accept", "")
     session_id = str(uuid.uuid4())
+    import time
     queue: asyncio.Queue = asyncio.Queue()
-    _sse_sessions[session_id] = queue
+    _sse_sessions[session_id] = (queue, time.monotonic())
+    _evict_stale_sessions()
 
     async def event_generator():
         try:
@@ -831,7 +843,7 @@ async def mcp_messages(
     resp = await process_mcp_rpc(body, config, browser_pool)
     if sid and sid in _sse_sessions:
         if resp:
-            await _sse_sessions[sid].put(resp)
+            await _sse_sessions[sid][0].put(resp)
         return JSONResponse(content={"status": "accepted"})
 
     # Fallback to direct RPC response if session expired or omitted
