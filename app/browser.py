@@ -24,12 +24,17 @@ DEFAULT_BROWSER_UA = (
     "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 )
 
-# Hides headless/automation signals from basic anti-bot (Cloudflare etc.).
-STEALTH_INIT_SCRIPT = """
-Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-window.chrome = window.chrome || { runtime: {} };
-Object.defineProperty(navigator, 'languages', {get: () => ['pt-BR', 'pt', 'en-US', 'en']});
-Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+def _build_stealth_script(languages: tuple[str, ...]) -> str:
+    """Build the stealth init script with the given locale list.
+
+    Hides headless/automation signals from basic anti-bot detection.
+    """
+    lang_list = ", ".join(f'"{lang}"' for lang in languages)
+    return f"""\
+Object.defineProperty(navigator, 'webdriver', {{get: () => undefined}});
+window.chrome = window.chrome || {{ runtime: {{}} }};
+Object.defineProperty(navigator, 'languages', {{get: () => [{lang_list}]}});
+Object.defineProperty(navigator, 'plugins', {{get: () => [1, 2, 3, 4, 5]}});
 """
 
 # Titles that indicate an anti-bot challenge page (Cloudflare Turnstile etc.).
@@ -236,6 +241,10 @@ class BrowserPool:
         # Explicit browser UA wins; otherwise fall back to a real Chrome UA
         # (a bot UA would be a giveaway against anti-bot systems).
         self.user_agent = user_agent or DEFAULT_BROWSER_UA
+        # Build the stealth init script with the configured locale.
+        self._stealth_script = _build_stealth_script(
+            getattr(browser_config, "locale", ("en-US", "en"))
+        )
         self._idle: Deque[tuple[float, Any]] = deque()  # (last_used, browser)
         self._semaphore: Optional[asyncio.Semaphore] = None
         self._pw: Optional[Any] = None
@@ -428,7 +437,7 @@ class BrowserPool:
                 await context.add_cookies(cookie_list)
             page = await context.new_page()
             if self.stealth:
-                await page.add_init_script(STEALTH_INIT_SCRIPT)
+                await page.add_init_script(self._stealth_script)
             await page.goto(
                 url,
                 wait_until="domcontentloaded",
@@ -507,7 +516,7 @@ class BrowserPool:
                 await context.add_cookies(cookie_list)
             page = await context.new_page()
             if self.stealth:
-                await page.add_init_script(STEALTH_INIT_SCRIPT)
+                await page.add_init_script(self._stealth_script)
             await page.goto(
                 url,
                 wait_until="domcontentloaded",

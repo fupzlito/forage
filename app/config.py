@@ -84,6 +84,7 @@ DEFAULTS: Dict[str, Any] = {
         "challenge_timeout": 15,
         "solve_cloudflare": False,
         "fallback_solver": True,
+        "locale": ["en-US", "en"],
     },
     "auth": {"enabled": False},
     "prompts": {
@@ -225,6 +226,7 @@ class BrowserConfig:
     challenge_timeout: int = 15  # max seconds to wait for an anti-bot challenge to auto-resolve (scrapling engine)
     solve_cloudflare: bool = False  # scrapling: use its built-in Cloudflare solver (adds ~5s/page) or the page_action poll (default)
     fallback_solver: bool = True  # on anti-bot failure, retry with scrapling + built-in solver as last resort
+    locale: tuple = ("en-US", "en")  # navigator.languages values for stealth init script
 
 
 @dataclass(frozen=True)
@@ -451,6 +453,9 @@ def _apply_env_overrides(merged: Dict[str, Any]) -> Dict[str, Any]:
         merged.setdefault("browser", {})["cdp_url"] = os.environ["FORAGE_BROWSER_CDP_URL"]
     if "FORAGE_BROWSER_HEADLESS" in os.environ:
         merged.setdefault("browser", {})["headless"] = _parse_bool(os.environ["FORAGE_BROWSER_HEADLESS"])
+    if "FORAGE_BROWSER_LOCALE" in os.environ:
+        raw = os.environ["FORAGE_BROWSER_LOCALE"]
+        merged.setdefault("browser", {})["locale"] = tuple(l.strip() for l in raw.split(",") if l.strip())
 
     # Extract
     if "FORAGE_EXTRACT_ENGINE" in os.environ:
