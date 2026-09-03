@@ -164,6 +164,12 @@ Start the container:
 docker compose up -d
 ```
 
+If SearXNG is not already running, create the shared network first:
+
+```bash
+docker network create searxng_default
+```
+
 Verify service health:
 ```bash
 curl http://localhost:3672/health

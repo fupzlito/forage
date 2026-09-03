@@ -32,6 +32,7 @@ services:
 # SearXNG must run on this shared network so Forage can call it as searxng:8080.
 # See docs/SEARXNG.md. If your SearXNG compose uses another project name,
 # adjust the network name (and FORAGE_SEARXNG_URL) accordingly.
+# Ensure the network exists before running: docker network create searxng_default
 networks:
   searxng_default:
     external: true
