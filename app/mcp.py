@@ -384,7 +384,7 @@ async def execute_tool_call(
         if isinstance(engines, str):
             engines = [e.strip() for e in engines.split(",") if e.strip()]
 
-        res = search_searxng(config, query=query, limit=limit, language=language, engines=engines)
+        res = await asyncio.to_thread(search_searxng, config, query=query, limit=limit, language=language, engines=engines)
         if not res.get("success"):
             return {"error": res.get("error", "Search failed")}
 
@@ -595,7 +595,8 @@ async def execute_tool_call(
         else:
             limit = default_lim
 
-        res = search_youtube(
+        res = await asyncio.to_thread(
+            search_youtube,
             config=config,
             query=query,
             channel=channel,
@@ -915,6 +916,11 @@ async def v1_tools_call(
                 raw_urls = arguments.get("urls", [])
                 urls = [str(u).strip() for u in raw_urls.split(",") if str(u).strip()] if isinstance(raw_urls, str) else [str(u).strip() for u in raw_urls if str(u).strip()]
                 urls = urls[:20]
+                if not urls:
+                    err_payload = json.dumps({"error": "Missing required parameter 'urls'"})
+                    yield f"data: {err_payload}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
                 max_chars = arguments.get("max_chars")
                 if max_chars is not None:
                     try:

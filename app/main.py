@@ -341,7 +341,8 @@ async def search(
             return JSONResponse(content=cached, headers={"X-Forage-Cache": "hit"})
 
     eff_limit = req.limit if req.limit is not None else config.search.default_limit
-    result = search_searxng(
+    result = await asyncio.to_thread(
+        search_searxng,
         config,
         query=req.query,
         limit=eff_limit,
@@ -353,7 +354,7 @@ async def search(
         search_cache.set(key, result, ttl=config.cache.search.ttl)
 
     header = "miss" if cache_enabled else ("bypass" if bypass else "disabled")
-    return JSONResponse(content=result, headers={"X-Forage-Cache": header})
+    return JSONResponse(content=result, status_code=200 if result.get("success") else 400, headers={"X-Forage-Cache": header})
 
 
 @app.post("/v1/youtube/search")
@@ -366,14 +367,15 @@ async def youtube_search_endpoint(
     """Search YouTube videos, discover channel uploads, or query videos inside a specific channel."""
     from .youtube import search_youtube
 
-    result = search_youtube(
+    result = await asyncio.to_thread(
+        search_youtube,
         config=config,
         query=req.query,
         channel=req.channel,
         sort_by=req.sort_by,
         limit=req.limit,
     )
-    return JSONResponse(content=result)
+    return JSONResponse(content=result, status_code=200 if result.get("success") else 400)
 
 
 @app.post("/extract")
