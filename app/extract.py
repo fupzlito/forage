@@ -612,6 +612,16 @@ def _set_reddit_json_cooldown(cooldown_seconds: float = 30.0) -> None:
     logger.info("Reddit .json API rate-limited (403/429); entering %.1fs cooldown", cooldown_seconds)
 
 
+def _reddit_mirror(config) -> Optional[str]:
+    """Return the configured tier 2 mirror, or None when unset.
+
+    Uses isinstance so a Mock config (tests) yields None instead of a
+    truthy Mock that would break ``host in url``.
+    """
+    host = config.extract.reddit_mirror
+    return host if isinstance(host, str) else None
+
+
 async def _try_reddit_extract(
     config: ForageConfig,
     url: str,
@@ -731,7 +741,9 @@ async def _try_reddit_extract(
         except Exception as exc:  # noqa: BLE001
             logger.debug("Reddit Tier 1 (.json) failed for %s: %s", url, exc)
 
-    # --- Tier 2: Redlib Mirror (safereddit) ---
+    # --- Tier 2: Redlib Mirror (only when a mirror host is configured) ---
+    if _reddit_mirror(config) is None:
+        return None
     # The mirror is a plain static HTML endpoint. It does NOT need the Chrome
     # navigation headers (Sec-Fetch-*) built for Tier 1's ``.json`` request;
     # those navigation headers are meaningless against a non-origin mirror and
@@ -743,13 +755,16 @@ async def _try_reddit_extract(
         "Referer": "https://www.reddit.com/",
     }
     clean_html_path = path.replace("/.json", "/").replace(".json", "")
-    mirror_url = f"https://safereddit.com{clean_html_path}"
+    mirror = (config.extract.reddit_mirror or "").strip().rstrip("/")
+    if not mirror.startswith(("http://", "https://")):
+        mirror = f"https://{mirror}"
+    mirror_url = f"{mirror}{clean_html_path}"
     if parsed.query:
         mirror_url += f"?{parsed.query}"
 
     try:
         await _throttle_reddit_request()
-        async with httpx.AsyncClient(timeout=min(timeout, 4), headers=mirror_headers, cookies=cookies, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=min(timeout, 4), headers=mirror_headers, follow_redirects=True) as client:
             mresp = await client.get(mirror_url)
             sub_name = f"r/{path.split('/')[2]}" if path.startswith("/r/") and len(path.split("/")) > 2 else "Reddit Community"
             if mresp.status_code == 404:
@@ -849,7 +864,8 @@ async def extract_url(
     # Extract engine: request-level is absolute; then the domain override;
     # then Reddit default ("readability", required for custom <shreddit-comment> components);
     # then the global default ("trafilatura").
-    is_reddit = "reddit.com" in url.lower() or "safereddit.com" in url.lower()
+    mirror_host = _reddit_mirror(config)
+    is_reddit = "reddit.com" in url.lower() or (mirror_host is not None and mirror_host in url.lower())
     effective_engine = (
         engine
         or (override.engine if override is not None else None)
@@ -1031,7 +1047,8 @@ async def extract_url(
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Browser render failed for %s: %s", url, exc)
 
-    if isinstance(html, str) and ("reddit.com" in original_url.lower() or "safereddit.com" in original_url.lower()):
+    mirror_host = _reddit_mirror(config)
+    if isinstance(html, str) and ("reddit.com" in original_url.lower() or (mirror_host is not None and mirror_host in original_url.lower())):
         html = strip_reddit_ads_from_html(html)
 
     content, raw_content = _to_output(
@@ -1067,7 +1084,8 @@ async def extract_url(
                 logger.warning("Solver retry failed for %s: %s", url, exc)
                 solver_html = None
             if solver_html:
-                html = strip_reddit_ads_from_html(solver_html) if ("reddit.com" in original_url.lower() or "safereddit.com" in original_url.lower()) else solver_html
+                mirror_host = _reddit_mirror(config)
+                html = strip_reddit_ads_from_html(solver_html) if ("reddit.com" in original_url.lower() or (mirror_host is not None and mirror_host in original_url.lower())) else solver_html
                 method = "browser+solver"
                 title = _extract_title(html)
                 content, raw_content = _to_output(
@@ -1092,7 +1110,8 @@ async def extract_url(
     if readability_rendered and method == "browser":
         method = "browser+readability"
 
-    if "reddit.com" in original_url.lower() or "safereddit.com" in original_url.lower():
+    mirror_host = _reddit_mirror(config)
+    if "reddit.com" in original_url.lower() or (mirror_host is not None and mirror_host in original_url.lower()):
         parsed_orig = urlparse(original_url)
         path_orig = parsed_orig.path or ""
         sub_name = f"r/{path_orig.split('/')[2]}" if path_orig.startswith("/r/") and len(path_orig.split("/")) > 2 else "Reddit Community"

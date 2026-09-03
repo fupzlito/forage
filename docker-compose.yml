@@ -15,6 +15,7 @@ services:
       - FORAGE_DEFAULT_ENGINES=google-cse,brave,bing,duckduckgo,startpage # default engines queried when search engine(s) omitted by LLMs
 #     - FORAGE_REDDIT_SESSION="your_session_cookie_here"     # optional: logged-in reddit session (quote string to escape special characters)
 #     - FORAGE_REDDIT_TOKEN_V2="your_token_v2_cookie_here"   # optional: reddit token_v2 cookie (quote string to escape special characters)
+#     - FORAGE_REDDIT_MIRROR=your-redlib-host  # tier 2 redlib mirror (set to enable tier 2; all public mirrors are Anubis/Turnstile-blocked)
 #     - FORAGE_YOUTUBE_API_KEY="your_youtube_key_here"      # enables youtube_search (YouTube Data API v3)
 #   volumes:
 #     # Uncomment if detailed config/prompt overrides are desired.

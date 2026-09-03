@@ -72,6 +72,7 @@ DEFAULTS: Dict[str, Any] = {
         "allow_private_ips": False,
         "max_document_bytes": 150_000_000,
         "max_response_bytes": 50_000_000,
+        "reddit_mirror": None,
     },
     "browser": {
         "engine": "scrapling",
@@ -215,6 +216,7 @@ class ExtractConfig:
     allow_private_ips: bool = False
     max_document_bytes: int = 150_000_000  # 150 MB cap for document downloads
     max_response_bytes: int = 50_000_000  # 50 MB cap for static HTML responses
+    reddit_mirror: Optional[str] = None  # tier 2 redlib mirror (None = disabled)
 
 
 @dataclass(frozen=True)
@@ -480,6 +482,8 @@ def _apply_env_overrides(merged: Dict[str, Any]) -> Dict[str, Any]:
             merged.setdefault("extract", {})["max_response_bytes"] = int(os.environ["FORAGE_EXTRACT_MAX_RESPONSE_BYTES"])
         except ValueError:
             pass
+    if "FORAGE_REDDIT_MIRROR" in os.environ:
+        merged.setdefault("extract", {})["reddit_mirror"] = os.environ["FORAGE_REDDIT_MIRROR"].strip()
 
     # Cache
     if "FORAGE_CACHE_ENABLED" in os.environ:

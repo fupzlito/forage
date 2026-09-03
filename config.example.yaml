@@ -62,6 +62,7 @@ extract:
   prefer_markdown: true    # negotiate Accept: text/markdown with servers
   require_max_chars: false # require LLMs to pass character budget per URL
   allow_private_ips: false   # allow URLs resolving to private/internal IPs (SSRF guard bypass)
+  reddit_mirror: null        # tier 2 redlib mirror (set to a self-hosted redlib instance to enable tier 2)
 
   # Domain-specific overrides (override patterns match host and subdomains)
   domain_overrides:

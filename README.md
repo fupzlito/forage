@@ -134,6 +134,7 @@ services:
       - FORAGE_DEFAULT_ENGINES=google-cse,brave,bing,duckduckgo,startpage # default engines queried when search engine(s) omitted by LLMs
 #     - FORAGE_REDDIT_SESSION="your_session_cookie_here"     # optional: logged-in reddit session (quote string to escape special characters)
 #     - FORAGE_REDDIT_TOKEN_V2="your_token_v2_cookie_here"   # optional: reddit token_v2 cookie (quote string to escape special characters)
+#     - FORAGE_REDDIT_MIRROR=your-redlib-host  # tier 2 redlib mirror (set to enable tier 2)
       - FORAGE_AUTH_ENABLED=false              # set true if exposing to the public internet
       - FORAGE_API_KEYS=your_api_key_here      # comma-separated keys when auth is enabled
       - FORAGE_REQUIRE_MAX_CHARS=false         # require LLMs to pass character budget per URL
@@ -350,6 +351,7 @@ All settings can be dynamically overridden via Docker environment variables with
 | `FORAGE_REDDIT_SESSION` | Authenticated `reddit_session` cookie for Reddit JSON API (enclose in quotes `"..."`) | `""` |
 | `FORAGE_REDDIT_TOKEN_V2` | Authenticated `token_v2` cookie for Reddit JSON API (enclose in quotes `"..."`) | `""` |
 | `FORAGE_REDDIT_COOKIES` | Full raw Reddit cookie string (`k=v, k2=v2`, enclose in quotes) | - |
+| `FORAGE_REDDIT_MIRROR` | Tier 2 redlib mirror (set to enable tier 2; all public mirrors are Anubis/Turnstile-blocked) | `null` |
 | `FORAGE_YOUTUBE_API_KEY` / `YOUTUBE_API_KEY` | Google YouTube Data API v3 key; when set, enables the `youtube_search` tool | `""` |
 | `FORAGE_YOUTUBE_NAME` | Custom tool name exposed to LLMs for YouTube search | `youtube_search` |
 | `FORAGE_YOUTUBE_DEFAULT_LIMIT` | Default YouTube results per search | `20` |
