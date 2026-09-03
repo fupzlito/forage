@@ -804,8 +804,13 @@ async def mcp_sse(
 
     async def event_generator():
         try:
+            # Preserve query parameters (such as ?api_key=...) so the client's subsequent POST /mcp/messages stays authenticated
+            raw_query = str(request.url.query) if hasattr(request, "url") and hasattr(request.url, "query") and isinstance(request.url.query, str) else ""
+            filtered_query = "&".join(p for p in raw_query.split("&") if p and not p.startswith("session_id="))
+            query_suffix = f"&{filtered_query}" if filtered_query else ""
+
             # First message: tell client where to POST messages
-            yield f"event: endpoint\ndata: /mcp/messages?session_id={session_id}\n\n"
+            yield f"event: endpoint\ndata: /mcp/messages?session_id={session_id}{query_suffix}\n\n"
             while True:
                 data = await queue.get()
                 yield f"event: message\ndata: {json.dumps(data)}\n\n"

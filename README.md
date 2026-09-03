@@ -260,7 +260,7 @@ Connect OpenWebUI directly using either:
 - **Native MCP (Streamable HTTP)**: `http://forage:3672/mcp`
 - **OpenAI Compatible Tool Server**: `http://forage:3672/v1` (with full streaming support)
 - **OpenAPI Tool**: Import `http://forage:3672/openapi.json`
-- **MCP SSE (Claude Desktop / Cursor / Cline)**: `http://forage:3672/mcp/sse`
+- **MCP SSE (Claude Desktop / Cursor / Cline)**: `http://forage:3672/mcp/sse?api_key=YOUR_FORAGE_API_KEY`
 
 ---
 
