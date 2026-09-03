@@ -11,7 +11,7 @@
 server:
   host: 0.0.0.0            # bind inside the container
   port: 3672               # HTTP port
-  workers: 2               # uvicorn workers
+  workers: 1               # uvicorn workers (1 avoids in-memory cache & SSE session split-brain)
   log_level: info          # debug | info | warning | error
 
 # --- Cache --------------------------------------------------

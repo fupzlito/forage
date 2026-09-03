@@ -24,7 +24,7 @@ DEFAULTS: Dict[str, Any] = {
     "server": {
         "host": "0.0.0.0",
         "port": 3672,
-        "workers": 2,
+        "workers": 1,
         "log_level": "info",
     },
     "cache": {
@@ -114,7 +114,7 @@ logger = logging.getLogger(__name__)
 class ServerConfig:
     host: str = "0.0.0.0"
     port: int = 3672
-    workers: int = 2
+    workers: int = 1
     log_level: str = "info"
 
 
