@@ -38,6 +38,7 @@ Bypass per request with the `Cache-Control: no-cache` header; the response heade
 |---|---|---|
 | `search_name` | `web_search` | Custom tool call name presented in OpenAPI schemas and MCP tools list for web search (e.g. `web_search`, `search_web`). |
 | `extract_name` | `web_extract` | Custom tool call name presented in OpenAPI schemas and MCP tools list for web extraction (e.g. `web_extract`, `fetch_page`). |
+| `youtube_name` | `youtube_search` | Custom tool call name presented in OpenAPI schemas and MCP tools list for YouTube search (e.g. `youtube_search`, `yt_search`). |
 | `include_favicon` | `false` | Global toggle: if true, adds favicon URLs to search/extract results and formatted text blocks for models. Can also be overridden specifically under `search` or `extract`. |
 
 ## `search`
@@ -210,8 +211,8 @@ Environment variables provide the highest precedence in configuration resolution
 | `FORAGE_BROWSER_CDP_URL` | `browser.cdp_url` | Obscura CDP endpoint URL when `engine=obscura` (e.g. `http://obscura:9223`). |
 | `FORAGE_BROWSER_HEADLESS` | `browser.headless` | Run browser in headless mode (`true`/`false`). |
 | `FORAGE_EXTRACT_ENGINE` | `extract.engine` | Extraction engine: `trafilatura` or `readability`. |
-| `FORAGE_EXTRACT_MAX_DOCUMENT_BYTES` | `extract.max_document_bytes` | Max bytes for document downloads (default `150000000` = 150 MB). Documents larger than this are skipped. |
-| `FORAGE_EXTRACT_MAX_RESPONSE_BYTES` | `extract.max_response_bytes` | Max bytes for static HTML responses (default `50000000` = 50 MB). Responses larger than this are skipped. |
+| `FORAGE_EXTRACT_MAX_DOCUMENT_SIZE` | `extract.max_document_bytes` | Max size for document downloads in MB (default `150` = 150 MB). Documents larger than this are skipped. |
+| `FORAGE_EXTRACT_MAX_WEBPAGE_SIZE` | `extract.max_response_bytes` | Max size for static HTML responses in MB (default `50` = 50 MB). Responses larger than this are skipped. |
 | `FORAGE_REDDIT_MIRROR` | `extract.reddit_mirror` | Tier 2 redlib mirror (set to enable tier 2; all public mirrors are Anubis/Turnstile-blocked). Default `null` (disabled). |
 | `FORAGE_EXTRACT_ALLOW_PRIVATE_IPS` | `extract.allow_private_ips` | Allow extraction of URLs resolving to private, loopback, or link-local IPs (`true`/`false`). Default `false` blocks all private/reserved addresses. |
 | `FORAGE_SEARCH_NAME` | `tools.search_name` | Custom tool name exposed to LLMs for web search (default `web_search`). |

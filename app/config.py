@@ -472,14 +472,14 @@ def _apply_env_overrides(merged: Dict[str, Any]) -> Dict[str, Any]:
         merged.setdefault("extract", {})["require_max_chars"] = _parse_bool(os.environ["FORAGE_REQUIRE_MAX_CHARS"])
     if "FORAGE_EXTRACT_ALLOW_PRIVATE_IPS" in os.environ:
         merged.setdefault("extract", {})["allow_private_ips"] = _parse_bool(os.environ["FORAGE_EXTRACT_ALLOW_PRIVATE_IPS"])
-    if "FORAGE_EXTRACT_MAX_DOCUMENT_BYTES" in os.environ:
+    if "FORAGE_EXTRACT_MAX_DOCUMENT_SIZE" in os.environ:
         try:
-            merged.setdefault("extract", {})["max_document_bytes"] = int(os.environ["FORAGE_EXTRACT_MAX_DOCUMENT_BYTES"])
+            merged.setdefault("extract", {})["max_document_bytes"] = int(os.environ["FORAGE_EXTRACT_MAX_DOCUMENT_SIZE"]) * 1_000_000
         except ValueError:
             pass
-    if "FORAGE_EXTRACT_MAX_RESPONSE_BYTES" in os.environ:
+    if "FORAGE_EXTRACT_MAX_WEBPAGE_SIZE" in os.environ:
         try:
-            merged.setdefault("extract", {})["max_response_bytes"] = int(os.environ["FORAGE_EXTRACT_MAX_RESPONSE_BYTES"])
+            merged.setdefault("extract", {})["max_response_bytes"] = int(os.environ["FORAGE_EXTRACT_MAX_WEBPAGE_SIZE"]) * 1_000_000
         except ValueError:
             pass
     if "FORAGE_REDDIT_MIRROR" in os.environ:

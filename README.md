@@ -127,8 +127,6 @@ services:
     ports:
       - "3672:3672"
     environment:
-      - PUID=1000                              # optional user id for file ownership
-      - PGID=1000                              # optional group id
       - TZ=America/New_York                    # sets local time context for LLM prompts
       - FORAGE_SEARXNG_URL=http://searxng:8080 # SearXNG backend service
       - FORAGE_DEFAULT_ENGINES=google-cse,brave,bing,duckduckgo,startpage # default engines queried when search engine(s) omitted by LLMs
@@ -138,9 +136,8 @@ services:
       - FORAGE_AUTH_ENABLED=false              # set true if exposing to the public internet
       - FORAGE_API_KEYS=your_api_key_here      # comma-separated keys when auth is enabled
       - FORAGE_REQUIRE_MAX_CHARS=false         # require LLMs to pass character budget per URL
-#     - FORAGE_EXTRACT_ALLOW_PRIVATE_IPS=false   # allow private/reserved IP extraction (SSRF guard bypass)
-#     - FORAGE_EXTRACT_MAX_DOCUMENT_BYTES=150000000  # max bytes for document downloads (150 MB)
 #     - FORAGE_YOUTUBE_API_KEY="your_youtube_key_here"   # enables youtube_search (YouTube Data API v3)
+#     - FORAGE_YOUTUBE_NAME="youtube_search"             # custom tool name exposed to LLMs for YouTube search
 #   volumes:
 #     # Uncomment if detailed config/prompt overrides are desired.
 #     # Stores config.yaml and prompts.yaml (auto-seeded on first run if directory is empty):
@@ -257,22 +254,7 @@ curl -N -X POST http://localhost:3672/extract \
   -d '{"urls":["https://en.wikipedia.org/wiki/Python_(programming_language)","https://x.com/OpenAI"],"stream":true}'
 ```
 
-### 4. OpenAI Chat Completions Streaming (`POST /v1/chat/completions`)
-
-```bash
-curl -N -X POST http://localhost:3672/v1/chat/completions \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "model": "web_extract",
-    "messages": [
-      {"role": "user", "content": "https://en.wikipedia.org/wiki/Python_(programming_language)"}
-    ],
-    "stream": true,
-    "max_chars": 5000
-  }'
-```
-
-### 5. OpenWebUI & MCP Integration
+### 4. OpenWebUI & MCP Integration
 
 Connect OpenWebUI directly using either:
 - **Native MCP (Streamable HTTP)**: `http://forage:3672/mcp`
@@ -305,6 +287,7 @@ cache:
 tools:
   search_name: web_search
   extract_name: web_extract
+  youtube_name: youtube_search
   include_favicon: false
 
 search:
@@ -316,6 +299,9 @@ extract:
   timeout: 30
   max_content_chars: 100000
   require_max_chars: false
+  max_document_bytes: 150000000  # max document download size (150 MB)
+  max_response_bytes: 50000000   # max static HTML response size (50 MB)
+  reddit_mirror: null    # tier 2 redlib mirror (set to a self-hosted redlib instance to enable tier 2)
   domain_overrides:
     reddit.com:
       engine: readability
@@ -331,6 +317,11 @@ extract:
 browser:
   engine: scrapling
   fallback_solver: true
+
+youtube:
+  api_key: null          # YouTube Data API v3 key (or set FORAGE_YOUTUBE_API_KEY). When set, enables youtube_search.
+  default_limit: 20
+  max_limit: 50
 ```
 
 ### 🐳 Docker Environment Variables
@@ -352,12 +343,13 @@ All settings can be dynamically overridden via Docker environment variables with
 | `FORAGE_REDDIT_TOKEN_V2` | Authenticated `token_v2` cookie for Reddit JSON API (enclose in quotes `"..."`) | `""` |
 | `FORAGE_REDDIT_COOKIES` | Full raw Reddit cookie string (`k=v, k2=v2`, enclose in quotes) | - |
 | `FORAGE_REDDIT_MIRROR` | Tier 2 redlib mirror (set to enable tier 2; all public mirrors are Anubis/Turnstile-blocked) | `null` |
+| `FORAGE_EXTRACT_MAX_DOCUMENT_SIZE` | Max size for document downloads in MB (PDF/DOCX/XLSX/PPTX/RTF) | `150` |
+| `FORAGE_EXTRACT_MAX_WEBPAGE_SIZE` | Max size for static HTML responses in MB | `50` |
 | `FORAGE_YOUTUBE_API_KEY` / `YOUTUBE_API_KEY` | Google YouTube Data API v3 key; when set, enables the `youtube_search` tool | `""` |
 | `FORAGE_YOUTUBE_NAME` | Custom tool name exposed to LLMs for YouTube search | `youtube_search` |
 | `FORAGE_YOUTUBE_DEFAULT_LIMIT` | Default YouTube results per search | `20` |
 | `FORAGE_YOUTUBE_MAX_LIMIT` | Max YouTube results per search | `50` |
 | `FORAGE_REQUIRE_MAX_CHARS` | Require LLMs to specify character budgets (`true`/`false`) | `false` |
-| `FORAGE_EXTRACT_MAX_DOCUMENT_BYTES` | Max bytes for document downloads (PDF/DOCX/XLSX/PPTX/RTF) | `150000000` |
 | `FORAGE_EXTRACT_ALLOW_PRIVATE_IPS` | Allow extraction of URLs resolving to private/reserved IPs (`true`/`false`) | `false` |
 | `FORAGE_AUTH_ENABLED` | Enable Bearer API authentication (`true`/`false`) | `false` |
 | `FORAGE_API_KEYS` | Comma-separated API keys (when auth is enabled) | `""` |
