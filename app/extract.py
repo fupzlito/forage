@@ -613,13 +613,8 @@ def _set_reddit_json_cooldown(cooldown_seconds: float = 30.0) -> None:
 
 
 def _reddit_mirror(config) -> Optional[str]:
-    """Return the configured tier 2 mirror, or None when unset.
-
-    Uses isinstance so a Mock config (tests) yields None instead of a
-    truthy Mock that would break ``host in url``.
-    """
-    host = config.extract.reddit_mirror
-    return host if isinstance(host, str) else None
+    """Return the configured tier 2 mirror, or None when unset."""
+    return config.extract.reddit_mirror
 
 
 async def _try_reddit_extract(

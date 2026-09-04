@@ -37,6 +37,7 @@ def _fake_config():
     cfg.extract.domain_overrides = ()
     cfg.extract.max_content_chars = 100000
     cfg.extract.raw_content_markdown = False
+    cfg.extract.reddit_mirror = None
     cfg.browser = Mock()
     cfg.browser.fallback_solver = False
     return cfg
