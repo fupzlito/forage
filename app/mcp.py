@@ -64,6 +64,18 @@ async def _extract_one(
     # clamp_output is pure (no mutation), so cached dicts stay untouched.
     return clamp_output(result, max_chars)
 
+def _parse_urls(raw: Any) -> List[str]:
+    """Normalize a urls/url argument into a list of stripped URL strings.
+
+    A comma-separated string is split into individual URLs; a list is
+    element-wise stripped. Empty entries are dropped.
+    """
+    if isinstance(raw, str):
+        return [u.strip() for u in raw.split(",") if u.strip()]
+    if isinstance(raw, list):
+        return [str(u).strip() for u in raw if str(u).strip()]
+    return []
+
 # Active SSE sessions for MCP: {session_id: (queue, created_at)}
 _sse_sessions: Dict[str, tuple[asyncio.Queue, float]] = {}
 _SSE_SESSION_TTL = 1800.0  # 30 minutes
@@ -447,13 +459,7 @@ async def execute_tool_call(
         }
 
     elif name == extract_name or name == "web_extract":
-        raw_urls = arguments.get("urls") or arguments.get("url")
-        if isinstance(raw_urls, str):
-            urls = [raw_urls]
-        elif isinstance(raw_urls, list):
-            urls = [str(u) for u in raw_urls if u]
-        else:
-            urls = []
+        urls = _parse_urls(arguments.get("urls") or arguments.get("url"))
 
         if not urls:
             return {"error": "Missing required parameter 'urls'"}
@@ -652,7 +658,7 @@ async def execute_tool_call(
     else:
         available = [search_name, extract_name]
         if config.youtube.enabled:
-            available.append("youtube_search")
+            available.append(youtube_name)
         avail_str = "', '".join(available)
         return {"error": f"Unknown tool: '{name}'. Available tools: '{avail_str}'."}
 
@@ -691,7 +697,7 @@ async def process_mcp_rpc(
         return {"jsonrpc": "2.0", "id": msg_id, "result": {}}
 
     elif method == "tools/list":
-        tools_def = get_tool_definitions(config)
+        tools_def = await asyncio.to_thread(get_tool_definitions, config)
         mcp_tools = [
             {
                 "name": t["name"],
@@ -865,7 +871,7 @@ async def v1_tools_list(
 ) -> dict:
     """OpenAI API compatible tool definitions."""
     config, _ = _get_config_and_pool(request)
-    tools_def = get_tool_definitions(config)
+    tools_def = await asyncio.to_thread(get_tool_definitions, config)
     openai_tools = [
         {
             "type": "function",
@@ -918,8 +924,7 @@ async def v1_tools_call(
         async def _stream_tool_events():
             extract_name = config.tools.extract_name
             if name == extract_name or name == "web_extract":
-                raw_urls = arguments.get("urls", [])
-                urls = [str(u).strip() for u in raw_urls.split(",") if str(u).strip()] if isinstance(raw_urls, str) else [str(u).strip() for u in raw_urls if str(u).strip()]
+                urls = _parse_urls(arguments.get("urls", []))
                 urls = urls[:20]
                 if not urls:
                     err_payload = json.dumps({"error": "Missing required parameter 'urls'"})
@@ -1083,8 +1088,7 @@ async def _stream_openai_chat_completions(
     extract_name = config.tools.extract_name
 
     if tool_name == extract_name or tool_name == "web_extract":
-        raw_urls = args.get("urls", [])
-        urls = [str(u).strip() for u in raw_urls.split(",") if str(u).strip()] if isinstance(raw_urls, str) else [str(u).strip() for u in raw_urls if str(u).strip()]
+        urls = _parse_urls(args.get("urls", []))
         urls = urls[:20]
 
         if not urls:
@@ -1123,9 +1127,9 @@ async def _stream_openai_chat_completions(
 
         include_fav = config.extract.include_favicon if getattr(config.extract, "include_favicon", None) is not None else getattr(config.tools, "include_favicon", False)
 
-        async def _one_stream(u: str, pos: int) -> Dict[str, Any]:
+        async def _one_stream(u: str, pos: int) -> tuple[int, Dict[str, Any]]:
             try:
-                return await _extract_one(
+                return pos, await _extract_one(
                     config,
                     browser_pool,
                     u,
@@ -1139,13 +1143,13 @@ async def _stream_openai_chat_completions(
                     max_chars=max_chars,
                 )
             except Exception as exc:  # noqa: BLE001
-                return {"url": u, "error": str(exc)}
+                return pos, {"url": u, "error": str(exc)}
 
         tasks = [asyncio.create_task(_one_stream(u, idx + 1)) for idx, u in enumerate(urls)]
-        for idx_c, coro in enumerate(asyncio.as_completed(tasks)):
-            r = await coro
+        for coro in asyncio.as_completed(tasks):
+            pos, r = await coro
             if "error" in r:
-                block = f"[{idx_c+1}] {r['url']}\nERROR: {r['error']}\n\n---\n\n"
+                block = f"[{pos}] {r['url']}\nERROR: {r['error']}\n\n---\n\n"
             else:
                 t = r.get("title", "")
                 dom = r.get("domain", "")
@@ -1154,7 +1158,7 @@ async def _stream_openai_chat_completions(
                 m = r.get("method", "unknown")
                 cit = r.get("citation", f"[{dom}]({u})")
                 block = (
-                    f"[{idx_c+1}] {dom} | {m}\n"
+                    f"[{pos}] {dom} | {m}\n"
                     f"URL: {u}\n"
                     f"TITLE: {t}\n"
                     f"CITE AS: {cit}"
@@ -1203,13 +1207,19 @@ async def post_v1_chat_completions(
 
     search_name = config.tools.search_name
     extract_name = config.tools.extract_name
+    youtube_name = getattr(config.tools, "youtube_name", "youtube_search")
 
     import re as _re
     urls = _re.findall(r'https?://[^\s>"]+', query)
 
-    if model_requested == extract_name or (urls and model_requested != search_name):
+    if model_requested == youtube_name:
+        tool_name = youtube_name
+        args: Dict[str, Any] = {"query": query}
+        if body.get("limit"):
+            args["limit"] = body.get("limit")
+    elif model_requested == extract_name or (urls and model_requested != search_name):
         tool_name = extract_name
-        args: Dict[str, Any] = {"urls": urls if urls else [query]}
+        args = {"urls": urls if urls else [query]}
         if body.get("max_chars"):
             args["max_chars"] = body.get("max_chars")
     else:
