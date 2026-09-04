@@ -220,7 +220,10 @@ def get_live_available_engines(config: ForageConfig) -> Tuple[str, ...]:
         _last_engine_fetch = now
         return avail
 
-    # Fallback default text engines baseline
+    logger.warning(
+        "SearXNG /config probe returned no engines; falling back to DEFAULT_AVAILABLE_ENGINES. "
+        "Check SearXNG health or pin FORAGE_AVAILABLE_ENGINES."
+    )
     return DEFAULT_AVAILABLE_ENGINES
 
 

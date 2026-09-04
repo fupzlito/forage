@@ -305,7 +305,7 @@ async def health() -> dict:
             "extract_name": config.tools.extract_name,
         },
         "search": {
-            "available_engines": list(get_live_available_engines(config)),
+            "available_engines": list(await asyncio.to_thread(get_live_available_engines, config)),
             "default_engines": list(config.search.engines),
         },
         "cache": {

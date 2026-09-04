@@ -603,6 +603,7 @@ class BrowserPool:
             # pool recovers even when the first restart itself dies (launch
             # timeout / memory pressure during a burst).
             for attempt in range(3):
+                result["article"] = None
                 try:
                     resp = await asyncio.wait_for(
                         self._scrapling_session.fetch(
