@@ -11,10 +11,10 @@ Resolution order: `built-in defaults → config.yaml → external prompts.yaml �
 ## `server`
 
 | Key | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `host` | `0.0.0.0` | Bind address inside the container. Bridge networking requires `0.0.0.0` (docker-proxy routes to it); the real exposure is controlled by the compose `ports:` mapping. |
 | `port` | `3672` | HTTP port (T9 of "FORA"). The app reads the config before starting uvicorn, so this is honored without rebuilding. |
-| `workers` | `2` | uvicorn worker processes. |
+| `workers` | `1` | uvicorn worker processes. A single worker avoids in-memory cache and SSE session split-brain across workers. |
 | `log_level` | `info` | `debug` \| `info` \| `warning` \| `error` |
 
 ## `cache`
@@ -22,7 +22,7 @@ Resolution order: `built-in defaults → config.yaml → external prompts.yaml �
 In-memory LRU only (lost on restart, by design). The master switch `enabled` turns everything off; per-section toggles can only disable further.
 
 | Key | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `enabled` | `true` | Master switch. `false` disables all caching regardless of section toggles. |
 | `max_entries` | `500` | Global LRU cap across both caches. |
 | `search.enabled` | `true` | Cache search results. |
@@ -35,7 +35,7 @@ Bypass per request with the `Cache-Control: no-cache` header; the response heade
 ## `tools`
 
 | Key | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `search_name` | `web_search` | Custom tool call name presented in OpenAPI schemas and MCP tools list for web search (e.g. `web_search`, `search_web`). |
 | `extract_name` | `web_extract` | Custom tool call name presented in OpenAPI schemas and MCP tools list for web extraction (e.g. `web_extract`, `fetch_page`). |
 | `youtube_name` | `youtube_search` | Custom tool call name presented in OpenAPI schemas and MCP tools list for YouTube search (e.g. `youtube_search`, `yt_search`). |
@@ -44,7 +44,7 @@ Bypass per request with the `Cache-Control: no-cache` header; the response heade
 ## `search`
 
 | Key | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `searxng_url` | `http://searxng:8080` | Base URL of the SearXNG instance. On Docker, use the service name on the shared network (see docs/SEARXNG.md). |
 | `default_lang` | `en-US` | Language passed to SearXNG. |
 | `default_engines` | `[google, bing, brave, duckduckgo, qwant]` | Default engine filter sent to SearXNG when no engine is requested by the model (legacy key: `engines`). |
@@ -60,6 +60,7 @@ Bypass per request with the `Cache-Control: no-cache` header; the response heade
 ### Search Engine Validation & Suspension Handling
 
 Forage handles search engine reliability on multiple levels:
+
 1. **Alias Normalization & Validation**: When an LLM requests engines (e.g. `google_search`, `ddg`), Forage resolves aliases and validates against `available_engines`. If unknown engines are requested, it gracefully falls back to `search.engines` with an informative warning rather than failing the call.
 2. **SearXNG Suspension Tracking**: When upstream engines encounter bot blocks or CAPTCHAs, SearXNG suspends them and marks them in `unresponsive_engines`. Forage parses these, distinguishes active from failing engines, and surfaces a single-line summary (`unresponsive_engines`) and guidance warning to prevent LLM retry loops.
 3. **Search Caching**: Search queries are cached in-memory for 5 minutes (`search.ttl: 300`) by default, protecting upstream search providers from being suspended.
@@ -68,7 +69,7 @@ Forage handles search engine reliability on multiple levels:
 ## `extract`
 
 | Key | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `timeout` | `30` | Total seconds budget per URL (applies to static fetch and browser render). |
 | `max_content_chars` | `100000` | Cap on extracted content size. |
 | `only_main_content` | `true` | Strip navigation/ads/footer (trafilatura main-content extraction). |
@@ -130,7 +131,7 @@ extract:
 ## `browser`
 
 | Key | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `engine` | `scrapling` | Browser backend engine: `scrapling` (default; StealthyFetcher fingerprint impersonation and Cloudflare bypass), `playwright`, `patchright`, or `obscura` (external Rust/V8 headless browser via CDP). |
 | `cdp_url` | `""` | CDP endpoint URL when `engine: obscura` (e.g. `http://127.0.0.1:9223` or `ws://127.0.0.1:9223`). Ignored for other engines. |
 | `min_idle` | `1` | Warm browser instances kept idle in pool. On `scrapling`, pool size is fixed at 1. |
@@ -144,6 +145,7 @@ extract:
 | `challenge_timeout` | `15` | Max seconds to wait for an anti-bot challenge (Cloudflare, DDoS-GUARD) to resolve before extracting. Active only under `engine: scrapling`. Override per-domain via `challenge_timeout`. |
 | `solve_cloudflare` | `false` | Scrapling engine only: use Scrapling's built-in Cloudflare solver on EVERY page. Adds ~5s per page of networkidle wait time. Keep `false` (default) to let the lightweight title-polling loop in `page_action` handle challenges with zero overhead on clean pages; set `true` only if targeting sites with interactive turnstile checkboxes. |
 | `fallback_solver` | `true` | Scrapling engine only: when `looks_like_challenge()` detects a challenge after normal extraction, automatically retry that single URL with Scrapling's built-in challenge solver. Gives automatic bypass without paying the ~5s solver overhead on clean pages. |
+| `locale` | `["en-US", "en"]` | `navigator.languages` values for the stealth init script. Env: `FORAGE_BROWSER_LOCALE`. |
 
 ## `auth`
 
@@ -158,13 +160,15 @@ Keys come from the `FORAGE_API_KEYS` env var (comma-separated) and are compared 
 Customize citation rules, tool descriptions, and OpenAPI/MCP parameter descriptions. Supports dynamic template placeholders: `{now_date}` (e.g. `2026-08-24 03:57 UTC`), `{year}` (`2026`), `{default_engines}`, `{available_engines}`, `{default_limit}`, `{citation_guidelines}`.
 
 | Key | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `prompts_path` | `null` | Optional absolute path to an external prompts YAML file (e.g. `/etc/forage/prompts.yaml`). When set, the file is loaded and merged into the prompts sub-config, overriding built-in defaults. Partial files are fine - missing keys fall back to the built-in values. |
 | `citation_guidelines` | *(citation rules block)* | Reusable citation rules template. Automatically interpolated into tool descriptions via `{citation_guidelines}`. |
 | `search_tool_description` | *(search template)* | Tool description presented in OpenAPI and MCP schemas for web search. |
 | `extract_tool_description` | *(extract template)* | Tool description presented in OpenAPI and MCP schemas for web extraction. |
 | `search_params` | `{query, limit, ...}` | Dictionary of argument descriptions for web search parameters. |
 | `extract_params` | `{urls, force_render, ...}` | Dictionary of argument descriptions for web extract parameters. |
+| `youtube_tool_description` | *(youtube template)* | Tool description presented in OpenAPI and MCP schemas for YouTube search. |
+| `youtube_params` | `{query, channel, ...}` | Dictionary of argument descriptions for YouTube search parameters. |
 
 ### External prompts file
 
@@ -184,7 +188,7 @@ youtube:
 ```
 
 | Key | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `api_key` | `null` | Google YouTube Data API v3 key. When set, registers the dedicated `youtube_search` tool in MCP and OpenAPI schemas and routes queries to the YouTube Data API v3 directly. |
 | `default_limit` | `20` | Default results returned when `limit` is omitted. |
 | `max_limit` | `50` | Maximum results allowed per request (1-50). |
@@ -198,7 +202,7 @@ youtube:
 Environment variables provide the highest precedence in configuration resolution (`built-in defaults → config.yaml → external prompts.yaml → environment variables`). Any setting passed as an environment variable directly overrides the corresponding value in `config.yaml`.
 
 | Variable | Section / Target | Purpose & Example |
-|---|---|---|
+| --- | --- | --- |
 | `FORAGE_API_KEYS` | `auth` | Comma-separated API keys used when auth is enabled (e.g. `key1,key2`). |
 | `FORAGE_AUTH_ENABLED` | `auth.enabled` | Enable or disable API authentication (`true`/`false`). |
 | `FORAGE_CONFIG` | Config Loader | Path to YAML config file or mounted directory (default `/etc/forage/config.yaml`). |
@@ -210,6 +214,7 @@ Environment variables provide the highest precedence in configuration resolution
 | `FORAGE_BROWSER_ENGINE` | `browser.engine` | Browser engine: `scrapling` (default), `playwright`, `patchright`, or `obscura`. |
 | `FORAGE_BROWSER_CDP_URL` | `browser.cdp_url` | Obscura CDP endpoint URL when `engine=obscura` (e.g. `http://obscura:9223`). |
 | `FORAGE_BROWSER_HEADLESS` | `browser.headless` | Run browser in headless mode (`true`/`false`). |
+| `FORAGE_BROWSER_LOCALE` | `browser.locale` | Comma-separated `navigator.languages` values for the stealth init script (e.g. `en-US,en`). |
 | `FORAGE_EXTRACT_ENGINE` | `extract.engine` | Extraction engine: `trafilatura` or `readability`. |
 | `FORAGE_EXTRACT_MAX_DOCUMENT_SIZE` | `extract.max_document_bytes` | Max size for document downloads in MB (default `150` = 150 MB). Documents larger than this are skipped. |
 | `FORAGE_EXTRACT_MAX_WEBPAGE_SIZE` | `extract.max_response_bytes` | Max size for static HTML responses in MB (default `50` = 50 MB). Responses larger than this are skipped. |
@@ -234,7 +239,7 @@ Environment variables provide the highest precedence in configuration resolution
 ### Consumer Client Environment Variables (Hermes Plugin)
 
 | Variable | Where | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `FORAGE_URL` | Hermes `.env` | Base URL the Hermes plugin calls (e.g. `http://localhost:3672`). |
 | `FORAGE_API_KEY` | Hermes `.env` | Key the plugin sends when auth is enabled. |
 | `FORAGE_BYPASS_CACHE` | Hermes `.env` | `true` makes the plugin always send `Cache-Control: no-cache`. |

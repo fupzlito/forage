@@ -498,13 +498,16 @@ async def fetch_static(
         for attempt in range(RETRY_ATTEMPTS):
             try:
                 async with client.stream("GET", url, headers=headers) as resp:
-                    if resp.status_code in RETRY_STATUS and attempt < RETRY_ATTEMPTS - 1:
-                        logger.info(
-                            "%s -> HTTP %d (transient), retrying in %.1fs",
-                            url, resp.status_code, RETRY_DELAY,
-                        )
-                        await asyncio.sleep(RETRY_DELAY)
-                        continue
+                    if resp.status_code in RETRY_STATUS:
+                        if attempt < RETRY_ATTEMPTS - 1:
+                            logger.info(
+                                "%s -> HTTP %d (transient), retrying in %.1fs",
+                                url, resp.status_code, RETRY_DELAY,
+                            )
+                            await asyncio.sleep(RETRY_DELAY)
+                            continue
+                        logger.info("%s -> HTTP %d (persistent), giving up", url, resp.status_code)
+                        return None, resp.status_code, str(resp.url), ""
                     content_type = resp.headers.get("content-type", "").split(";")[0].strip().lower()
                     # Reject oversized responses before reading the body into memory.
                     cl = resp.headers.get("content-length")
@@ -939,6 +942,9 @@ async def extract_url(
         if status in (401, 403, 429):
             logger.info("%s -> HTTP %d, falling back to browser", url, status)
             want_browser = True
+        elif status >= 500:
+            # Persistent 5xx: the server is failing, not serving a block page.
+            return {"url": original_url, "error": f"Server error (HTTP {status})"}
         elif html is not None and looks_like_challenge(html, _extract_title(html)):
             # Some anti-bot setups (e.g. Cloudflare managed challenge) answer
             # 200 with a challenge page. Give the browser a shot before failing.
@@ -1007,7 +1013,7 @@ async def extract_url(
                 readability_title = None
         except Exception as exc:  # noqa: BLE001
             logger.warning("Browser render failed for %s: %s", url, exc)
-            if html is None:
+            if html is None or status in (401, 403, 429):
                 return {"url": original_url, "error": f"Browser render failed: {exc}"}
             # static html (if any) is still better than nothing
 

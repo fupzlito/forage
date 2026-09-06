@@ -263,7 +263,7 @@ def clean_reddit_markdown(text: str) -> str:
         text = re.sub(b, '', text, flags=re.IGNORECASE)
 
     # Strip lone floating numbers on their own lines (leftover upvote buttons)
-    text = re.sub(r'(?<=\n)\s*\d+(?:\.\d+)?(?:k|K)?\s*(?=\n|\Z)', '', text)
+    text = re.sub(r'(?<=\n)\s*\d+(?:\.\d+)?[kK]\s*(?=\n|\Z)', '', text)
 
     # Remove duplicate consecutive links produced by card headers + titles
     text = re.sub(r'(\[[^\]]+\]\([^)]+\))\s*\n+(?:---\s*\n+)?(?:\s*\[r/[^\]]+\]\([^)]+\)\s*\n+)?\1', r'\1', text)

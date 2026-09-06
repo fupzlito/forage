@@ -220,11 +220,16 @@ def get_live_available_engines(config: ForageConfig) -> Tuple[str, ...]:
         _last_engine_fetch = now
         return avail
 
+    # Cache the failure so we don't hammer a down SearXNG on every call.
+    # The guard checks `_cached_available_engines` truthiness, so it must be
+    # set to the fallback for the TTL to actually suppress re-probes.
+    _cached_available_engines = DEFAULT_AVAILABLE_ENGINES
+    _last_engine_fetch = now
     logger.warning(
         "SearXNG /config probe returned no engines; falling back to DEFAULT_AVAILABLE_ENGINES. "
         "Check SearXNG health or pin FORAGE_AVAILABLE_ENGINES."
     )
-    return DEFAULT_AVAILABLE_ENGINES
+    return _cached_available_engines
 
 
 def normalize_and_validate_engines(
