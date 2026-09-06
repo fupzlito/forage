@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 import uuid
 from typing import Any, Dict, List, Optional
 
@@ -378,7 +379,7 @@ async def execute_tool_call(
     youtube_name = getattr(config.tools, "youtube_name", "youtube_search")
 
     if name == search_name or name == "web_search":
-        query = str(arguments.get("query", "")).strip()
+        query = (arguments.get("query") or "").strip()
         if not query:
             return {"error": "Missing required parameter 'query'"}
         raw_limit = arguments.get("limit")
@@ -589,6 +590,8 @@ async def execute_tool_call(
 
         query = arguments.get("query")
         channel = arguments.get("channel")
+        if not query and not channel:
+            return {"error": "Missing required parameter: 'query' or 'channel'"}
         sort_by = arguments.get("sort_by")
         raw_limit = arguments.get("limit")
         default_lim = config.youtube.default_limit
@@ -715,6 +718,13 @@ async def process_mcp_rpc(
     elif method == "tools/call":
         tool_name = params.get("name", "")
         arguments = params.get("arguments", {})
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except (ValueError, TypeError):
+                arguments = {}
+        elif not isinstance(arguments, dict):
+            arguments = {}
         res = await execute_tool_call(tool_name, arguments, config, browser_pool)
 
         if "error" in res:
@@ -773,11 +783,13 @@ async def mcp_post(
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
     # If this POST was tied to an active SSE session, route response through the queue
-    if sid and sid in _sse_sessions:
-        resp = await process_mcp_rpc(body, config, browser_pool)
-        if resp:
-            await _sse_sessions[sid][0].put(resp)
-        return JSONResponse(content={"status": "accepted"})
+    if sid:
+        session_entry = _sse_sessions.get(sid)
+        if session_entry:
+            resp = await process_mcp_rpc(body, config, browser_pool)
+            if resp:
+                await session_entry[0].put(resp)
+            return JSONResponse(content={"status": "accepted"})
 
     if isinstance(body, list):
         # Batch RPC requests
@@ -1246,7 +1258,7 @@ async def post_v1_chat_completions(
         content={
             "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
             "object": "chat.completion",
-            "created": 1700000000,
+            "created": int(time.time()),
             "model": model_requested,
             "choices": [
                 {

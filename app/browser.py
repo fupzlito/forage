@@ -375,7 +375,10 @@ class BrowserPool:
                     except Exception:  # noqa: BLE001
                         pass
             if readability:
-                article = _parse_readability(await page.evaluate(_readability_eval()))
+                try:
+                    article = _parse_readability(await page.evaluate(_readability_eval()))
+                except Exception:  # noqa: BLE001
+                    article = None
                 if article:
                     return article
             html = await page.content()
@@ -419,11 +422,19 @@ class BrowserPool:
         page = None
         context = None
         try:
-            context = await self._cdp_browser.new_context(
-                user_agent=self.user_agent,
-                viewport={"width": 1280, "height": 800},
-                extra_http_headers=extra_headers or {},
-            )
+            try:
+                context = await self._cdp_browser.new_context(
+                    user_agent=self.user_agent,
+                    viewport={"width": 1280, "height": 800},
+                    extra_http_headers=extra_headers or {},
+                )
+            except Exception:  # noqa: BLE001
+                await self._reconnect_cdp()
+                context = await self._cdp_browser.new_context(
+                    user_agent=self.user_agent,
+                    viewport={"width": 1280, "height": 800},
+                    extra_http_headers=extra_headers or {},
+                )
             if cookies:
                 cookie_list = [{"name": k, "value": v, "url": url} for k, v in cookies.items()]
                 await context.add_cookies(cookie_list)
@@ -459,7 +470,10 @@ class BrowserPool:
                     except Exception:  # noqa: BLE001
                         pass
             if readability:
-                article = _parse_readability(await page.evaluate(_readability_eval()))
+                try:
+                    article = _parse_readability(await page.evaluate(_readability_eval()))
+                except Exception:  # noqa: BLE001
+                    article = None
                 if article:
                     return article
             html = await page.content()
@@ -517,6 +531,41 @@ class BrowserPool:
             await self._scrapling_session.start()
             logger.warning("Scrapling session recreated after browser death")
 
+
+    async def _restart_solver_session(self) -> None:
+        """Recreate the solver session after its browser died."""
+        async with self._get_solver_lock():
+            if self._solver_session is not None:
+                try:
+                    await self._solver_session.close()
+                except Exception:  # noqa: BLE001
+                    pass
+                self._solver_session = None
+            from scrapling.fetchers import AsyncStealthySession
+
+            self._solver_session = AsyncStealthySession(
+                headless=self.headless,
+                network_idle=False,
+                timeout=self.launch_timeout * 1000,
+                max_pages=max(1, self.max_instances),
+                solve_cloudflare=True,
+                useragent=self.user_agent,
+            )
+            await self._solver_session.start()
+            logger.warning("Scrapling solver session recreated after browser death")
+
+    async def _reconnect_cdp(self) -> None:
+        """Reconnect the CDP browser after a connection drop."""
+        try:
+            await self._cdp_browser.close()
+        except Exception:  # noqa: BLE001
+            pass
+        self._cdp_browser = None
+        self._cdp_browser = await self._pw.chromium.connect_over_cdp(
+            endpoint_url=self.cdp_url,
+            timeout=self.launch_timeout * 1000,
+        )
+        logger.warning("Obscura CDP reconnected: %s", self.cdp_url)
     async def _scrapling_render(
         self,
         url: str,
@@ -705,16 +754,27 @@ class BrowserPool:
 
         await self._semaphore.acquire()
         try:
-            resp = await asyncio.wait_for(
-                session.fetch(
-                    url,
-                    timeout=timeout * 1000,
-                    wait_selector=wait_for or None,
-                    extra_headers=merged_headers or None,
-                    page_action=_page_action,
-                ),
-                timeout=timeout + 5.0,
-            )
+            for attempt in range(3):
+                try:
+                    resp = await asyncio.wait_for(
+                        session.fetch(
+                            url,
+                            timeout=timeout * 1000,
+                            wait_selector=wait_for or None,
+                            extra_headers=merged_headers or None,
+                            page_action=_page_action,
+                        ),
+                        timeout=timeout + 5.0,
+                    )
+                    break
+                except Exception as exc:  # noqa: BLE001
+                    if (_is_dead_browser(exc) or isinstance(exc, asyncio.TimeoutError)) and attempt < 2:
+                        await self._restart_solver_session()
+                        session = await self._get_solver_session()
+                        if attempt == 1:
+                            await asyncio.sleep(0.5)
+                    else:
+                        raise
             if resp is None or not resp.body:
                 raise RuntimeError(f"Empty response for {url}")
             return resp.body.decode("utf-8", errors="ignore")
