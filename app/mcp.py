@@ -148,12 +148,10 @@ def get_tool_definitions(config: ForageConfig) -> List[Dict[str, Any]]:
     default_engines_str = ", ".join(config.search.engines)
     available_engines_str = ", ".join(live_available)
     now_dt = datetime.now().astimezone()
-    now_date = now_dt.strftime("%Y-%m-%d %H:%M %Z")
     year = str(now_dt.year)
 
     req_label = "REQUIRED" if getattr(config.extract, "require_max_chars", False) else "Optional"
     context = {
-        "now_date": now_date,
         "year": year,
         "search_name": search_name,
         "extract_name": extract_name,

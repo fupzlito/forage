@@ -17,7 +17,7 @@ DEFAULT_CITATION_GUIDELINES = (
 )
 
 DEFAULT_SEARCH_TOOL_DESCRIPTION = (
-    "Search the web via SearXNG to find relevant links and sources. Today is {now_date} (year {year}). "
+    "Search the web via SearXNG to find relevant links and sources. Today is {year}. "
     "Do not add dates or years to queries unless time-specific or directly relevant. "
     "Prioritize relevant sources based on snippet and domain before fetching full pages. "
     "To specifically search Reddit or subreddits, ONLY use the {extract_name} tool directly on Reddit search URLs (e.g. 'https://www.reddit.com/search/?q=keywords' or 'https://www.reddit.com/r/subreddit/search/?q=keywords'). "
@@ -27,7 +27,7 @@ DEFAULT_SEARCH_TOOL_DESCRIPTION = (
 DEFAULT_EXTRACT_TOOL_DESCRIPTION = (
     "Fetch and extract clean markdown content from web URLs. Supports rich forum threads, articles, documentation, and e-commerce. "
     "Has a special Reddit pipeline and direct search URLs (e.g. 'https://www.reddit.com/search/?q=QUERY' or 'https://www.reddit.com/r/SUBREDDIT/search/?q=QUERY'). "
-    "{max_chars_requirement}: set max_chars per URL to budget context. Today is {now_date} (year {year}). "
+    "{max_chars_requirement}: set max_chars per URL to budget context. Today is {year}. "
     "{citation_guidelines}"
 )
 
@@ -53,7 +53,7 @@ DEFAULT_YOUTUBE_TOOL_DESCRIPTION = (
     "Search YouTube videos, discover creator channel uploads, or query videos inside a specific channel. "
     "Always use this tool for YouTube instead of web scraping or browser fetch. "
     "Supports creator handles (e.g. '@aboutoliver'), channel URLs, or channel IDs ('UC...'). "
-    "Today is {now_date} (year {year}). "
+    "Today is {year}. "
     "{citation_guidelines}"
 )
 

@@ -28,7 +28,7 @@ class TestPrompts(unittest.TestCase):
         youtube_tool = next(t for t in tools if t["name"] == "youtube_search")
 
         self.assertIn("Search the web via SearXNG", search_tool["description"])
-        self.assertIn("year 2026", search_tool["description"])
+        self.assertIn("Today is 2026", search_tool["description"])
         self.assertIn("CITATION RULES", search_tool["description"])
         self.assertIn("Search YouTube videos", youtube_tool["description"])
 
