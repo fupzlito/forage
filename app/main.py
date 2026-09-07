@@ -237,17 +237,17 @@ def custom_openapi():
     youtube_name = getattr(config.tools, "youtube_name", "youtube_search")
     youtube_def = next((t for t in tools_def if t["name"] in (youtube_name, "youtube_search")), None)
 
-    for yt_path in ("/v1/youtube/search", "/youtube/search"):
-        if yt_path in paths and "post" in paths[yt_path]:
-            paths[yt_path]["post"]["operationId"] = youtube_name
-            paths[yt_path]["post"]["summary"] = "YouTube Search"
-            if youtube_def:
-                paths[yt_path]["post"]["description"] = youtube_def["description"]
-            if youtube_def and "YouTubeSearchRequest" in schemas:
-                for prop_name, prop_spec in youtube_def["inputSchema"].get("properties", {}).items():
-                    if prop_name in schemas["YouTubeSearchRequest"].get("properties", {}):
-                        if "description" in prop_spec:
-                            schemas["YouTubeSearchRequest"]["properties"][prop_name]["description"] = prop_spec["description"]
+    yt_path = "/v1/youtube/search"
+    if yt_path in paths and "post" in paths[yt_path]:
+        paths[yt_path]["post"]["operationId"] = youtube_name
+        paths[yt_path]["post"]["summary"] = "YouTube Search"
+        if youtube_def:
+            paths[yt_path]["post"]["description"] = youtube_def["description"]
+        if youtube_def and "YouTubeSearchRequest" in schemas:
+            for prop_name, prop_spec in youtube_def["inputSchema"].get("properties", {}).items():
+                if prop_name in schemas["YouTubeSearchRequest"].get("properties", {}):
+                    if "description" in prop_spec:
+                        schemas["YouTubeSearchRequest"]["properties"][prop_name]["description"] = prop_spec["description"]
 
     app.openapi_schema = openapi_schema
     return app.openapi_schema
@@ -358,7 +358,7 @@ async def search(
 
 
 @app.post("/v1/youtube/search")
-@app.post("/youtube/search")
+@app.post("/youtube/search", include_in_schema=False)
 async def youtube_search_endpoint(
     req: YouTubeSearchRequest,
     request: Request,
