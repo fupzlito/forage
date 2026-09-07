@@ -157,7 +157,7 @@ Keys come from the `FORAGE_API_KEYS` env var (comma-separated) and are compared 
 
 ## `prompts`
 
-Customize citation rules, tool descriptions, and OpenAPI/MCP parameter descriptions. Supports dynamic template placeholders: `{now_date}` (e.g. `2026-08-24 03:57 UTC`), `{year}` (`2026`), `{default_engines}`, `{available_engines}`, `{default_limit}`, `{citation_guidelines}`.
+Customize citation rules, tool descriptions, and OpenAPI/MCP parameter descriptions. Supports dynamic template placeholders: `{year}` (`2026`), `{default_engines}`, `{available_engines}`, `{default_limit}`, `{citation_guidelines}`. Per-result timestamps (`searched_at` / `extracted_at`) carry the live date/time.
 
 | Key | Default | Description |
 | --- | --- | --- |

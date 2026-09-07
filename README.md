@@ -45,8 +45,8 @@ Everything built on top of commit `93920b3` has been vibecoded to transform Fora
   - In-memory extract cache stores the **full, untruncated** document.
   - When an LLM initially fetches a URL with a low `max_chars` (e.g. 2,000) and later requests higher context (e.g. 20,000), Forage serves an **instant sub-millisecond cache hit (`<1ms`)** sliced to the new limit with zero network or browser overhead.
 - 📝 **Dynamic Prompt & Citation System**:
-  - Customizable tool descriptions supporting live template variables: `{now_date}`, `{year}`, `{default_engines}`, `{available_engines}`, `{default_limit}`, `{citation_guidelines}`.
-  - Timezone-aware date injection (`TZ` env var) so models always know current date/time context.
+  - Customizable tool descriptions supporting live template variables: `{year}`, `{default_engines}`, `{available_engines}`, `{default_limit}`, `{citation_guidelines}`.
+  - Descriptions expose the current year (`{year}`); per-result date/time is stamped in each tool's response (`searched_at` / `extracted_at`).
   - 7 customizable citation formats (`site_name`, `site_name_brackets`, `academic`, `site_name_bold`, `site_name_italic`, `bracket_domain`, `bracket_title`).
   - Optional standalone `prompts.yaml` file support.
 - 📏 **LLM Character Budgeting (`max_chars` & `require_max_chars`)**:
