@@ -194,7 +194,7 @@ def fetch_searxng_engines_sync(searxng_url: str, timeout: float = 2.0) -> Tuple[
             if available:
                 return tuple(available), tuple(general)
     except Exception as exc:
-        logger.debug("Failed to fetch SearXNG /config (%s): %s", url, exc)
+        logger.warning("Failed to fetch SearXNG /config (%s): %s", url, exc)
     return (), ()
 
 
