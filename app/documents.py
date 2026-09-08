@@ -163,17 +163,32 @@ def extract_document_bytes(
 
     meta_title = ""
     if kind == "pdf":
-        text, meta_title = _extract_pdf(data)
+        try:
+            text, meta_title = _extract_pdf(data)
+        except Exception as exc:  # noqa: BLE001
+            raise ValueError(f"pdf parse failed: {exc}") from exc
     else:
         path = (urlparse(url).path or "").lower()
         if path.endswith(".docx"):
-            text = _extract_docx(data)
+            try:
+                text = _extract_docx(data)
+            except Exception as exc:  # noqa: BLE001
+                raise ValueError(f"docx parse failed: {exc}") from exc
         elif path.endswith(".xlsx"):
-            text = _extract_xlsx(data)
+            try:
+                text = _extract_xlsx(data)
+            except Exception as exc:  # noqa: BLE001
+                raise ValueError(f"xlsx parse failed: {exc}") from exc
         elif path.endswith(".pptx"):
-            text = _extract_pptx(data)
+            try:
+                text = _extract_pptx(data)
+            except Exception as exc:  # noqa: BLE001
+                raise ValueError(f"pptx parse failed: {exc}") from exc
         elif path.endswith(".rtf"):
-            text = _extract_rtf(data)
+            try:
+                text = _extract_rtf(data)
+            except Exception as exc:  # noqa: BLE001
+                raise ValueError(f"rtf parse failed: {exc}") from exc
         else:
             # Content-Type said office document but the URL has no extension;
             # try the parsers in order until one succeeds.
