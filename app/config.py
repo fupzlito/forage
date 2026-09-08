@@ -269,18 +269,18 @@ class ForageConfig:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any], source_path: str) -> "ForageConfig":
-        server = _filter_dataclass_dict(ServerConfig, data.get("server", {}))
-        cache = data.get("cache", {})
-        tools = _filter_dataclass_dict(ToolsConfig, data.get("tools", {}))
-        search_data = dict(data.get("search", {}))
+        server = _filter_dataclass_dict(ServerConfig, data.get("server") or {})
+        cache = data.get("cache") or {}
+        tools = _filter_dataclass_dict(ToolsConfig, data.get("tools") or {})
+        search_data = dict(data.get("search") or {})
         if "default_engines" in search_data and "engines" not in search_data:
             search_data["engines"] = search_data["default_engines"]
         search = _filter_dataclass_dict(SearchConfig, search_data)
-        extract = _filter_dataclass_dict(ExtractConfig, data.get("extract", {}))
-        browser = _filter_dataclass_dict(BrowserConfig, data.get("browser", {}))
-        auth = _filter_dataclass_dict(AuthConfig, data.get("auth", {}))
-        prompts = _filter_dataclass_dict(PromptsConfig, data.get("prompts", {}))
-        youtube = _filter_dataclass_dict(YouTubeConfig, data.get("youtube", {}))
+        extract = _filter_dataclass_dict(ExtractConfig, data.get("extract") or {})
+        browser = _filter_dataclass_dict(BrowserConfig, data.get("browser") or {})
+        auth = _filter_dataclass_dict(AuthConfig, data.get("auth") or {})
+        prompts = _filter_dataclass_dict(PromptsConfig, data.get("prompts") or {})
+        youtube = _filter_dataclass_dict(YouTubeConfig, data.get("youtube") or {})
 
         if "engines" in search:
             search["engines"] = tuple(search["engines"])
@@ -531,36 +531,48 @@ def _apply_env_overrides(merged: Dict[str, Any]) -> Dict[str, Any]:
     if reddit_token:
         reddit_cookies["token_v2"] = _clean_val(reddit_token)
 
+    # If the YAML section is null, we need a plain dict to mutate.
+    extract_dict = merged.get("extract")
+    if not isinstance(extract_dict, dict):
+        extract_dict = {}
+        merged["extract"] = extract_dict
+    overrides = extract_dict.get("domain_overrides")
+    if not isinstance(overrides, dict):
+        overrides = {}
+        extract_dict["domain_overrides"] = overrides
+
     if reddit_cookies:
-        extract_dict = merged.setdefault("extract", {})
-        overrides = extract_dict.setdefault("domain_overrides", {})
-        if isinstance(overrides, dict):
-            matched = False
-            for pat in ("reddit.com", "reddit.com/r/", ".reddit.com"):
-                if pat in overrides and isinstance(overrides[pat], dict):
-                    existing_cookies = overrides[pat].setdefault("cookies", {})
-                    if isinstance(existing_cookies, dict):
-                        existing_cookies.update(reddit_cookies)
-                        matched = True
-            if not matched:
-                reddit_entry = overrides.setdefault("reddit.com", {})
-                if isinstance(reddit_entry, dict):
-                    existing_cookies = reddit_entry.setdefault("cookies", {})
-                    if isinstance(existing_cookies, dict):
-                        existing_cookies.update(reddit_cookies)
+        matched = False
+        for pat in ("reddit.com", "reddit.com/r/", ".reddit.com"):
+            if pat in overrides and isinstance(overrides[pat], dict):
+                existing_cookies = overrides[pat].setdefault("cookies", {})
+                if isinstance(existing_cookies, dict):
+                    existing_cookies.update(reddit_cookies)
+                    matched = True
+        if not matched:
+            reddit_entry = overrides.setdefault("reddit.com", {})
+            if isinstance(reddit_entry, dict):
+                existing_cookies = reddit_entry.setdefault("cookies", {})
+                if isinstance(existing_cookies, dict):
+                    existing_cookies.update(reddit_cookies)
 
     # YouTube
+    yt_section = merged.get("youtube")
+    if not isinstance(yt_section, dict):
+        yt_section = {}
+        merged["youtube"] = yt_section
+
     yt_api_key = os.environ.get("FORAGE_YOUTUBE_API_KEY") or os.environ.get("YOUTUBE_API_KEY")
     if yt_api_key is not None:
-        merged.setdefault("youtube", {})["api_key"] = _clean_val(yt_api_key)
+        yt_section["api_key"] = _clean_val(yt_api_key)
     if "FORAGE_YOUTUBE_DEFAULT_LIMIT" in os.environ:
         try:
-            merged.setdefault("youtube", {})["default_limit"] = int(os.environ["FORAGE_YOUTUBE_DEFAULT_LIMIT"])
+            yt_section["default_limit"] = int(os.environ["FORAGE_YOUTUBE_DEFAULT_LIMIT"])
         except ValueError:
             pass
     if "FORAGE_YOUTUBE_MAX_LIMIT" in os.environ:
         try:
-            merged.setdefault("youtube", {})["max_limit"] = int(os.environ["FORAGE_YOUTUBE_MAX_LIMIT"])
+            yt_section["max_limit"] = int(os.environ["FORAGE_YOUTUBE_MAX_LIMIT"])
         except ValueError:
             pass
 
