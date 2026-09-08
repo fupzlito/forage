@@ -171,7 +171,7 @@ class ExtractRequest(BaseModel):
     max_chars: Optional[int] = Field(
         default=None,
         ge=500,
-        le=500000,
+        le=config.extract.max_content_chars,
         description="Optional maximum characters to return per URL. Truncates long pages to save context.",
     )
     stream: bool = Field(
