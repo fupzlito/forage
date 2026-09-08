@@ -253,4 +253,3 @@ content >= 100 chars, non-empty title).
 - `docs/BENCHMARK.md` — engine comparison tables
 - `config.example.yaml` — default configuration (keep in sync with CONFIG.md)
 - `IDEAS.md` — behavior/design notes: youtube_search availability, fragile SearXNG engine discovery, Reddit 3-tier pipeline
-- `MASTER_CODE_REVIEW.md` — consolidated issue registry (per-issue fixes, implementing commits, open items)

@@ -1,6 +1,6 @@
 # Forage — Cookbook / Behavior Ideas (current-state audit, 2026-08-28)
 
-Scope: design/behavior ideas grounded in the **current code** at `de48ddb`, plus the fragile/undocumented parts of three subsystems the team flagged: the `youtube_search` tool, SearXNG engine auto-discovery, and the Reddit 3-tier pipeline. Fills the MASTER_CODE_REVIEW.md §4 "open issues" perspective from the *product/behavior* side.
+Scope: design/behavior ideas grounded in the **current code** at `de48ddb`, plus the fragile/undocumented parts of three subsystems the team flagged: the `youtube_search` tool, SearXNG engine auto-discovery, and the Reddit 3-tier pipeline.
 
 ---
 
@@ -67,7 +67,7 @@ For now: **I'd stop at (1) if the goal is to reduce mis-calls without expanding 
 
 ---
 
-## 5. Other current-state scraps (carried from MASTER_CODE_REVIEW §4/§5, O-…/F-…)
+## 5. Other current-state scraps (O-…/F-… notes)
 
 - `requirements.lock` — untracked & mispoken (contains `cptr`, `claude-agent-sdk`, …). Delete or clean-recreate.
 - Git identity still `cptr <cptr@localhost>`.
@@ -87,4 +87,4 @@ For now: **I'd stop at (1) if the goal is to reduce mis-calls without expanding 
 3. **README + CONFIG.md Reddit-tier note** (IDEA 3A) — one paragraph + one config.example line-comment.
 4. **IDEA 2 docs** + small `logger.warning` when the probe falls back (cheap telemetry, no behavior change).
 5. **Decide on §4** (docs-only vs `reddit_search` tool) and schedule accordingly.
-6. Then F-1..F-10 from MASTER_CODE_REVIEW §5 (code hygiene), knowing some (`logger`, lock, git id) are one-liners.
+6. Then F-1..F-10 (code hygiene chores), knowing some (`logger`, lock, git id) are one-liners.
