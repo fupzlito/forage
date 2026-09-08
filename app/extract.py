@@ -1086,6 +1086,11 @@ async def extract_url(
                 solver_html = None
             if solver_html:
                 mirror_host = _reddit_mirror(config)
+                # Solver returns raw full-page DOM (not the Readability article DOM);
+                # the earlier readability_rendered flag is now stale. Reset it so
+                # _to_output falls through to the trafilatura path instead of
+                # markdownifying the entire page shell.
+                readability_rendered = False
                 html = strip_reddit_ads_from_html(solver_html) if ("reddit.com" in original_url.lower() or (mirror_host is not None and mirror_host in original_url.lower())) else solver_html
                 method = "browser+solver"
                 title = _extract_title(html)
