@@ -23,6 +23,7 @@ from .browser import BrowserPool
 from .config import ForageConfig
 from .extract import clamp_output, extract_url
 from .searxng import search_searxng
+from .youtube import search_youtube
 
 logger = logging.getLogger("forage.mcp")
 
@@ -584,7 +585,8 @@ async def execute_tool_call(
         }
 
     elif name == youtube_name or name == "youtube_search":
-        from app.youtube import search_youtube
+        if not config.youtube.enabled:
+            return {"error": "youtube_search requires an API key"}
 
         query = arguments.get("query")
         channel = arguments.get("channel")
