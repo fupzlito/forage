@@ -8,7 +8,7 @@ import asyncio
 import unittest
 from unittest.mock import AsyncMock, MagicMock
 
-from app.browser import BrowserPool, _is_dead_browser
+from app.browser import BrowserPool, _is_dead_browser, _is_streaming_domain
 
 
 class _Cfg:
@@ -114,5 +114,24 @@ class TestScraplingHeal(unittest.TestCase):
         self.assertEqual(restart.await_count, 0)
 
 
+class TestStreamingDomain(unittest.TestCase):
+    def test_matching_hosts(self):
+        for u in (
+            "https://www.reddit.com/r/x/comments/1",
+            "https://x.com/OpenAI",
+            "https://twitter.com/x/i/status/1",
+            "https://old.reddit.com/r/x",
+        ):
+            self.assertTrue(_is_streaming_domain(u), u)
+
+    def test_substring_false_positives_rejected(self):
+        for u in (
+            "https://dropbox.com/file",
+            "https://fox.com",
+            "https://benchdropbox.com/x",
+            "https://myx.com",
+            "https://example.com",
+        ):
+            self.assertFalse(_is_streaming_domain(u), u)
 if __name__ == "__main__":
     unittest.main()

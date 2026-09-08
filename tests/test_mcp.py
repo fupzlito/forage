@@ -3,6 +3,7 @@
 import dataclasses
 import json
 import unittest
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
@@ -206,6 +207,23 @@ class TestMCPAndOpenAIEndpoints(unittest.TestCase):
         self.assertIn("Fetch and extract clean markdown", extract_op["description"])
         self.assertIn("Search YouTube videos", youtube_op["description"])
         self.assertIn("CITATION RULES", extract_op["description"])
+
+
+    def test_extract_schema_max_tracks_config(self):
+        body = self.client.get("/openapi.json").json()
+        # The field is Optional, so the schema is {anyOf: [{type, maximum, minimum}, null]}.
+        any_of = body["components"]["schemas"]["ExtractRequest"]["properties"]["max_chars"]["anyOf"]
+        opts = [opt for opt in any_of if "maximum" in opt]
+        self.assertEqual(len(opts), 1)
+        self.assertEqual(opts[0]["maximum"], config.extract.max_content_chars)
+    def test_youtube_dispatch_gates_on_key(self):
+        import app.mcp as mc
+        # Load config as-is. If no yt key is set by the environment we expect the guard to fire.
+        if config.youtube.enabled:
+            self.skipTest("youtube key is configured; guard would not fire")
+        pool = None  # guard path returns before touching the pool
+        result = asyncio.run(mc.execute_tool_call("youtube_search", {"query": "x"}, config, pool))
+        self.assertEqual(result, {"error": "youtube_search requires an API key"})
 
     @patch("app.mcp.extract_url", new_callable=AsyncMock)
     def test_mcp_tools_call_extract_require_max_chars(self, mock_extract):

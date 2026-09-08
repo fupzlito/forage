@@ -2,11 +2,14 @@
 
 import unittest
 from unittest.mock import MagicMock, patch
-
 from app.config import ForageConfig, load_config
-from app.searxng import normalize_and_validate_engines, search_searxng
-
-
+from app.searxng import (
+    DEFAULT_AVAILABLE_ENGINES,
+    get_live_available_engines,
+    normalize_and_validate_engines,
+    search_searxng,
+    fetch_searxng_engines_sync,
+)
 class TestSearXNG(unittest.TestCase):
     def setUp(self):
         self.config = load_config()
@@ -391,6 +394,31 @@ class TestSearXNG(unittest.TestCase):
         avail_custom = get_live_available_engines(cfg_custom)
         self.assertEqual(avail_custom, ("google", "duckduckgo"))
 
+class TestSearxngFallback(unittest.TestCase):
+    def test_probe_failure_logged_as_warning(self):
+        """When the /config probe fails at the transport level, the log
+        should be at WARNING (not DEBUG) so operators can spot the machine.
+        """
+        from unittest.mock import MagicMock, patch
+        mock_logger = MagicMock()
+        mock_get = MagicMock(side_effect=Exception("connection refused"))
+        with patch("app.searxng.logger", mock_logger), patch("app.searxng.httpx.get", mock_get):
+            fetch_searxng_engines_sync("http://127.0.0.1:1/config")
+        self.assertTrue(mock_logger.warning.called)
+        self.assertFalse(mock_logger.debug.called)
+        self.assertTrue(mock_get.called)
+
+    def test_get_live_available_engines_takes_default(self):
+        """When the probe returns no engines (or fails), the function
+        falls back to ``DEFAULT_AVAILABLE_ENGINES`` and caches the
+        value so subsequent calls in the TTL window skip the probe."""
+        mock_get = MagicMock(return_value=MagicMock(status_code=500, json=MagicMock(return_value={}), raise_for_status=MagicMock()))
+        mock_get.return_value.json.return_value is None  # safety
+        from unittest.mock import patch
+        with patch("app.searxng.fetch_searxng_engines_sync", return_value=([], ())):
+            cfg = ForageConfig.from_dict({"search": {"searxng_url": "http://local"}}, source_path="test")
+            out = get_live_available_engines(cfg)
+            self.assertEqual(tuple(out), tuple(DEFAULT_AVAILABLE_ENGINES))
 
 if __name__ == "__main__":
     unittest.main()
