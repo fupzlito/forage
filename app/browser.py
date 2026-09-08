@@ -15,6 +15,7 @@ import pathlib
 import time
 from collections import deque
 from typing import Any, Deque, Dict, Optional, Union
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,14 @@ _READABILITY_JS = (pathlib.Path(__file__).parent / "readability.js").read_text(
 _REDDIT_DOM_PREP_JS = (pathlib.Path(__file__).parent / "reddit_dom.js").read_text(
     encoding="utf-8"
 )
+
+# Host/subdomain predicate for streaming pages (Reddit, X, Twitter).
+# These sites keep websockets open and never reach networkidle, so
+# networkidle wait would stall for `idle_cap` seconds. Host, not substring:
+# a bare ``x.com`` check false-positives on ``dropbox.com``/``fox.com``.
+def _is_streaming_domain(url: str) -> bool:
+    host = (urlparse(url).hostname or "").lower()
+    return any(host == d or host.endswith("." + d) for d in ("reddit.com", "x.com", "twitter.com"))
 
 
 def _readability_eval() -> str:
@@ -353,7 +362,7 @@ class BrowserPool:
             )
             if wait_for:
                 await page.wait_for_selector(wait_for, timeout=timeout * 1000)
-            elif idle_cap > 0 and not any(d in url.lower() for d in ("reddit.com", "x.com", "twitter.com")):
+            elif idle_cap > 0 and not _is_streaming_domain(url):
                 try:
                     await page.wait_for_load_state(
                         "networkidle",
@@ -448,7 +457,7 @@ class BrowserPool:
             )
             if wait_for:
                 await page.wait_for_selector(wait_for, timeout=timeout * 1000)
-            elif idle_cap > 0 and not any(d in url.lower() for d in ("reddit.com", "x.com", "twitter.com")):
+            elif idle_cap > 0 and not _is_streaming_domain(url):
                 try:
                     await page.wait_for_load_state(
                         "networkidle",
@@ -613,7 +622,7 @@ class BrowserPool:
                 if not any(c in title for c in CHALLENGE_TITLES):
                     break
                 await page.wait_for_timeout(1000)
-            if idle_cap > 0 and not any(d in url.lower() for d in ("reddit.com", "x.com", "twitter.com")):
+            if idle_cap > 0 and not _is_streaming_domain(url):
                 try:
                     await page.wait_for_load_state(
                         "networkidle",
@@ -737,7 +746,7 @@ class BrowserPool:
                     await page.context.add_cookies(cookie_list)
                 except Exception:  # noqa: BLE001
                     pass
-            if idle_cap > 0 and not any(d in url.lower() for d in ("reddit.com", "x.com", "twitter.com")):
+            if idle_cap > 0 and not _is_streaming_domain(url):
                 try:
                     await page.wait_for_load_state(
                         "networkidle",
