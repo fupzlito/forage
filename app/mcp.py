@@ -983,9 +983,15 @@ async def v1_tools_call(
                         return {"url": u, "error": str(exc)}
 
                 tasks = [asyncio.create_task(_one(u, idx + 1)) for idx, u in enumerate(urls)]
-                for coro in asyncio.as_completed(tasks):
-                    res = await coro
-                    yield f"data: {json.dumps(res, ensure_ascii=False)}\n\n"
+                try:
+                    for coro in asyncio.as_completed(tasks):
+                        res = await coro
+                        yield f"data: {json.dumps(res, ensure_ascii=False)}\n\n"
+                finally:
+                    for t in tasks:
+                        if not t.done():
+                            t.cancel()
+                    await asyncio.gather(*tasks, return_exceptions=True)
                 yield "data: [DONE]\n\n"
             else:
                 res = await execute_tool_call(name, arguments, config, browser_pool)
@@ -1156,27 +1162,33 @@ async def _stream_openai_chat_completions(
                 return pos, {"url": u, "error": str(exc)}
 
         tasks = [asyncio.create_task(_one_stream(u, idx + 1)) for idx, u in enumerate(urls)]
-        for coro in asyncio.as_completed(tasks):
-            pos, r = await coro
-            if "error" in r:
-                block = f"[{pos}] {r['url']}\nERROR: {r['error']}\n\n---\n\n"
-            else:
-                t = r.get("title", "")
-                dom = r.get("domain", "")
-                u = r.get("url", "")
-                c = r.get("content", "")
-                m = r.get("method", "unknown")
-                cit = r.get("citation", f"[{dom}]({u})")
-                block = (
-                    f"[{pos}] {dom} | {m}\n"
-                    f"URL: {u}\n"
-                    f"TITLE: {t}\n"
-                    f"CITE AS: {cit}"
-                )
-                if include_fav and r.get('favicon'):
-                    block += f"\nFAVICON: {r['favicon']}"
-                block += f"\n\n{c}\n\n---\n\n"
-            yield _chunk(content=block)
+        try:
+            for coro in asyncio.as_completed(tasks):
+                pos, r = await coro
+                if "error" in r:
+                    block = f"[{pos}] {r['url']}\nERROR: {r['error']}\n\n---\n\n"
+                else:
+                    t = r.get("title", "")
+                    dom = r.get("domain", "")
+                    u = r.get("url", "")
+                    c = r.get("content", "")
+                    m = r.get("method", "unknown")
+                    cit = r.get("citation", f"[{dom}]({u})")
+                    block = (
+                        f"[{pos}] {dom} | {m}\n"
+                        f"URL: {u}\n"
+                        f"TITLE: {t}\n"
+                        f"CITE AS: {cit}"
+                    )
+                    if include_fav and r.get('favicon'):
+                        block += f"\nFAVICON: {r['favicon']}"
+                    block += f"\n\n{c}\n\n---\n\n"
+                yield _chunk(content=block)
+        finally:
+            for t in tasks:
+                if not t.done():
+                    t.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     else:
         # Search execution

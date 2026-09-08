@@ -431,9 +431,15 @@ async def extract(
     if is_stream:
         async def _stream_events():
             tasks = [asyncio.create_task(_extract_one_full(u, idx + 1)) for idx, u in enumerate(req.urls)]
-            for coro in asyncio.as_completed(tasks):
-                res = await coro
-                yield f"data: {json.dumps(res, ensure_ascii=False)}\n\n"
+            try:
+                for coro in asyncio.as_completed(tasks):
+                    res = await coro
+                    yield f"data: {json.dumps(res, ensure_ascii=False)}\n\n"
+            finally:
+                for t in tasks:
+                    if not t.done():
+                        t.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
             yield "data: [DONE]\n\n"
 
         return StreamingResponse(_stream_events(), media_type="text/event-stream")
