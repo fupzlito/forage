@@ -420,5 +420,31 @@ class TestSearxngFallback(unittest.TestCase):
             out = get_live_available_engines(cfg)
             self.assertEqual(tuple(out), tuple(DEFAULT_AVAILABLE_ENGINES))
 
+    def test_live_engines_stampede_probes_once(self):
+        """Under a burst of concurrent callers past a TTL expiry, the
+        SearXNG /config probe must run exactly once: the lock serialises
+        the re-probe and every caller resolves from the shared cache."""
+        import app.searxng as sx
+        # Reset module-level cache so the next call actually probes.
+        sx._cached_available_engines = None
+        sx._cached_general_engines = None
+        sx._last_engine_fetch = 0.0
+        cfg = ForageConfig.from_dict({"search": {"searxng_url": "http://local"}}, source_path="test")
+
+        probe_calls = {"n": 0}
+
+        def _slow_probe(*a, **k):
+            probe_calls["n"] += 1
+            import time as _t
+            _t.sleep(0.05)
+            return ("google", "bing", "duckduckgo"), ("google", "bing", "duckduckgo")
+
+        with patch.object(sx, "fetch_searxng_engines_sync", side_effect=_slow_probe):
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+                results = list(ex.map(lambda c: get_live_available_engines(c), [cfg] * 8))
+            self.assertEqual(results[0], ("google", "bing", "duckduckgo"))
+            self.assertEqual(probe_calls["n"], 1)
+
 if __name__ == "__main__":
     unittest.main()
