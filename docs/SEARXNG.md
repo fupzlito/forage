@@ -131,7 +131,7 @@ curl -s -X POST http://localhost:3672/search -H 'Content-Type: application/json'
 
 Expect `"success": true` with results.
 
-> **Cold start:** Forage probes SearXNG `GET /config` (the live engine auto-discovery) with a short timeout, then caches the catalog for 5 minutes. If SearXNG is not ready or is slow to answer, the probe falls back to a built-in engine catalog that has **not** been validated against your instance (it can name engines you never registered, e.g. `youtube`, `reddit`); subsequent `POST /search` calls then report "ignored unknown engine(s)" warnings and fall back to the default engines. Bring up Forage after SearXNG is fully up, or pin the catalog by setting `FORAGE_AVAILABLE_ENGINES`.
+> **Cold start:** Forage probes SearXNG `GET /config` (the live engine auto-discovery) with a short timeout, then caches the catalog for 5 minutes. If SearXNG is not ready or is slow to answer, the probe falls back to the built-in `DEFAULT_AVAILABLE_ENGINES` catalog (`searxng.py:149-152`: 12 names; `google`, `qwant`, `qwant news`, `brave`, `bing`, `startpage`, `duckduckgo`, `wikipedia`, `github`, `searxng`, `yahoo`, `wikidata`), not validated against your instance and without SearXNG-specific engines (e.g. `youtube`, `reddit`); subsequent `POST /search` calls then report "ignored unknown engine(s)" warnings and fall back to the default engines. Bring up Forage after SearXNG is fully up, or pin the catalog by setting `FORAGE_AVAILABLE_ENGINES`.
 
 ## 5. Tuning & Anti-CAPTCHA Strategy
 

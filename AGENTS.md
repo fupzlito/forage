@@ -98,12 +98,17 @@ API: `GET /health`, `POST /search`, `POST /extract`, `POST /v1/youtube/search` (
   `normalize_and_validate_engines()` automatically prunes inactive engines from
   the defaults before sending the request. Explicit `available_engines` in
   `config.yaml` or `FORAGE_AVAILABLE_ENGINES` immediately bypasses auto-discovery.
-  **Fragile fallback path:** if the `/config` probe fails (e.g. SearXNG still warming up;
-  timeout is 2 s), `get_live_available_engines` returns the built-in
-  `DEFAULT_AVAILABLE_ENGINES` tuple (a plausible catalog that is NOT validated against
-  your instance; e.g. it names `youtube` and `reddit` whether or not they are registered).
-  The failure is `logger.debug`-only, and subsequent `POST /search` calls then emit
-  "ignored unknown engine(s)" warnings and fall back to `search.default_engines`.
+  **Fragile fallback path:** if the `/config` probe fails (e.g. SearXNG still
+  warming up; 2 s timeout) or returns no engines, `get_live_available_engines`
+  falls back to the built-in `DEFAULT_AVAILABLE_ENGINES` tuple (12 names:
+  `google`, `qwant`, `qwant news`, `brave`, `bing`, `startpage`, `duckduckgo`,
+  `wikipedia`, `github`, `searxng`, `yahoo`, `wikidata`). That catalog is not
+  validated against your instance and does not include SearXNG-specific engines
+  (e.g. `youtube`, `reddit`), so the static and live lists can disagree.
+  Subsequent `POST /search` calls then emit "ignored unknown engine(s)"
+  warnings and fall back to `search.default_engines`. The probe failure is
+  logged at `logger.warning`, and a module-level double-checked lock
+  (`_engine_lock`) keeps concurrent TTL expiries from stampeding the probe.
   See `IDEAS.md` section 2 for hardening options.
 - **YouTube search / channel discovery**: active if and only if `youtube.api_key` is set
   (env `FORAGE_YOUTUBE_API_KEY` / `YOUTUBE_API_KEY`). Queries hit the YouTube Data API v3
